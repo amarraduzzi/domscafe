@@ -262,10 +262,24 @@ export default function App() {
             fr: `${item.name.fr} (${variant.name.fr})`,
             ar: `${item.name.ar} (${variant.name.ar})`
           },
-          price: variant.price,
+          price: Number(variant.price) || item.price,
           image: variant.image || item.image
         };
       }
+    }
+
+    const isAtomicSelected = (item.category as string) === 'bombs' && selectedAtomic[item.id];
+    if (isAtomicSelected && !targetItem.id.endsWith('-atomic')) {
+      targetItem = {
+        ...targetItem,
+        id: `${targetItem.id}-atomic`,
+        name: {
+          en: `${targetItem.name.en} (Atomic)`,
+          fr: `${targetItem.name.fr} (Atomic)`,
+          ar: `${targetItem.name.ar} (النسخة الذرية)`
+        },
+        price: Number(targetItem.price) + 3
+      };
     }
 
     setCart(prevCart => {
@@ -577,7 +591,7 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <AnimatePresence mode="popLayout">
                 {filteredItems.map(item => {
-                  const isAtomicSelected = item.category === 'bombs' && selectedAtomic[item.id];
+                  const isAtomicSelected = (item.category as string) === 'bombs' && selectedAtomic[item.id];
                   const activeVariantId = item.variants && item.variants.length > 0 
                     ? (selectedVariants[item.id] || item.variants[0].id) 
                     : null;
@@ -1449,11 +1463,12 @@ export default function App() {
                             const finalTableNumber = tableFromUrl || tableNumber.trim() || '?';
 
                             const orderItems = cart.map(item => {
-                              const unitPrice = item.menuItem.price;
-                              const lineTotal = unitPrice * item.quantity;
+                              const unitPrice = Number(item.menuItem.price) || 0;
+                              const quantity = Number(item.quantity) || 1;
+                              const lineTotal = unitPrice * quantity;
                               return {
-                                name: item.menuItem.name.fr,
-                                quantity: item.quantity,
+                                name: item.menuItem.name.fr || item.menuItem.name.en || 'Article',
+                                quantity,
                                 note: '',
                                 unitPrice,
                                 lineTotal
