@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=Pacifico&family=Satisfy&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", "Inter", "Cairo", system-ui, sans-serif;
+  --font-display: "Poppins", "Space Grotesk", "Cairo", sans-serif;
+  --font-arabic: "Cairo", sans-serif;
+  --font-logo: "Pacifico", "Satisfy", cursive;
+  
+  --color-brand-orange: #A0783C;
+  --color-brand-orange-hover: #86622D;
+  --color-brand-dark: #1A1208;
+  --color-brand-dark-card: #281C0E;
+
+  --animate-marquee: marquee 25s linear infinite;
+
+  @keyframes marquee {
+    0% {
+      transform: translateX(0%);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+}
+
+/* Custom styles for urban background glows and street design */
+.bg-grid-pattern {
+  background-image: radial-gradient(rgba(160, 120, 60, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.text-stroke-orange {
+  -webkit-text-stroke: 1px #A0783C;
+  color: transparent;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1A1208;
+}
+::-webkit-scrollbar-thumb {
+  background: #A0783C;
+  border-radius: 3px;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

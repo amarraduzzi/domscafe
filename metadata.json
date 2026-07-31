@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Dom\u0027s Caf\u00e9 \u0026 Restaurant",
+  "description": "Elegant, warm, and inviting landing page for Dom\u0027s Caf\u00e9 \u0026 Restaurant. Cozy coffee shop atmosphere and delicious homemade food in the heart of Agdal, Rabat. Multilingual (EN/FR/AR) with a dynamic WhatsApp ordering cart.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
