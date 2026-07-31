@@ -1463,11 +1463,16 @@ export default function App() {
                             const finalTableNumber = tableFromUrl || tableNumber.trim() || '?';
 
                             const orderItems = cart.map(item => {
-                              const unitPrice = Number(item.menuItem.price) || 0;
+                              const unitPrice = Number(
+                                item.menuItem?.price ?? 
+                                (item as any).price ?? 
+                                (item as any).unitPrice ?? 
+                                (item as any).pricePerItem
+                              ) || 0;
                               const quantity = Number(item.quantity) || 1;
                               const lineTotal = unitPrice * quantity;
                               return {
-                                name: item.menuItem.name.fr || item.menuItem.name.en || 'Article',
+                                name: item.menuItem?.name?.fr || item.menuItem?.name?.en || 'Article',
                                 quantity,
                                 note: '',
                                 unitPrice,

@@ -25,17 +25,22 @@ export interface FirestoreOrderItem {
 
 export const createFirestoreOrder = async (
   tableNumber: string,
-  items: FirestoreOrderItem[],
-  _totalAmount?: number
+  items: any[],
+  totalAmount?: number
 ): Promise<void> => {
   try {
     // Process items ensuring unitPrice and lineTotal are valid numbers derived directly from item price data
     const sanitizedItems = items.map(item => {
-      const unitPrice = Number(item.unitPrice) || 0;
+      const unitPrice = Number(
+        item.unitPrice ?? 
+        item.price ?? 
+        item.pricePerItem ?? 
+        item.menuItem?.price
+      ) || 0;
       const quantity = Number(item.quantity) || 1;
-      const lineTotal = unitPrice * quantity;
+      const lineTotal = Number(item.lineTotal) || (unitPrice * quantity);
       return {
-        name: item.name,
+        name: item.name || item.menuItem?.name?.fr || item.menuItem?.name?.en || 'Article',
         quantity,
         note: item.note || '',
         unitPrice,
@@ -43,8 +48,9 @@ export const createFirestoreOrder = async (
       };
     });
 
-    // Calculate order total strictly as the sum of line totals (unitPrice * quantity)
-    const orderTotal = sanitizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+    // Calculate order total strictly as the sum of line totals
+    const calculatedTotal = sanitizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+    const orderTotal = (typeof totalAmount === 'number' && totalAmount > 0) ? totalAmount : calculatedTotal;
 
     const ordersRef = collection(db, "orders");
     await addDoc(ordersRef, {
