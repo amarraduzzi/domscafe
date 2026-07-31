@@ -132,9 +132,13 @@ export const migrateMenuDataToFirestore = async (force = false): Promise<{
     let itemsMigrated = 0;
     let categoriesMigrated = 0;
 
-    if (force || menuSnap.empty) {
+    if (force || menuSnap.empty || menuSnap.size < menuItems.length) {
       for (const item of menuItems) {
-        const cleaned = cleanUndefined(item);
+        const itemWithAvailability = {
+          available: item.available ?? true,
+          ...item
+        };
+        const cleaned = cleanUndefined(itemWithAvailability);
         await setDoc(doc(db, "menuItems", item.id), cleaned);
         itemsMigrated++;
       }
@@ -178,7 +182,20 @@ export const subscribeToMenuItems = (
       }
       const items: MenuItem[] = [];
       snapshot.forEach(docSnap => {
-        items.push({ id: docSnap.id, ...docSnap.data() } as MenuItem);
+        const data = docSnap.data();
+        const item: MenuItem = {
+          id: docSnap.id,
+          name: data.name,
+          category: data.category,
+          price: data.price,
+          description: data.description,
+          image: data.image,
+          spicy: data.spicy,
+          popular: data.popular,
+          available: data.available !== false,
+          variants: data.variants
+        };
+        items.push(item);
       });
       onUpdate(items);
     },

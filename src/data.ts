@@ -15,6 +15,7 @@ export interface MenuItem {
   image: string;
   spicy?: boolean;
   popular?: boolean;
+  available?: boolean;
   variants?: MenuItemVariant[];
 }
 
