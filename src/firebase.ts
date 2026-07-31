@@ -1,5 +1,15 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  setDoc, 
+  doc, 
+  getDocs, 
+  onSnapshot, 
+  serverTimestamp 
+} from "firebase/firestore";
+import { menuItems, MenuItem } from "./data";
 
 // Web app's Firebase configuration
 const firebaseConfig = {
@@ -23,13 +33,55 @@ export interface FirestoreOrderItem {
   lineTotal: number;
 }
 
+export interface FirestoreCategory {
+  id: string;
+  name: Record<'en' | 'fr' | 'ar', string>;
+  emoji: string;
+  displayOrder: number;
+}
+
+export const initialCategories: FirestoreCategory[] = [
+  { id: 'all', name: { fr: "Tout afficher", en: "Show All", ar: "الكل" }, emoji: "🍽️", displayOrder: 0 },
+  { id: 'boissons_chaudes', name: { fr: "Boissons Chaudes", en: "Hot Drinks", ar: "مشروبات ساخنة" }, emoji: "☕", displayOrder: 1 },
+  { id: 'jus_cocktails', name: { fr: "Jus & Cocktails", en: "Cocktails & Juices", ar: "عصائر و كوكتيلات" }, emoji: "🍹", displayOrder: 2 },
+  { id: 'breakfasts', name: { fr: "Petits-Déjeuners", en: "Breakfast", ar: "إفطار" }, emoji: "🍳", displayOrder: 3 },
+  { id: 'omelettes', name: { fr: "Omelettes", en: "Omelettes", ar: "أومليت" }, emoji: "🥚", displayOrder: 4 },
+  { id: 'toasts', name: { fr: "Toasts", en: "Toasts", ar: "توست" }, emoji: "🍞", displayOrder: 5 },
+  { id: 'viennoiserie', name: { fr: "Viennoiseries", en: "Viennoiserie", ar: "معجنات" }, emoji: "🥐", displayOrder: 6 },
+  { id: 'crepes_sucrees', name: { fr: "Crêpes Sucrées", en: "Sweet Crêpes", ar: "كريب حلو" }, emoji: "🥞", displayOrder: 7 },
+  { id: 'crepes_salees', name: { fr: "Crêpes Salées", en: "Savory Crêpes", ar: "كريب مالح" }, emoji: "🌯", displayOrder: 8 },
+  { id: 'pizzas', name: { fr: "Pizzas", en: "Pizzas", ar: "بيتزا" }, emoji: "🍕", displayOrder: 9 },
+  { id: 'sandwiches', name: { fr: "Sandwiches", en: "Sandwiches", ar: "ساندويتشات" }, emoji: "🥪", displayOrder: 10 },
+  { id: 'tacos', name: { fr: "Tacos", en: "Tacos", ar: "تاكو" }, emoji: "🌮", displayOrder: 11 },
+  { id: 'pasticcie', name: { fr: "Pasticcies", en: "Pasticcie", ar: "باستيشيو" }, emoji: "🍲", displayOrder: 12 },
+  { id: 'burgers', name: { fr: "Burgers", en: "Burgers", ar: "برغر" }, emoji: "🍔", displayOrder: 13 },
+  { id: 'salades', name: { fr: "Salades", en: "Salads", ar: "سلطات" }, emoji: "🥗", displayOrder: 14 },
+  { id: 'pates', name: { fr: "Pâtes", en: "Pasta", ar: "باستا" }, emoji: "🍝", displayOrder: 15 },
+  { id: 'desserts', name: { fr: "Desserts", en: "Desserts", ar: "حلويات" }, emoji: "🍰", displayOrder: 16 }
+];
+
+// Helper to remove undefined properties before saving to Firestore
+function cleanUndefined(obj: any): any {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) return obj.map(cleanUndefined);
+  if (typeof obj === 'object') {
+    const cleanObj: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleanObj[key] = cleanUndefined(value);
+      }
+    }
+    return cleanObj;
+  }
+  return obj;
+}
+
 export const createFirestoreOrder = async (
   tableNumber: string,
   items: any[],
   totalAmount?: number
 ): Promise<void> => {
   try {
-    // Process items ensuring unitPrice and lineTotal are valid numbers derived directly from item price data
     const sanitizedItems = items.map(item => {
       const unitPrice = Number(
         item.unitPrice ?? 
@@ -48,7 +100,6 @@ export const createFirestoreOrder = async (
       };
     });
 
-    // Calculate order total strictly as the sum of line totals
     const calculatedTotal = sanitizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
     const orderTotal = (typeof totalAmount === 'number' && totalAmount > 0) ? totalAmount : calculatedTotal;
 
@@ -63,4 +114,103 @@ export const createFirestoreOrder = async (
   } catch (error) {
     console.warn("Firestore order creation failed:", error);
   }
+};
+
+// One-time migration function to seed menuItems and categories to Firestore
+export const migrateMenuDataToFirestore = async (force = false): Promise<{
+  itemsMigrated: number;
+  categoriesMigrated: number;
+  status: string;
+}> => {
+  try {
+    const menuColl = collection(db, "menuItems");
+    const catColl = collection(db, "categories");
+
+    const menuSnap = await getDocs(menuColl);
+    const catSnap = await getDocs(catColl);
+
+    let itemsMigrated = 0;
+    let categoriesMigrated = 0;
+
+    if (force || menuSnap.empty) {
+      for (const item of menuItems) {
+        const cleaned = cleanUndefined(item);
+        await setDoc(doc(db, "menuItems", item.id), cleaned);
+        itemsMigrated++;
+      }
+    }
+
+    if (force || catSnap.empty) {
+      for (const cat of initialCategories) {
+        const cleaned = cleanUndefined(cat);
+        await setDoc(doc(db, "categories", cat.id), cleaned);
+        categoriesMigrated++;
+      }
+    }
+
+    return {
+      itemsMigrated,
+      categoriesMigrated,
+      status: "success"
+    };
+  } catch (err) {
+    console.error("Migration to Firestore failed:", err);
+    return {
+      itemsMigrated: 0,
+      categoriesMigrated: 0,
+      status: `error: ${err}`
+    };
+  }
+};
+
+// Realtime listeners for menuItems and categories
+export const subscribeToMenuItems = (
+  onUpdate: (items: MenuItem[]) => void,
+  onError?: (error: any) => void
+) => {
+  const menuColl = collection(db, "menuItems");
+  return onSnapshot(
+    menuColl,
+    (snapshot) => {
+      if (snapshot.empty) {
+        onUpdate([]);
+        return;
+      }
+      const items: MenuItem[] = [];
+      snapshot.forEach(docSnap => {
+        items.push({ id: docSnap.id, ...docSnap.data() } as MenuItem);
+      });
+      onUpdate(items);
+    },
+    (err) => {
+      console.warn("Error subscribing to menuItems Firestore collection:", err);
+      if (onError) onError(err);
+    }
+  );
+};
+
+export const subscribeToCategories = (
+  onUpdate: (categories: FirestoreCategory[]) => void,
+  onError?: (error: any) => void
+) => {
+  const catColl = collection(db, "categories");
+  return onSnapshot(
+    catColl,
+    (snapshot) => {
+      if (snapshot.empty) {
+        onUpdate([]);
+        return;
+      }
+      const cats: FirestoreCategory[] = [];
+      snapshot.forEach(docSnap => {
+        cats.push({ id: docSnap.id, ...docSnap.data() } as FirestoreCategory);
+      });
+      cats.sort((a, b) => a.displayOrder - b.displayOrder);
+      onUpdate(cats);
+    },
+    (err) => {
+      console.warn("Error subscribing to categories Firestore collection:", err);
+      if (onError) onError(err);
+    }
+  );
 };

@@ -37,7 +37,14 @@ import {
   VolumeX
 } from 'lucide-react';
 import { menuItems, translations, MenuItem, philosophyValues, testimonialsData } from './data';
-import { createFirestoreOrder } from './firebase';
+import { 
+  createFirestoreOrder, 
+  subscribeToMenuItems, 
+  subscribeToCategories, 
+  migrateMenuDataToFirestore, 
+  initialCategories, 
+  FirestoreCategory 
+} from './firebase';
 
 interface CartItem {
   menuItem: MenuItem;
@@ -117,9 +124,10 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [address, setAddress] = useState<string>('');
-  const [activeCategory, setActiveCategory] = useState<
-    'all' | 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'pasticcie' | 'burgers' | 'salades' | 'pates' | 'boissons_chaudes' | 'jus_cocktails' | 'desserts'
-  >('all');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>(menuItems);
+  const [liveCategories, setLiveCategories] = useState<FirestoreCategory[]>(initialCategories);
+  const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(false);
   const [selectedAtomic, setSelectedAtomic] = useState<Record<string, boolean>>({});
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState<boolean>(false);
@@ -133,6 +141,33 @@ export default function App() {
   const [isClearCartConfirmOpen, setIsClearCartConfirmOpen] = useState<boolean>(false);
   const [lastAddedFoodCategory, setLastAddedFoodCategory] = useState<string | null>(null);
   const [isSuggestionDismissed, setIsSuggestionDismissed] = useState<boolean>(false);
+
+  // Auto-migrate menu data to Firestore if empty, and subscribe to real-time updates
+  useEffect(() => {
+    migrateMenuDataToFirestore().then((res) => {
+      if (res.itemsMigrated > 0 || res.categoriesMigrated > 0) {
+        console.log(`Firestore migration complete: ${res.itemsMigrated} items, ${res.categoriesMigrated} categories created.`);
+      }
+    });
+
+    const unsubItems = subscribeToMenuItems((items) => {
+      if (items && items.length > 0) {
+        setLiveMenuItems(items);
+        setIsFirestoreConnected(true);
+      }
+    });
+
+    const unsubCategories = subscribeToCategories((cats) => {
+      if (cats && cats.length > 0) {
+        setLiveCategories(cats);
+      }
+    });
+
+    return () => {
+      unsubItems();
+      unsubCategories();
+    };
+  }, []);
 
   // Load language from browser or localStorage and read table query param
   useEffect(() => {
@@ -399,14 +434,14 @@ export default function App() {
         'boissons_chaudes': 1,
         'jus_cocktails': 2
       };
-      return [...menuItems].sort((a, b) => {
+      return [...liveMenuItems].sort((a, b) => {
         const pA = categoryPriority[a.category] || 99;
         const pB = categoryPriority[b.category] || 99;
         return pA - pB;
       });
     }
-    return menuItems.filter(item => item.category === activeCategory);
-  }, [activeCategory]);
+    return liveMenuItems.filter(item => item.category === activeCategory);
+  }, [activeCategory, liveMenuItems]);
 
   return (
     <div 
@@ -549,26 +584,27 @@ export default function App() {
           {/* Tab Categories Switcher inside Hero directly below */}
           <div className="flex justify-center w-full max-w-full px-2">
             <div className="bg-brand-dark-card/90 backdrop-blur-md border border-white/15 p-1.5 rounded-xl flex flex-nowrap overflow-x-auto justify-start md:justify-center gap-2 text-xs md:text-sm font-bold shadow-xl shadow-black/80 max-w-full no-scrollbar snap-x scroll-smooth">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-1.5 rtl:space-x-reverse cursor-pointer shrink-0 snap-start ${
-                    activeCategory === cat.id
-                      ? 'bg-brand-orange text-black font-extrabold shadow-md shadow-brand-orange/20'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{t[cat.translationKey]}</span>
-                </button>
-              ))}
+              {liveCategories.map((cat) => {
+                const catLabel = cat.name?.[lang] || cat.name?.fr || (t as any)[`menu_filter_${cat.id}`] || cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-1.5 rtl:space-x-reverse cursor-pointer shrink-0 snap-start ${
+                      activeCategory === cat.id
+                        ? 'bg-brand-orange text-black font-extrabold shadow-md shadow-brand-orange/20'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>{cat.emoji}</span>
+                    <span>{catLabel}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
       </section>
-
-
 
       {/* Interactive Menu & WhatsApp Cart */}
       <section id="menu" className="pt-8 pb-12 relative">
@@ -576,9 +612,17 @@ export default function App() {
           
           {/* Section Header */}
           <div className="text-center max-w-3xl mx-auto mb-8">
-            <span className="text-brand-orange font-mono font-black text-xs tracking-widest mb-3 uppercase inline-block">
-              {t.menu_tag}
-            </span>
+            {isFirestoreConnected && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-medium mb-3">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Firestore Live Menu ({liveMenuItems.length} items synced)</span>
+              </div>
+            )}
+            <div>
+              <span className="text-brand-orange font-mono font-black text-xs tracking-widest mb-3 uppercase inline-block">
+                {t.menu_tag}
+              </span>
+            </div>
             <h2 className="text-3xl md:text-5xl font-display font-black tracking-tight mb-4">
               {t.menu_title}
             </h2>
@@ -1262,8 +1306,8 @@ export default function App() {
                       ].includes(qualifyingFoodCategory);
 
                       const suggestItems = isBreakfast
-                        ? menuItems.filter(i => i.category === 'boissons_chaudes')
-                        : menuItems.filter(i => i.category === 'jus_cocktails');
+                        ? liveMenuItems.filter(i => i.category === 'boissons_chaudes')
+                        : liveMenuItems.filter(i => i.category === 'jus_cocktails');
 
                       if (suggestItems.length === 0) return null;
 
