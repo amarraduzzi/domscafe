@@ -19,17 +19,22 @@ export interface FirestoreOrderItem {
   name: string;
   quantity: number;
   note: string;
+  unitPrice: number;
+  lineTotal: number;
 }
 
 export const createFirestoreOrder = async (
   tableNumber: string,
-  items: FirestoreOrderItem[]
+  items: FirestoreOrderItem[],
+  totalAmount?: number
 ): Promise<void> => {
   try {
+    const orderTotal = totalAmount ?? items.reduce((sum, item) => sum + item.lineTotal, 0);
     const ordersRef = collection(db, "orders");
     await addDoc(ordersRef, {
       tableNumber: tableNumber || "?",
       items,
+      total: orderTotal,
       createdAt: serverTimestamp(),
       status: "new"
     });

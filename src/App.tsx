@@ -1448,18 +1448,25 @@ export default function App() {
                             const tableFromUrl = urlParams.get('table')?.trim();
                             const finalTableNumber = tableFromUrl || tableNumber.trim() || '?';
 
-                            const orderItems = cart.map(item => ({
-                              name: item.menuItem.name.fr,
-                              quantity: item.quantity,
-                              note: ''
-                            }));
+                            const orderItems = cart.map(item => {
+                              const unitPrice = item.menuItem.price;
+                              const lineTotal = unitPrice * item.quantity;
+                              return {
+                                name: item.menuItem.name.fr,
+                                quantity: item.quantity,
+                                note: '',
+                                unitPrice,
+                                lineTotal
+                              };
+                            });
+                            const orderTotal = orderItems.reduce((acc, item) => acc + item.lineTotal, 0);
 
                             const waUrl = getWhatsAppLink();
                             const waWindow = window.open('about:blank', '_blank');
 
                             try {
                               await Promise.race([
-                                createFirestoreOrder(finalTableNumber, orderItems),
+                                createFirestoreOrder(finalTableNumber, orderItems, orderTotal),
                                 new Promise((resolve) => setTimeout(resolve, 1500))
                               ]);
                             } catch (err) {
