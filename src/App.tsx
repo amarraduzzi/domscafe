@@ -127,7 +127,6 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>(menuItems);
   const [liveCategories, setLiveCategories] = useState<FirestoreCategory[]>(initialCategories);
-  const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(false);
   const [selectedAtomic, setSelectedAtomic] = useState<Record<string, boolean>>({});
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState<boolean>(false);
@@ -153,7 +152,6 @@ export default function App() {
     const unsubItems = subscribeToMenuItems((items) => {
       if (items && items.length > 0) {
         setLiveMenuItems(items);
-        setIsFirestoreConnected(true);
       }
     });
 
@@ -612,17 +610,9 @@ export default function App() {
           
           {/* Section Header */}
           <div className="text-center max-w-3xl mx-auto mb-8">
-            {isFirestoreConnected && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-medium mb-3">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Firestore Live Menu ({liveMenuItems.length} items synced)</span>
-              </div>
-            )}
-            <div>
-              <span className="text-brand-orange font-mono font-black text-xs tracking-widest mb-3 uppercase inline-block">
-                {t.menu_tag}
-              </span>
-            </div>
+            <span className="text-brand-orange font-mono font-black text-xs tracking-widest mb-3 uppercase inline-block">
+              {t.menu_tag}
+            </span>
             <h2 className="text-3xl md:text-5xl font-display font-black tracking-tight mb-4">
               {t.menu_title}
             </h2>
