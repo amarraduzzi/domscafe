@@ -25,6 +25,122 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
+export interface RestaurantConfig {
+  id: string;
+  name: string;
+  primaryColor: string;
+  accentColor: string;
+  whatsappNumber: string;
+  defaultLanguage: 'fr' | 'en' | 'ar';
+  pin: string;
+  logo?: string;
+  address?: string;
+  tagline?: Record<'fr' | 'en' | 'ar', string>;
+}
+
+export const defaultDomsCafeConfig: RestaurantConfig = {
+  id: "doms-cafe",
+  name: "Dom's Café",
+  primaryColor: "#A0783C",
+  accentColor: "#26A69A",
+  whatsappNumber: "212611053649",
+  defaultLanguage: "fr",
+  pin: "1234",
+  address: "26 rue Jabal Alayachi, Agdal, Rabat",
+  tagline: {
+    fr: "Café & Restaurant",
+    en: "Café & Restaurant",
+    ar: "مقهى ومطعم"
+  }
+};
+
+export function getRestaurantIdFromURL(): string {
+  if (typeof window === 'undefined') return "doms-cafe";
+  const path = window.location.pathname;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length > 0) {
+    const candidate = segments[0].toLowerCase().trim();
+    if (!['assets', 'api', 'favicon.ico', 'index.html'].includes(candidate)) {
+      return candidate;
+    }
+  }
+  return "doms-cafe";
+}
+
+export function adjustHexBrightness(hex: string, percent: number): string {
+  let num = parseInt(hex.replace('#', ''), 16);
+  if (isNaN(num)) return hex;
+  let amt = Math.round(2.55 * percent);
+  let R = (num >> 16) + amt;
+  let G = (num >> 8 & 0x00FF) + amt;
+  let B = (num & 0x0000FF) + amt;
+  R = Math.max(0, Math.min(255, R));
+  G = Math.max(0, Math.min(255, G));
+  B = Math.max(0, Math.min(255, B));
+  return '#' + (0x1000000 + (R << 16) + (G << 8) + B).toString(16).slice(1);
+}
+
+export function applyRestaurantTheme(config: RestaurantConfig) {
+  if (typeof document === 'undefined') return;
+  const primary = config.primaryColor || '#A0783C';
+  const accent = config.accentColor || '#26A69A';
+
+  const root = document.documentElement;
+  root.style.setProperty('--color-brand-orange', primary);
+  root.style.setProperty('--color-brand-orange-hover', adjustHexBrightness(primary, -15));
+  root.style.setProperty('--color-brand-accent', accent);
+}
+
+export const subscribeToRestaurantConfig = (
+  restaurantId: string,
+  onUpdate: (config: RestaurantConfig | null) => void,
+  onError?: (error: any) => void
+) => {
+  const restDocRef = doc(db, "restaurants", restaurantId);
+  return onSnapshot(
+    restDocRef,
+    async (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        onUpdate({
+          id: docSnap.id,
+          name: data.name || "Dom's Café",
+          primaryColor: data.primaryColor || "#A0783C",
+          accentColor: data.accentColor || "#26A69A",
+          whatsappNumber: data.whatsappNumber || "212611053649",
+          defaultLanguage: data.defaultLanguage || "fr",
+          pin: data.pin || "1234",
+          logo: data.logo || "",
+          address: data.address || "",
+          tagline: data.tagline
+        });
+      } else {
+        if (restaurantId === "doms-cafe") {
+          try {
+            await setDoc(restDocRef, defaultDomsCafeConfig);
+            onUpdate(defaultDomsCafeConfig);
+          } catch (err) {
+            console.warn("Failed to auto-seed doms-cafe config:", err);
+            onUpdate(defaultDomsCafeConfig);
+          }
+        } else {
+          onUpdate(null);
+        }
+      }
+    },
+    (err) => {
+      console.warn(`Error subscribing to restaurant config (${restaurantId}):`, err);
+      if (restaurantId === "doms-cafe") {
+        onUpdate(defaultDomsCafeConfig);
+      } else if (onError) {
+        onError(err);
+      } else {
+        onUpdate(null);
+      }
+    }
+  );
+};
+
 export interface FirestoreOrderItem {
   name: string;
   quantity: number;
@@ -79,7 +195,8 @@ function cleanUndefined(obj: any): any {
 export const createFirestoreOrder = async (
   tableNumber: string,
   items: any[],
-  totalAmount?: number
+  totalAmount?: number,
+  restaurantId: string = "doms-cafe"
 ): Promise<void> => {
   try {
     const sanitizedItems = items.map(item => {
@@ -105,6 +222,7 @@ export const createFirestoreOrder = async (
 
     const ordersRef = collection(db, "orders");
     await addDoc(ordersRef, {
+      restaurantId,
       tableNumber: tableNumber || "?",
       items: sanitizedItems,
       total: orderTotal,
@@ -117,7 +235,10 @@ export const createFirestoreOrder = async (
 };
 
 // One-time migration function to seed menuItems and categories to Firestore
-export const migrateMenuDataToFirestore = async (force = false): Promise<{
+export const migrateMenuDataToFirestore = async (
+  restaurantId: string = "doms-cafe",
+  force = false
+): Promise<{
   itemsMigrated: number;
   categoriesMigrated: number;
   status: string;
@@ -132,21 +253,29 @@ export const migrateMenuDataToFirestore = async (force = false): Promise<{
     let itemsMigrated = 0;
     let categoriesMigrated = 0;
 
-    if (force || menuSnap.empty || menuSnap.size < menuItems.length) {
+    const existingMenuForRest = menuSnap.docs.filter(d => (d.data().restaurantId || "doms-cafe") === restaurantId);
+    const existingCatForRest = catSnap.docs.filter(d => (d.data().restaurantId || "doms-cafe") === restaurantId);
+
+    if (force || existingMenuForRest.length === 0) {
       for (const item of menuItems) {
-        const itemWithAvailability = {
+        const itemWithMeta = {
+          restaurantId,
           available: item.available ?? true,
           ...item
         };
-        const cleaned = cleanUndefined(itemWithAvailability);
+        const cleaned = cleanUndefined(itemWithMeta);
         await setDoc(doc(db, "menuItems", item.id), cleaned);
         itemsMigrated++;
       }
     }
 
-    if (force || catSnap.empty) {
+    if (force || existingCatForRest.length === 0) {
       for (const cat of initialCategories) {
-        const cleaned = cleanUndefined(cat);
+        const catWithMeta = {
+          restaurantId,
+          ...cat
+        };
+        const cleaned = cleanUndefined(catWithMeta);
         await setDoc(doc(db, "categories", cat.id), cleaned);
         categoriesMigrated++;
       }
@@ -169,6 +298,7 @@ export const migrateMenuDataToFirestore = async (force = false): Promise<{
 
 // Realtime listeners for menuItems and categories
 export const subscribeToMenuItems = (
+  restaurantId: string,
   onUpdate: (items: MenuItem[]) => void,
   onError?: (error: any) => void
 ) => {
@@ -183,19 +313,22 @@ export const subscribeToMenuItems = (
       const items: MenuItem[] = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        const item: MenuItem = {
-          id: docSnap.id,
-          name: data.name,
-          category: data.category,
-          price: data.price,
-          description: data.description,
-          image: data.image,
-          spicy: data.spicy,
-          popular: data.popular,
-          available: data.available !== false,
-          variants: data.variants
-        };
-        items.push(item);
+        const itemRestId = data.restaurantId || "doms-cafe";
+        if (itemRestId === restaurantId) {
+          const item: MenuItem = {
+            id: docSnap.id,
+            name: data.name,
+            category: data.category,
+            price: data.price,
+            description: data.description,
+            image: data.image,
+            spicy: data.spicy,
+            popular: data.popular,
+            available: data.available !== false,
+            variants: data.variants
+          };
+          items.push(item);
+        }
       });
       onUpdate(items);
     },
@@ -207,6 +340,7 @@ export const subscribeToMenuItems = (
 };
 
 export const subscribeToCategories = (
+  restaurantId: string,
   onUpdate: (categories: FirestoreCategory[]) => void,
   onError?: (error: any) => void
 ) => {
@@ -220,7 +354,11 @@ export const subscribeToCategories = (
       }
       const cats: FirestoreCategory[] = [];
       snapshot.forEach(docSnap => {
-        cats.push({ id: docSnap.id, ...docSnap.data() } as FirestoreCategory);
+        const data = docSnap.data();
+        const catRestId = data.restaurantId || "doms-cafe";
+        if (catRestId === restaurantId) {
+          cats.push({ id: docSnap.id, ...data } as FirestoreCategory);
+        }
       });
       cats.sort((a, b) => a.displayOrder - b.displayOrder);
       onUpdate(cats);

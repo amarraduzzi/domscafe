@@ -149,13 +149,13 @@ export default function App() {
       }
     });
 
-    const unsubItems = subscribeToMenuItems((items) => {
+    const unsubItems = subscribeToMenuItems("doms-cafe", (items) => {
       if (items && items.length > 0) {
         setLiveMenuItems(items);
       }
     });
 
-    const unsubCategories = subscribeToCategories((cats) => {
+    const unsubCategories = subscribeToCategories("doms-cafe", (cats) => {
       if (cats && cats.length > 0) {
         setLiveCategories(cats);
       }
@@ -581,7 +581,7 @@ export default function App() {
 
           {/* Tab Categories Switcher inside Hero directly below */}
           <div className="flex justify-center w-full max-w-full px-2">
-            <div className="bg-brand-dark-card/90 backdrop-blur-md border border-white/15 p-1.5 rounded-xl flex flex-nowrap overflow-x-auto justify-start md:justify-center gap-2 text-xs md:text-sm font-bold shadow-xl shadow-black/80 max-w-full no-scrollbar snap-x scroll-smooth">
+            <div className="bg-brand-dark-card/90 backdrop-blur-md border border-white/15 p-1.5 rounded-xl flex flex-nowrap overflow-x-auto justify-start gap-2 text-xs md:text-sm font-bold shadow-xl shadow-black/80 max-w-full no-scrollbar snap-x scroll-smooth">
               {liveCategories.map((cat) => {
                 const catLabel = cat.name?.[lang] || cat.name?.fr || (t as any)[`menu_filter_${cat.id}`] || cat.id;
                 return (
