@@ -9,13 +9,14 @@ export interface MenuItemVariant {
 export interface MenuItem {
   id: string;
   name: Record<'en' | 'fr' | 'ar', string>;
-  category: 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'pasticcie' | 'burgers' | 'salades' | 'pates' | 'boissons_chaudes' | 'jus_cocktails' | 'desserts';
+  category: 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'pasticcie' | 'burgers' | 'salades' | 'pates' | 'boissons_chaudes' | 'jus_cocktails' | 'boissons_fraiches' | 'desserts' | string;
   price: number;
   description: Record<'en' | 'fr' | 'ar', string>;
   image: string;
   spicy?: boolean;
   popular?: boolean;
   available?: boolean;
+  station?: string;
   variants?: MenuItemVariant[];
 }
 
@@ -1128,7 +1129,18 @@ export const menuItems: MenuItem[] = [
     price: 27,
     name: { fr: "Red Bull", en: "Red Bull", ar: "ريد بول" },
     description: { fr: "Boisson énergisante bien fraîche", en: "Chilled energy drink can", ar: "علبة مشروب طاقة بارد" },
-    image: ""
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'bf-soda',
+    category: 'boissons_fraiches',
+    price: 16,
+    name: { fr: "Soda", en: "Soda", ar: "مشروب غازي" },
+    description: { fr: "Coca-Cola, Fanta, Sprite, Hawai", en: "Coca-Cola, Fanta, Sprite, Hawai", ar: "كوكاكولا، فانتا، سبرايت، هاواي" },
+    image: "/src/assets/images/soda_menu_item_1786017801846.jpg",
+    station: "Bar",
+    available: true
   },
 
   // 16. Desserts
@@ -1201,6 +1213,7 @@ export const translations = {
     menu_filter_pates: "Pasta",
     menu_filter_boissons_chaudes: "Hot Drinks",
     menu_filter_jus_cocktails: "Cocktails & Juices",
+    menu_filter_boissons_fraiches: "Cold Drinks",
     menu_filter_desserts: "Desserts",
     menu_spicy: "Spicy",
     menu_popular: "Popular",
@@ -1332,6 +1345,7 @@ export const translations = {
     menu_filter_pates: "Pâtes",
     menu_filter_boissons_chaudes: "Boissons Chaudes",
     menu_filter_jus_cocktails: "Jus & Cocktails",
+    menu_filter_boissons_fraiches: "Boissons Fraîches",
     menu_filter_desserts: "Desserts",
     menu_spicy: "Épicé",
     menu_popular: "Populaire",
@@ -1463,6 +1477,7 @@ export const translations = {
     menu_filter_pates: "معكرونة",
     menu_filter_boissons_chaudes: "مشروبات ساخنة",
     menu_filter_jus_cocktails: "عصائر وكوكتيل",
+    menu_filter_boissons_fraiches: "مشروبات باردة",
     menu_filter_desserts: "حلويات",
     menu_spicy: "حار",
     menu_popular: "محبوب",
@@ -2252,7 +2267,7 @@ menuItems.forEach(item => {
 
 // Explicitly override image for all items in the "jus & cocktails" category
 menuItems.forEach(item => {
-  if (item.category === 'jus_cocktails') {
+  if (item.category === 'jus_cocktails' && (!item.image || item.image === '')) {
     item.image = 'https://i.ibb.co/chFSk7Wk/Chat-GPT-Image-21-jul-2026-17-38-21.webp';
   }
 });

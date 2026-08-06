@@ -5,6 +5,7 @@ import {
   addDoc, 
   setDoc, 
   doc, 
+  deleteDoc,
   getDocs, 
   onSnapshot, 
   serverTimestamp 
@@ -159,8 +160,9 @@ export interface FirestoreCategory {
 export const initialCategories: FirestoreCategory[] = [
   { id: 'all', name: { fr: "Tout afficher", en: "Show All", ar: "الكل" }, emoji: "🍽️", displayOrder: 0 },
   { id: 'boissons_chaudes', name: { fr: "Boissons Chaudes", en: "Hot Drinks", ar: "مشروبات ساخنة" }, emoji: "☕", displayOrder: 1 },
-  { id: 'jus_cocktails', name: { fr: "Jus & Cocktails", en: "Cocktails & Juices", ar: "عصائر و كوكتيلات" }, emoji: "🍹", displayOrder: 2 },
-  { id: 'breakfasts', name: { fr: "Petits-Déjeuners", en: "Breakfast", ar: "إفطار" }, emoji: "🍳", displayOrder: 3 },
+  { id: 'boissons_fraiches', name: { fr: "Boissons Fraîches", en: "Cold Drinks", ar: "مشروبات باردة" }, emoji: "🥤", displayOrder: 2 },
+  { id: 'jus_cocktails', name: { fr: "Jus & Cocktails", en: "Cocktails & Juices", ar: "عصائر و كوكتيلات" }, emoji: "🍹", displayOrder: 3 },
+  { id: 'breakfasts', name: { fr: "Petits-Déjeuners", en: "Breakfast", ar: "إفطار" }, emoji: "🍳", displayOrder: 4 },
   { id: 'omelettes', name: { fr: "Omelettes", en: "Omelettes", ar: "أومليت" }, emoji: "🥚", displayOrder: 4 },
   { id: 'toasts', name: { fr: "Toasts", en: "Toasts", ar: "توست" }, emoji: "🍞", displayOrder: 5 },
   { id: 'viennoiserie', name: { fr: "Viennoiseries", en: "Viennoiserie", ar: "معجنات" }, emoji: "🥐", displayOrder: 6 },
@@ -234,6 +236,21 @@ export const createFirestoreOrder = async (
   }
 };
 
+// Helper to save or update a single menu item to Firestore
+export const saveOrUpdateMenuItemToFirestore = async (
+  item: MenuItem,
+  restaurantId: string = "doms-cafe"
+): Promise<void> => {
+  const itemWithMeta = {
+    restaurantId,
+    available: item.available ?? true,
+    station: item.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches'].includes(item.category) ? 'Bar' : 'Kitchen'),
+    ...item
+  };
+  const cleaned = cleanUndefined(itemWithMeta);
+  await setDoc(doc(db, "menuItems", item.id), cleaned, { merge: true });
+};
+
 // One-time migration function to seed menuItems and categories to Firestore
 export const migrateMenuDataToFirestore = async (
   restaurantId: string = "doms-cafe",
@@ -253,30 +270,41 @@ export const migrateMenuDataToFirestore = async (
     let itemsMigrated = 0;
     let categoriesMigrated = 0;
 
-    const existingMenuForRest = menuSnap.docs.filter(d => (d.data().restaurantId || "doms-cafe") === restaurantId);
-    const existingCatForRest = catSnap.docs.filter(d => (d.data().restaurantId || "doms-cafe") === restaurantId);
+    // Remove legacy 'jc-soda' item from Firestore if present
+    try {
+      await deleteDoc(doc(db, "menuItems", "jc-soda"));
+    } catch (e) {
+      console.log("No legacy jc-soda doc to delete or error deleting:", e);
+    }
 
-    if (force || existingMenuForRest.length === 0) {
-      for (const item of menuItems) {
-        const itemWithMeta = {
-          restaurantId,
-          available: item.available ?? true,
-          ...item
-        };
-        const cleaned = cleanUndefined(itemWithMeta);
-        await setDoc(doc(db, "menuItems", item.id), cleaned);
+    const existingMenuMap = new Set(
+      menuSnap.docs
+        .filter(d => (d.data().restaurantId || "doms-cafe") === restaurantId)
+        .map(d => d.id)
+    );
+    const existingCatMap = new Set(
+      catSnap.docs
+        .filter(d => (d.data().restaurantId || "doms-cafe") === restaurantId)
+        .map(d => d.id)
+    );
+
+    // Sync any missing or new menu items from data.ts to Firestore
+    for (const item of menuItems) {
+      if (force || !existingMenuMap.has(item.id) || item.id === 'bf-soda') {
+        await saveOrUpdateMenuItemToFirestore(item, restaurantId);
         itemsMigrated++;
       }
     }
 
-    if (force || existingCatForRest.length === 0) {
-      for (const cat of initialCategories) {
-        const catWithMeta = {
-          restaurantId,
-          ...cat
-        };
-        const cleaned = cleanUndefined(catWithMeta);
-        await setDoc(doc(db, "categories", cat.id), cleaned);
+    // Ensure all initial categories (including new 'boissons_fraiches') exist in Firestore with updated displayOrder
+    for (const cat of initialCategories) {
+      const catWithMeta = {
+        restaurantId,
+        ...cat
+      };
+      const cleaned = cleanUndefined(catWithMeta);
+      await setDoc(doc(db, "categories", cat.id), cleaned, { merge: true });
+      if (!existingCatMap.has(cat.id)) {
         categoriesMigrated++;
       }
     }
@@ -314,7 +342,7 @@ export const subscribeToMenuItems = (
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
         const itemRestId = data.restaurantId || "doms-cafe";
-        if (itemRestId === restaurantId) {
+        if (itemRestId === restaurantId && docSnap.id !== 'jc-soda') {
           const item: MenuItem = {
             id: docSnap.id,
             name: data.name,
@@ -325,6 +353,7 @@ export const subscribeToMenuItems = (
             spicy: data.spicy,
             popular: data.popular,
             available: data.available !== false,
+            station: data.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches'].includes(data.category) ? 'Bar' : 'Kitchen'),
             variants: data.variants
           };
           items.push(item);

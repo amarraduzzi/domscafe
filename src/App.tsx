@@ -1,3 +1,4 @@
+// update
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -62,6 +63,7 @@ interface Particle {
 const categories = [
   { id: 'all', icon: '🍽️', translationKey: 'menu_filter_all' },
   { id: 'boissons_chaudes', icon: '☕', translationKey: 'menu_filter_boissons_chaudes' },
+  { id: 'boissons_fraiches', icon: '🥤', translationKey: 'menu_filter_boissons_fraiches' },
   { id: 'jus_cocktails', icon: '🍹', translationKey: 'menu_filter_jus_cocktails' },
   { id: 'breakfasts', icon: '🍳', translationKey: 'menu_filter_breakfasts' },
   { id: 'omelettes', icon: '🥚', translationKey: 'menu_filter_omelettes' },
@@ -276,7 +278,7 @@ export default function App() {
 
   // Handle adding items to order with target click location for floating particle
   const addToCart = (item: MenuItem, event?: React.MouseEvent) => {
-    const isFood = !['boissons_chaudes', 'jus_cocktails', 'viennoiserie', 'desserts'].includes(item.category);
+    const isFood = !['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches', 'viennoiserie', 'desserts'].includes(item.category);
     if (isFood) {
       setLastAddedFoodCategory(item.category);
       setIsSuggestionDismissed(false);
@@ -432,7 +434,8 @@ export default function App() {
     if (activeCategory === 'all') {
       const categoryPriority: Record<string, number> = {
         'boissons_chaudes': 1,
-        'jus_cocktails': 2
+        'jus_cocktails': 2,
+        'boissons_fraiches': 3
       };
       return [...liveMenuItems].sort((a, b) => {
         const pA = categoryPriority[a.category] || 99;
@@ -589,14 +592,17 @@ export default function App() {
                 return (
                   <button
                     key={cat.id}
-                    onClick={() => setActiveCategory(cat.id)}
+                    onClick={() => {
+                      setActiveCategory(cat.id);
+                      document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
                     className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-1.5 rtl:space-x-reverse cursor-pointer shrink-0 snap-start ${
                       activeCategory === cat.id
                         ? 'bg-brand-orange text-black font-extrabold shadow-md shadow-brand-orange/20'
                         : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span>{cat.emoji}</span>
+                    <span className="text-base">{cat.emoji}</span>
                     <span>{catLabel}</span>
                   </button>
                 );
@@ -615,8 +621,10 @@ export default function App() {
             <span className="text-brand-orange font-mono font-black text-xs tracking-widest mb-3 uppercase inline-block">
               {t.menu_tag}
             </span>
-            <h2 className="text-3xl md:text-5xl font-display font-black tracking-tight mb-4">
-              {t.menu_title}
+            <h2 className="text-3xl md:text-5xl font-display font-black tracking-tight mb-2">
+              {activeCategory === 'all' 
+                ? t.menu_title 
+                : (liveCategories.find(c => c.id === activeCategory)?.name?.[lang] || (t as any)[`menu_filter_${activeCategory}`] || activeCategory)}
             </h2>
             <p className="text-gray-400 text-sm md:text-base">
               {t.menu_subtitle}
@@ -1275,13 +1283,13 @@ export default function App() {
                     {/* One-tap Suggestions Strip */}
                     {(() => {
                       const hasDrinkInCart = cart.some(item => 
-                        ['boissons_chaudes', 'jus_cocktails'].includes(item.menuItem.category)
+                        ['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches'].includes(item.menuItem.category)
                       );
                       if (hasDrinkInCart || isSuggestionDismissed) return null;
 
                       const qualifyingFoodCategory = lastAddedFoodCategory || (() => {
                         const lastFoodItem = [...cart].reverse().find(item => 
-                          !['boissons_chaudes', 'jus_cocktails', 'viennoiserie', 'desserts'].includes(item.menuItem.category)
+                          !['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches', 'viennoiserie', 'desserts'].includes(item.menuItem.category)
                         );
                         return lastFoodItem?.menuItem.category || null;
                       })();
@@ -1634,7 +1642,8 @@ export default function App() {
                           quantity,
                           note: item.selectedHotDrink ? `Boisson: ${item.selectedHotDrink}` : '',
                           unitPrice,
-                          lineTotal
+                          lineTotal,
+                          station: item.menuItem?.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches'].includes(item.menuItem?.category) ? 'Bar' : 'Kitchen')
                         };
                       });
                       const orderTotal = orderItems.reduce((acc, item) => acc + item.lineTotal, 0);
