@@ -53,6 +53,33 @@ interface CartItem {
   quantity: number;
 }
 
+// Red Soda Can / Cola Icon component
+function ColaCanIcon({ className = "w-4.5 h-4.5" }: { className?: string }) {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      className={className} 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {/* Silver Top Rim */}
+      <ellipse cx="12" cy="4.2" rx="5" ry="1.2" fill="#D1D5DB" stroke="#9CA3AF" strokeWidth="0.5" />
+      <ellipse cx="12" cy="4" rx="3.5" ry="0.8" fill="#9CA3AF" />
+      {/* Pull Tab */}
+      <path d="M11 2.8 H13 V4 H11 Z" fill="#E5E7EB" stroke="#6B7280" strokeWidth="0.4" />
+      {/* Red Can Body */}
+      <path d="M7 4.5 C7 4.2 7.5 4 12 4 C16.5 4 17 4.2 17 4.5 V18.5 C17 19.3 15.5 20 12 20 C8.5 20 7 19.3 7 18.5 Z" fill="#DC2626" />
+      {/* Silver Bottom Rim */}
+      <ellipse cx="12" cy="18.8" rx="5" ry="1" fill="#9CA3AF" />
+      {/* White Cola Style Wave */}
+      <path d="M7.2 11.5 C9.5 9.5 13.5 13.5 16.8 11 V13.5 C13.5 15.5 9.5 11.5 7.2 13.5 Z" fill="#FFFFFF" opacity="0.95" />
+      {/* Gloss Highlight */}
+      <path d="M8.2 5.5 V17.5" stroke="#FFFFFF" strokeWidth="1" strokeLinecap="round" opacity="0.35" />
+    </svg>
+  );
+}
+
 // Floating particle type for "+1" animation
 interface Particle {
   id: number;
@@ -602,7 +629,13 @@ export default function App() {
                         : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span className="text-base">{cat.emoji}</span>
+                    <span className="text-base flex items-center justify-center">
+                      {cat.id === 'boissons_fraiches' ? (
+                        <ColaCanIcon className="w-5 h-5 inline-block shrink-0 drop-shadow-sm" />
+                      ) : (
+                        cat.emoji
+                      )}
+                    </span>
                     <span>{catLabel}</span>
                   </button>
                 );
