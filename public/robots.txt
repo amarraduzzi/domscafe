@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://domscafe.pages.dev/sitemap.xml
