@@ -308,7 +308,7 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, tomato sauce, black olives, basil",
       ar: "موزاريلا، صلصة طماطم، زيتون أسود، ريحان"
     },
-    image: ""
+    image: "/pizzas/margarita.webp"
   },
   {
     id: 'p-vegetarienne',
@@ -320,7 +320,7 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, tomato sauce, seasonal vegetables",
       ar: "موزاريلا، صلصة طماطم، خضار الموسم"
     },
-    image: ""
+    image: "/pizzas/vegetarienne.webp"
   },
   {
     id: 'p-thon',
@@ -332,7 +332,7 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, tuna, bell peppers, black olives",
       ar: "موزاريلا، تونة، فلفل حلو، زيتون أسود"
     },
-    image: ""
+    image: "/pizzas/thons.webp"
   },
   {
     id: 'p-pollo',
@@ -344,7 +344,7 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, chicken, bell peppers, mushrooms, tomato sauce",
       ar: "موزاريلا، دجاج، فلفل حلو، فطر، صلصة طماطم"
     },
-    image: "",
+    image: "/pizzas/pollo.webp",
     popular: true
   },
   {
@@ -357,7 +357,7 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, pepperoni, tomato sauce, black olives",
       ar: "موزاريلا، بيبيروني، صلصة طماطم، زيتون أسود"
     },
-    image: ""
+    image: "/pizzas/americaine.webp"
   },
   {
     id: 'p-vivanda',
@@ -369,7 +369,7 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, minced beef, mushrooms, bell peppers, tomato sauce, black olives",
       ar: "موزاريلا، لحم مفروم، فطر، فلفل حلو، صلصة طماطم، زيتون أسود"
     },
-    image: ""
+    image: "/pizzas/vivanda.webp"
   },
   {
     id: 'p-4fromages',
@@ -393,7 +393,7 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, shrimp, squid, surimi, tomato sauce, black olives",
       ar: "موزاريلا، جمبري، كلماري، سوريمي، صلصة طماطم، زيتون أسود"
     },
-    image: ""
+    image: "/pizzas/fisherman.webp"
   },
   {
     id: 'p-4saisons',
@@ -1980,7 +1980,7 @@ if (clViandeItem) {
 // Explicitly override image for the focused element (twenty-ninth product card - Pizza Margarita)
 const pMargaritaItem = menuItems.find(item => item.id === 'p-margarita');
 if (pMargaritaItem) {
-  pMargaritaItem.image = 'https://i.ibb.co/4qYvL8Y/Chat-GPT-Image-21-jul-2026-08-50-56.webp';
+  pMargaritaItem.image = '/pizzas/margarita.webp';
 }
 
 // Explicitly override image for the focused element (third product card - Dom's Breakfast)
@@ -1998,31 +1998,31 @@ if (bContinentalItem) {
 // Explicitly override image for Pizza Végétarienne
 const pVegetarienneItem = menuItems.find(item => item.id === 'p-vegetarienne');
 if (pVegetarienneItem) {
-  pVegetarienneItem.image = 'https://i.ibb.co/DDztVSyD/Chat-GPT-Image-21-jul-2026-08-45-59.webp';
+  pVegetarienneItem.image = '/pizzas/vegetarienne.webp';
 }
 
 // Explicitly override image for Pizza Thon
 const pThonItem = menuItems.find(item => item.id === 'p-thon');
 if (pThonItem) {
-  pThonItem.image = 'https://i.ibb.co/rf4Tzwz6/Chat-GPT-Image-21-jul-2026-08-42-28.webp';
+  pThonItem.image = '/pizzas/thons.webp';
 }
 
 // Explicitly override image for Pizza Pollo
 const pPolloItem = menuItems.find(item => item.id === 'p-pollo');
 if (pPolloItem) {
-  pPolloItem.image = 'https://i.ibb.co/9kJnfr2Z/Chat-GPT-Image-21-jul-2026-08-57-53.webp';
+  pPolloItem.image = '/pizzas/pollo.webp';
 }
 
 // Explicitly override image for Pizza Américaine
 const pAmericaineItem = menuItems.find(item => item.id === 'p-americaine');
 if (pAmericaineItem) {
-  pAmericaineItem.image = 'https://i.ibb.co/Y7ZkN2PF/Chat-GPT-Image-21-jul-2026-11-55-46-2.webp';
+  pAmericaineItem.image = '/pizzas/americaine.webp';
 }
 
 // Explicitly override image for Pizza Vivanda
 const pVivandaItem = menuItems.find(item => item.id === 'p-vivanda');
 if (pVivandaItem) {
-  pVivandaItem.image = 'https://i.ibb.co/KjTt9Nqd/Chat-GPT-Image-21-jul-2026-12-01-30.webp';
+  pVivandaItem.image = '/pizzas/vivanda.webp';
 }
 
 // Explicitly override image for Pizza Quatre Fromages
@@ -2034,7 +2034,7 @@ if (p4fromagesItem) {
 // Explicitly override image for Pizza Fisherman
 const pFishermanItem = menuItems.find(item => item.id === 'p-fisherman');
 if (pFishermanItem) {
-  pFishermanItem.image = 'https://i.ibb.co/kgPZ2ndV/Chat-GPT-Image-21-jul-2026-12-09-08.webp';
+  pFishermanItem.image = '/pizzas/fisherman.webp';
 }
 
 // Explicitly override image for Pizza Quatre Saisons
