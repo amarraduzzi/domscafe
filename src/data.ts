@@ -299,113 +299,104 @@ export const menuItems: MenuItem[] = [
 
   // 7. Pizzas
   {
-    id: 'p-margarita',
+    id: 'p-margherita-superiore',
     category: 'pizzas',
-    price: 32,
-    name: { fr: "Margarita", en: "Margarita", ar: "مارغريتا" },
+    price: 38,
+    name: { fr: "Margherita Superiore", en: "Margherita Superiore", ar: "مارغريتا سوبيريوري" },
     description: {
-      fr: "Mozzarella, sauce tomate, olives noires, basilic",
-      en: "Mozzarella, tomato sauce, black olives, basil",
-      ar: "موزاريلا، صلصة طماطم، زيتون أسود، ريحان"
+      fr: "Mozzarella fondante, sauce tomate, basilic frais, filet d'huile d'olive",
+      en: "Melted mozzarella, tomato sauce, fresh basil, olive oil drizzle",
+      ar: "موزاريلا ذائبة، صلصة طماطم، ريحان طازج، زيت الزيتون"
     },
-    image: "/pizzas/margarita.webp"
+    image: "/pizzas/margherita-superiore.webp"
   },
   {
-    id: 'p-vegetarienne',
+    id: 'p-manzo-ricco',
     category: 'pizzas',
-    price: 36,
-    name: { fr: "Végétarienne", en: "Vegetarian", ar: "بيتزا الخضار" },
+    price: 50,
+    name: { fr: "Manzo Ricco", en: "Manzo Ricco", ar: "مانزو ريكو" },
     description: {
-      fr: "Mozzarella, sauce tomate, légumes de saison",
-      en: "Mozzarella, tomato sauce, seasonal vegetables",
-      ar: "موزاريلا، صلصة طماطم، خضار الموسم"
+      fr: "Mozzarella, bœuf braisé effiloché, oignons caramélisés, copeaux de parmesan",
+      en: "Mozzarella, braised pulled beef, caramelized onions, parmesan shavings",
+      ar: "موزاريلا، لحم بقري مطهو ببطء، بصل مكرمل، رقائق البارميزان"
     },
-    image: "/pizzas/vegetarienne.webp"
+    image: "/pizzas/manzo-ricco.webp"
   },
   {
-    id: 'p-thon',
+    id: 'p-tonijn-riviera',
     category: 'pizzas',
-    price: 42,
-    name: { fr: "Thons", en: "Tuna Pizza", ar: "بيتزا التونة" },
+    price: 46,
+    name: { fr: "Tonijn Riviera", en: "Tonijn Riviera", ar: "تونيجن ريفييرا" },
     description: {
-      fr: "Mozzarella, thon, poivrons, olives noires",
-      en: "Mozzarella, tuna, bell peppers, black olives",
-      ar: "موزاريلا، تونة، فلفل حلو، زيتون أسود"
+      fr: "Mozzarella, thon émietté, oignon rouge, câpres, olives kalamata, zeste de citron",
+      en: "Mozzarella, flaked tuna, red onion, capers, kalamata olives, lemon zest",
+      ar: "موزاريلا، تونة مفتتة، بصل أحمر، كبر، زيتون كالاماتا، قشر ليمون"
     },
-    image: "/pizzas/thons.webp"
+    image: "/pizzas/tonijn-riviera.webp"
   },
   {
-    id: 'p-pollo',
+    id: 'p-poulet-chermoula',
     category: 'pizzas',
-    price: 42,
-    name: { fr: "Pollo", en: "Pollo Pizza", ar: "بيتزا بولو دجاج" },
+    price: 46,
+    name: { fr: "Poulet Chermoula", en: "Poulet Chermoula", ar: "بولي شرمولة" },
     description: {
-      fr: "Mozzarella, poulet, poivrons, champignons, sauce tomate",
-      en: "Mozzarella, chicken, bell peppers, mushrooms, tomato sauce",
-      ar: "موزاريلا، دجاج، فلفل حلو، فطر، صلصة طماطم"
+      fr: "Mozzarella, poulet grillé façon chermoula, oignons caramélisés, poivrons, coriandre fraîche",
+      en: "Mozzarella, chermoula-spiced grilled chicken, caramelized onions, bell peppers, fresh coriander",
+      ar: "موزاريلا، دجاج مشوي بالشرمولة، بصل مكرمل، فلفل حلو، كزبرة طازجة"
     },
-    image: "/pizzas/pollo.webp",
+    image: "/pizzas/poulet-chermoula.webp",
     popular: true
   },
   {
-    id: 'p-americaine',
-    category: 'pizzas',
-    price: 44,
-    name: { fr: "Américaine", en: "American Pizza", ar: "بيتزا أمريكية" },
-    description: {
-      fr: "Mozzarella, pepperoni, sauce tomate, olives noires",
-      en: "Mozzarella, pepperoni, tomato sauce, black olives",
-      ar: "موزاريلا، بيبيروني، صلصة طماطم، زيتون أسود"
-    },
-    image: "/pizzas/americaine.webp"
-  },
-  {
-    id: 'p-vivanda',
-    category: 'pizzas',
-    price: 47,
-    name: { fr: "Vivanda", en: "Vivanda Pizza", ar: "بيتزا فيفاندا" },
-    description: {
-      fr: "Mozzarella, viande hachée, champignons, poivrons, sauce tomate, olives noires",
-      en: "Mozzarella, minced beef, mushrooms, bell peppers, tomato sauce, black olives",
-      ar: "موزاريلا، لحم مفروم، فطر، فلفل حلو، صلصة طماطم، زيتون أسود"
-    },
-    image: "/pizzas/vivanda.webp"
-  },
-  {
-    id: 'p-4fromages',
+    id: 'p-merguez-piquante',
     category: 'pizzas',
     price: 48,
-    name: { fr: "Quatre fromages", en: "Four Cheese Pizza", ar: "بيتزا أربعة أجبان" },
+    name: { fr: "Merguez Piquante", en: "Merguez Piquante", ar: "مرقاز حار" },
     description: {
-      fr: "Edam, bleu, brie, mozzarella, crème fraîche, sauce tomate",
-      en: "Edam, blue cheese, brie, mozzarella, heavy cream, tomato sauce",
-      ar: "إيدام، جبن أزرق، جبن بري، موزاريلا، قشدة طرية، صلصة طماطم"
+      fr: "Mozzarella, merguez grillée, poivrons rôtis, huile de harissa, œuf au plat",
+      en: "Mozzarella, grilled merguez, roasted peppers, harissa oil, fried egg",
+      ar: "موزاريلا، مرقاز مشوي، فلفل مشوي، زيت الهريسة، بيضة مقلية"
     },
-    image: ""
+    image: "/pizzas/merguez-piquante.webp",
+    spicy: true
   },
   {
-    id: 'p-fisherman',
+    id: 'p-el-reto',
     category: 'pizzas',
-    price: 55,
-    name: { fr: "Fisherman", en: "Fisherman Pizza", ar: "بيتزا الصياد" },
+    price: 50,
+    name: { fr: "El Reto", en: "El Reto", ar: "الريتو" },
     description: {
-      fr: "Mozzarella, crevette, calamar, surimi, sauce tomate, olives noires",
-      en: "Mozzarella, shrimp, squid, surimi, tomato sauce, black olives",
-      ar: "موزاريلا، جمبري، كلماري، سوريمي، صلصة طماطم، زيتون أسود"
+      fr: "Mozzarella, sauce tomate au harissa, jalapeños, piments doux, viande épicée, sauce piquante",
+      en: "Mozzarella, harissa-spiced tomato sauce, jalapeños, sweet chili peppers, spiced beef, hot sauce",
+      ar: "موزاريلا، صلصة طماطم بالهريسة، هالبينو، فلفل حار خفيف، لحم متبل، صلصة حارة"
     },
-    image: "/pizzas/fisherman.webp"
+    image: "/pizzas/el-reto.webp",
+    spicy: true
   },
   {
-    id: 'p-4saisons',
+    id: 'p-quattro-formaggi',
+    category: 'pizzas',
+    price: 50,
+    name: { fr: "Quattro Formaggi Nobile", en: "Quattro Formaggi Nobile", ar: "كواترو فورماجي نوبيلي" },
+    description: {
+      fr: "Mozzarella, gorgonzola, chèvre, copeaux de parmesan, filet de miel",
+      en: "Mozzarella, gorgonzola, goat cheese, parmesan shavings, honey drizzle",
+      ar: "موزاريلا، جبن غورغونزولا، جبن الماعز، رقائق البارميزان، صلصة العسل"
+    },
+    image: "/pizzas/quattro-formaggi.webp"
+  },
+  {
+    id: 'p-rabat-nights',
     category: 'pizzas',
     price: 55,
-    name: { fr: "Quatre saisons", en: "Four Seasons Pizza", ar: "بيتزا الفصول الأربعة" },
+    name: { fr: "Signature « Rabat Nights »", en: "Signature \"Rabat Nights\"", ar: "التوقيع \"ليالي الرباط\"" },
     description: {
-      fr: "Composer votre pizza",
-      en: "Build your own seasonal style pizza",
-      ar: "قم بتركيب بيتزا الفصول الأربعة الخاصة بك"
+      fr: "Mozzarella, khlea effilochée, oignons caramélisés, olives noires, œuf au plat, filet d'amlou",
+      en: "Mozzarella, shredded khlea (confit beef), caramelized onions, black olives, fried egg, amlou drizzle",
+      ar: "موزاريلا، خليع مفروم، بصل مكرمل، زيتون أسود، بيضة مقلية، صلصة أملو"
     },
-    image: ""
+    image: "/pizzas/rabat-nights.webp",
+    popular: true
   },
 
   // 8. Sandwichs
@@ -1977,12 +1968,6 @@ if (clViandeItem) {
   clViandeItem.image = 'https://i.ibb.co/kVm5jc05/Chat-GPT-Image-21-jul-2026-01-04-47.webp';
 }
 
-// Explicitly override image for the focused element (twenty-ninth product card - Pizza Margarita)
-const pMargaritaItem = menuItems.find(item => item.id === 'p-margarita');
-if (pMargaritaItem) {
-  pMargaritaItem.image = '/pizzas/margarita.webp';
-}
-
 // Explicitly override image for the focused element (third product card - Dom's Breakfast)
 const bDomsItem = menuItems.find(item => item.id === 'b-doms');
 if (bDomsItem) {
@@ -1995,52 +1980,52 @@ if (bContinentalItem) {
   bContinentalItem.image = 'https://i.ibb.co/d0mdvdN9/Chat-GPT-Image-21-jul-2026-11-38-10.webp';
 }
 
-// Explicitly override image for Pizza Végétarienne
-const pVegetarienneItem = menuItems.find(item => item.id === 'p-vegetarienne');
-if (pVegetarienneItem) {
-  pVegetarienneItem.image = '/pizzas/vegetarienne.webp';
+// Explicitly override image for Pizza Margherita Superiore
+const pMargheritaSuperioreItem = menuItems.find(item => item.id === 'p-margherita-superiore');
+if (pMargheritaSuperioreItem) {
+  pMargheritaSuperioreItem.image = '/pizzas/margherita-superiore.webp';
 }
 
-// Explicitly override image for Pizza Thon
-const pThonItem = menuItems.find(item => item.id === 'p-thon');
-if (pThonItem) {
-  pThonItem.image = '/pizzas/thons.webp';
+// Explicitly override image for Pizza Manzo Ricco
+const pManzoRiccoItem = menuItems.find(item => item.id === 'p-manzo-ricco');
+if (pManzoRiccoItem) {
+  pManzoRiccoItem.image = '/pizzas/manzo-ricco.webp';
 }
 
-// Explicitly override image for Pizza Pollo
-const pPolloItem = menuItems.find(item => item.id === 'p-pollo');
-if (pPolloItem) {
-  pPolloItem.image = '/pizzas/pollo.webp';
+// Explicitly override image for Pizza Tonijn Riviera
+const pTonijnRivieraItem = menuItems.find(item => item.id === 'p-tonijn-riviera');
+if (pTonijnRivieraItem) {
+  pTonijnRivieraItem.image = '/pizzas/tonijn-riviera.webp';
 }
 
-// Explicitly override image for Pizza Américaine
-const pAmericaineItem = menuItems.find(item => item.id === 'p-americaine');
-if (pAmericaineItem) {
-  pAmericaineItem.image = '/pizzas/americaine.webp';
+// Explicitly override image for Pizza Poulet Chermoula
+const pPouletChermoulaItem = menuItems.find(item => item.id === 'p-poulet-chermoula');
+if (pPouletChermoulaItem) {
+  pPouletChermoulaItem.image = '/pizzas/poulet-chermoula.webp';
 }
 
-// Explicitly override image for Pizza Vivanda
-const pVivandaItem = menuItems.find(item => item.id === 'p-vivanda');
-if (pVivandaItem) {
-  pVivandaItem.image = '/pizzas/vivanda.webp';
+// Explicitly override image for Pizza Merguez Piquante
+const pMerguezPiquanteItem = menuItems.find(item => item.id === 'p-merguez-piquante');
+if (pMerguezPiquanteItem) {
+  pMerguezPiquanteItem.image = '/pizzas/merguez-piquante.webp';
 }
 
-// Explicitly override image for Pizza Quatre Fromages
-const p4fromagesItem = menuItems.find(item => item.id === 'p-4fromages');
-if (p4fromagesItem) {
-  p4fromagesItem.image = 'https://i.ibb.co/7xMrZd7C/Chat-GPT-Image-21-jul-2026-12-05-12.webp';
+// Explicitly override image for Pizza El Reto
+const pElRetoItem = menuItems.find(item => item.id === 'p-el-reto');
+if (pElRetoItem) {
+  pElRetoItem.image = '/pizzas/el-reto.webp';
 }
 
-// Explicitly override image for Pizza Fisherman
-const pFishermanItem = menuItems.find(item => item.id === 'p-fisherman');
-if (pFishermanItem) {
-  pFishermanItem.image = '/pizzas/fisherman.webp';
+// Explicitly override image for Pizza Quattro Formaggi Nobile
+const pQuattroFormaggiItem = menuItems.find(item => item.id === 'p-quattro-formaggi');
+if (pQuattroFormaggiItem) {
+  pQuattroFormaggiItem.image = '/pizzas/quattro-formaggi.webp';
 }
 
-// Explicitly override image for Pizza Quatre Saisons
-const p4saisonsItem = menuItems.find(item => item.id === 'p-4saisons');
-if (p4saisonsItem) {
-  p4saisonsItem.image = 'https://i.ibb.co/4R8fGsjY/Chat-GPT-Image-21-jul-2026-12-14-17.webp';
+// Explicitly override image for Pizza Signature Rabat Nights
+const pRabatNightsItem = menuItems.find(item => item.id === 'p-rabat-nights');
+if (pRabatNightsItem) {
+  pRabatNightsItem.image = '/pizzas/rabat-nights.webp';
 }
 
 // Explicitly override image for Sandwich Thon
