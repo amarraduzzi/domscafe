@@ -108,7 +108,7 @@ const categories = [
   { id: 'desserts', icon: '🍰', translationKey: 'menu_filter_desserts' }
 ] as const;
 
-// SafeImage component that falls back to solid brand-colored (#A0783C) placeholder on load error
+// SafeImage component that falls back to solid brand-colored (#C9A15A) placeholder on load error
 function SafeImage({ src, alt, fallbackName, className, isCart }: { src: string; alt: string; fallbackName: string; className?: string; isCart?: boolean }) {
   const [hasError, setHasError] = useState(false);
 
@@ -116,8 +116,8 @@ function SafeImage({ src, alt, fallbackName, className, isCart }: { src: string;
     if (isCart) {
       return (
         <div 
-          className={`w-full h-full flex items-center justify-center text-center select-none text-white font-black text-[10px] ${className}`}
-          style={{ backgroundColor: '#A0783C' }}
+          className={`w-full h-full flex items-center justify-center text-center select-none text-[#F3ECDD] font-black text-[10px] ${className}`}
+          style={{ backgroundColor: '#C9A15A' }}
         >
           {fallbackName.slice(0, 3)}
         </div>
@@ -126,12 +126,12 @@ function SafeImage({ src, alt, fallbackName, className, isCart }: { src: string;
     return (
       <div 
         className={`w-full h-full flex flex-col items-center justify-center p-4 text-center select-none ${className}`}
-        style={{ backgroundColor: '#A0783C' }}
+        style={{ backgroundColor: '#C9A15A' }}
       >
-        <span className="font-display font-black text-white text-base md:text-lg tracking-wide uppercase line-clamp-2 px-2">
+        <span className="font-display font-black text-[#F3ECDD] text-base md:text-lg tracking-wide uppercase line-clamp-2 px-2">
           {fallbackName}
         </span>
-        <span className="text-[9px] uppercase tracking-wider text-white/70 mt-1 font-mono">
+        <span className="text-[9px] uppercase tracking-wider text-[#F3ECDD]/70 mt-1 font-sans">
           Dom's Café
         </span>
       </div>
@@ -477,16 +477,16 @@ export default function App() {
     <div 
       id="app-root"
       dir={isRtl ? 'rtl' : 'ltr'} 
-      className={`min-h-screen bg-brand-dark text-white font-sans ${isRtl ? 'font-arabic' : ''} bg-grid-pattern selection:bg-brand-orange selection:text-black overflow-x-hidden overflow-y-auto`}
+      className={`min-h-screen bg-brand-dark text-[#F3ECDD] font-sans ${isRtl ? 'font-arabic' : ''} bg-grid-pattern selection:bg-brand-orange selection:text-[#1A1208] overflow-x-hidden overflow-y-auto`}
     >
       {/* Top Announcement Bar */}
-      <div className="bg-brand-orange text-black py-2 px-4 text-center font-display font-black text-xs md:text-sm tracking-widest flex items-center justify-center gap-2 z-50 relative shadow-lg shadow-brand-orange/10">
+      <div className="bg-brand-orange text-[#1A1208] py-2 px-4 text-center font-display font-black text-xs md:text-sm tracking-widest flex items-center justify-center gap-2 z-50 relative shadow-lg shadow-brand-orange/10">
         <span>
           {lang === 'ar' ? 'المكان الذي تصبح فيه كل استراحة لحظة مميزة.' : lang === 'fr' ? "L'endroit où chaque pause devient un moment." : 'The place where every break becomes a moment.'}
         </span>
         <div className="flex items-center space-x-0.5 rtl:space-x-reverse shrink-0">
           {[...Array(5)].map((_, i) => (
-            <Star key={i} className="w-3.5 h-3.5 fill-black text-black" />
+            <Star key={i} className="w-3.5 h-3.5 fill-black text-[#1A1208]" />
           ))}
         </div>
       </div>
@@ -519,7 +519,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between">
           {/* Logo & Brand Identity */}
           <a href="#app-root" className="flex flex-col select-none group items-start leading-none">
-            <div className="font-logo text-3xl md:text-4xl text-white group-hover:text-brand-orange/90 transition-colors flex items-baseline tracking-normal">
+            <div className="font-logo text-3xl md:text-4xl text-[#F3ECDD] group-hover:text-brand-orange/90 transition-colors flex items-baseline tracking-normal">
               <span>Dom</span>
               <span className="text-brand-orange font-logo mx-[1px] font-black scale-110 select-none">'</span>
               <span>s</span>
@@ -535,11 +535,11 @@ export default function App() {
             <div className="relative lang-switcher-container">
               <button 
                 onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-                className="bg-brand-dark-card border border-white/10 hover:border-brand-orange/40 text-gray-200 px-3 py-1.5 rounded-md text-xs font-bold flex items-center space-x-1.5 rtl:space-x-reverse transition-all active:scale-95"
+                className="bg-brand-dark-card border border-[#F3ECDD]/10 hover:border-brand-orange/40 text-[#E3DCCB] px-3 py-1.5 rounded-md text-xs font-bold flex items-center space-x-1.5 rtl:space-x-reverse transition-all active:scale-95"
               >
                 <Globe className="w-3.5 h-3.5 text-brand-orange" />
                 <span className="uppercase">{lang}</span>
-                <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isLangMenuOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3 h-3 text-[#9A9490] transition-transform duration-200 ${isLangMenuOpen ? 'rotate-180' : ''}`} />
               </button>
 
               <AnimatePresence>
@@ -548,25 +548,25 @@ export default function App() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
-                    className="absolute right-0 rtl:left-0 mt-2 w-32 bg-brand-dark-card border border-white/15 rounded-lg shadow-2xl py-1 overflow-hidden z-50 text-xs"
+                    className="absolute right-0 rtl:left-0 mt-2 w-32 bg-brand-dark-card border border-[#F3ECDD]/15 rounded-lg shadow-2xl py-1 overflow-hidden z-50 text-xs"
                   >
                     <button 
                       onClick={() => handleLangChange('en')}
-                      className={`w-full text-start px-4 py-2 hover:bg-white/5 transition-colors flex items-center justify-between ${lang === 'en' ? 'text-brand-orange font-bold' : 'text-gray-300'}`}
+                      className={`w-full text-start px-4 py-2 hover:bg-[#F3ECDD]/5 transition-colors flex items-center justify-between ${lang === 'en' ? 'text-brand-orange font-bold' : 'text-[#C7BFB0]'}`}
                     >
                       <span>English</span>
                       {lang === 'en' && <Check className="w-3 h-3" />}
                     </button>
                     <button 
                       onClick={() => handleLangChange('fr')}
-                      className={`w-full text-start px-4 py-2 hover:bg-white/5 transition-colors flex items-center justify-between ${lang === 'fr' ? 'text-brand-orange font-bold' : 'text-gray-300'}`}
+                      className={`w-full text-start px-4 py-2 hover:bg-[#F3ECDD]/5 transition-colors flex items-center justify-between ${lang === 'fr' ? 'text-brand-orange font-bold' : 'text-[#C7BFB0]'}`}
                     >
                       <span>Français</span>
                       {lang === 'fr' && <Check className="w-3 h-3" />}
                     </button>
                     <button 
                       onClick={() => handleLangChange('ar')}
-                      className={`w-full text-start px-4 py-2 hover:bg-white/5 transition-colors flex items-center justify-between ${lang === 'ar' ? 'text-brand-orange font-bold' : 'text-gray-300'}`}
+                      className={`w-full text-start px-4 py-2 hover:bg-[#F3ECDD]/5 transition-colors flex items-center justify-between ${lang === 'ar' ? 'text-brand-orange font-bold' : 'text-[#C7BFB0]'}`}
                     >
                       <span>العربية</span>
                       {lang === 'ar' && <Check className="w-3 h-3" />}
@@ -579,11 +579,11 @@ export default function App() {
             {/* Shopping Cart Trigger */}
             <button 
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2.5 rounded-full bg-brand-orange text-black font-bold hover:bg-brand-orange-hover hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-brand-orange/25"
+              className="relative p-2.5 rounded-full bg-brand-orange text-[#1A1208] font-bold hover:bg-brand-orange-hover hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-brand-orange/25"
             >
               <ShoppingBag className="w-4 h-4 md:w-5 h-5" />
               {totalItemsCount > 0 && (
-                <span className="absolute -top-1 -right-1.5 bg-white text-black font-mono font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-brand-dark animate-pulse">
+                <span className="absolute -top-1 -right-1.5 bg-white text-[#1A1208] font-sans font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-brand-dark animate-pulse">
                   {totalItemsCount}
                 </span>
               )}
@@ -604,16 +604,16 @@ export default function App() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-brand-orange/10 rounded-full blur-[100px] pointer-events-none"></div>
 
         <div className="max-w-4xl mx-auto px-4 w-full relative z-10 flex flex-col items-center justify-center text-center">
-          <h1 className="text-4xl md:text-6xl font-display font-black tracking-tight text-white mb-4 uppercase leading-tight">
+          <h1 className="text-4xl md:text-6xl font-display font-black tracking-tight text-[#F3ECDD] mb-4 uppercase leading-tight">
             {t.hero_headline_1} <span className="text-brand-orange">{t.hero_headline_highlight}</span>
           </h1>
-          <p className="text-gray-300 text-sm md:text-base tracking-wide max-w-xl mb-8 font-medium">
+          <p className="text-[#C7BFB0] text-sm md:text-base tracking-wide max-w-xl mb-8 font-medium">
             {t.hero_tagline}
           </p>
 
           {/* Tab Categories Switcher inside Hero directly below */}
           <div className="flex justify-center w-full max-w-full px-2">
-            <div className="bg-brand-dark-card/90 backdrop-blur-md border border-white/15 p-1.5 rounded-xl flex flex-nowrap overflow-x-auto justify-start gap-2 text-xs md:text-sm font-bold shadow-xl shadow-black/80 max-w-full no-scrollbar snap-x scroll-smooth">
+            <div className="bg-brand-dark-card/90 backdrop-blur-md border border-[#F3ECDD]/15 p-1.5 rounded-xl flex flex-nowrap overflow-x-auto justify-start gap-2 text-xs md:text-sm font-bold shadow-xl shadow-black/80 max-w-full no-scrollbar snap-x scroll-smooth">
               {liveCategories.map((cat) => {
                 const catLabel = cat.name?.[lang] || cat.name?.fr || (t as any)[`menu_filter_${cat.id}`] || cat.id;
                 return (
@@ -625,8 +625,8 @@ export default function App() {
                     }}
                     className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-1.5 rtl:space-x-reverse cursor-pointer shrink-0 snap-start ${
                       activeCategory === cat.id
-                        ? 'bg-brand-orange text-black font-extrabold shadow-md shadow-brand-orange/20'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        ? 'bg-brand-orange text-[#1A1208] font-extrabold shadow-md shadow-brand-orange/20'
+                        : 'text-[#9A9490] hover:text-[#F3ECDD] hover:bg-[#F3ECDD]/5'
                     }`}
                   >
                     <span className="text-base flex items-center justify-center">
@@ -651,7 +651,7 @@ export default function App() {
           
           {/* Section Header */}
           <div className="text-center max-w-3xl mx-auto mb-8">
-            <span className="text-brand-orange font-mono font-black text-xs tracking-widest mb-3 uppercase inline-block">
+            <span className="text-brand-orange font-sans font-black text-xs tracking-widest mb-3 uppercase inline-block">
               {t.menu_tag}
             </span>
             <h2 className="text-3xl md:text-5xl font-display font-black tracking-tight mb-2">
@@ -659,7 +659,7 @@ export default function App() {
                 ? t.menu_title 
                 : (liveCategories.find(c => c.id === activeCategory)?.name?.[lang] || (t as any)[`menu_filter_${activeCategory}`] || activeCategory)}
             </h2>
-            <p className="text-gray-400 text-sm md:text-base">
+            <p className="text-[#9A9490] text-sm md:text-base">
               {t.menu_subtitle}
             </p>
           </div>
@@ -692,7 +692,7 @@ export default function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.3 }}
-                      className="bg-brand-dark-card border border-white/10 rounded-xl overflow-hidden group hover:border-brand-orange/40 transition-all duration-300 shadow-xl shadow-black/80 flex flex-col justify-between"
+                      className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl overflow-hidden group hover:border-brand-orange/40 transition-all duration-300 shadow-xl shadow-black/80 flex flex-col justify-between"
                     >
                       <div className="relative h-48 overflow-hidden bg-brand-dark flex items-center justify-center">
                         <SafeImage 
@@ -706,13 +706,13 @@ export default function App() {
                         {/* Badges */}
                         <div className="absolute top-3 left-3 rtl:left-auto rtl:right-3 flex flex-col space-y-1.5 items-start">
                           {item.popular && (
-                            <span className="bg-brand-orange text-black font-mono font-black text-[9px] tracking-widest px-2 py-0.5 rounded shadow flex items-center space-x-1 uppercase">
+                            <span className="bg-brand-orange text-[#1A1208] font-sans font-black text-[9px] tracking-widest px-2 py-0.5 rounded shadow flex items-center space-x-1 uppercase">
                               <Sparkles className="w-3 h-3 fill-black shrink-0" />
                               <span>{t.menu_popular}</span>
                             </span>
                           )}
                           {item.spicy && (
-                            <span className="bg-red-600 text-white font-mono font-black text-[9px] tracking-widest px-2 py-0.5 rounded shadow flex items-center space-x-1 uppercase">
+                            <span className="bg-red-600 text-[#F3ECDD] font-sans font-black text-[9px] tracking-widest px-2 py-0.5 rounded shadow flex items-center space-x-1 uppercase">
                               <Flame className="w-3 h-3 fill-white shrink-0" />
                               <span>{t.menu_spicy}</span>
                             </span>
@@ -723,32 +723,32 @@ export default function App() {
                       <div className="p-5 flex flex-col justify-between grow text-start">
                         <div>
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-display font-bold text-lg text-white group-hover:text-brand-orange transition-colors">
+                            <h3 className="font-display font-bold text-lg text-[#F3ECDD] group-hover:text-brand-orange transition-colors">
                               {item.name[lang]}
                             </h3>
                             <span className="font-display font-black text-brand-orange whitespace-nowrap ps-2">
                               {displayPrice} {lang === 'ar' ? 'درهم' : 'MAD'}
                             </span>
                           </div>
-                          <p className="text-gray-400 text-xs md:text-sm font-light leading-relaxed mb-4">
+                          <p className="text-[#9A9490] text-xs md:text-sm font-light leading-relaxed mb-4">
                             {activeVariant?.description?.[lang] || item.description[lang]}
                           </p>
 
                           {/* Variations selector if available */}
                           {item.variants && item.variants.length > 0 && (
                             <div className="mb-4">
-                              <span className="text-gray-500 font-mono text-[9px] uppercase tracking-wider block mb-1.5">
+                              <span className="text-[#7A736C] font-sans text-[9px] uppercase tracking-wider block mb-1.5">
                                 {lang === 'ar' ? 'اختر النوع:' : lang === 'fr' ? 'Sélectionner l\'option :' : 'Select Option:'}
                               </span>
-                              <div className="flex bg-white/5 border border-white/10 p-1 rounded-lg gap-1">
+                              <div className="flex bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 p-1 rounded-lg gap-1">
                                 {item.variants.map(v => (
                                   <button
                                     key={v.id}
                                     onClick={() => setSelectedVariants(prev => ({ ...prev, [item.id]: v.id }))}
                                     className={`flex-1 text-center py-1.5 rounded-md text-[11px] font-bold transition-all ${
                                       activeVariantId === v.id
-                                        ? 'bg-brand-orange text-black font-black'
-                                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                        ? 'bg-brand-orange text-[#1A1208] font-black'
+                                        : 'text-[#9A9490] hover:text-[#F3ECDD] hover:bg-[#F3ECDD]/5'
                                     }`}
                                   >
                                     {v.name[lang] || v.name.en} ({v.price} {lang === 'ar' ? 'درهم' : 'MAD'})
@@ -761,17 +761,17 @@ export default function App() {
                           {/* Version Atomic selector if bomb */}
                           {item.category === 'bombs' && (
                             <div className="mb-4">
-                              <span className="text-gray-500 font-mono text-[9px] uppercase tracking-wider block mb-1.5">
+                              <span className="text-[#7A736C] font-sans text-[9px] uppercase tracking-wider block mb-1.5">
                                 {lang === 'ar' ? 'إضافة ترقية:' : lang === 'fr' ? 'Option supplémentaire :' : 'Add upgrade:'}
                               </span>
-                              <label className="flex items-center space-x-3 rtl:space-x-reverse cursor-pointer bg-white/5 border border-white/10 p-2.5 rounded-lg hover:bg-white/10 transition-all select-none">
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse cursor-pointer bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 p-2.5 rounded-lg hover:bg-[#F3ECDD]/10 transition-all select-none">
                                 <input
                                   type="checkbox"
                                   checked={!!selectedAtomic[item.id]}
                                   onChange={(e) => setSelectedAtomic(prev => ({ ...prev, [item.id]: e.target.checked }))}
-                                  className="w-4 h-4 rounded border-gray-600 text-brand-orange focus:ring-brand-orange focus:ring-offset-black bg-black/40 cursor-pointer"
+                                  className="w-4 h-4 rounded border-[#6B6259] text-brand-orange focus:ring-brand-orange focus:ring-offset-black bg-black/40 cursor-pointer"
                                 />
-                                <div className="flex-1 flex justify-between items-center text-xs font-bold text-white">
+                                <div className="flex-1 flex justify-between items-center text-xs font-bold text-[#F3ECDD]">
                                   <span>{lang === 'ar' ? 'النسخة الذرية (حار جداً)' : lang === 'fr' ? 'Version Atomic' : 'Atomic Version'}</span>
                                   <span className="text-brand-orange">+3 {lang === 'ar' ? 'درهم' : 'MAD'}</span>
                                 </div>
@@ -785,10 +785,10 @@ export default function App() {
                         <div className="flex items-center justify-between">
                           {/* Cart Quantities control */}
                           {isItemAdded ? (
-                            <div className="flex items-center space-x-1.5 rtl:space-x-reverse bg-white/5 border border-white/10 rounded-lg p-1 text-sm font-mono">
+                            <div className="flex items-center space-x-1.5 rtl:space-x-reverse bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 rounded-lg p-1 text-sm font-sans">
                               <button 
                                 onClick={() => removeFromCart(resolvedId)}
-                                className="w-8 h-8 rounded-md hover:bg-white/10 text-gray-300 active:scale-90 transition-transform flex items-center justify-center"
+                                className="w-8 h-8 rounded-md hover:bg-[#F3ECDD]/10 text-[#C7BFB0] active:scale-90 transition-transform flex items-center justify-center"
                               >
                                 <Minus className="w-3.5 h-3.5" />
                               </button>
@@ -797,7 +797,7 @@ export default function App() {
                               </span>
                               <button 
                                 onClick={(e) => addToCart(item, e)}
-                                className="w-8 h-8 rounded-md hover:bg-white/10 text-gray-300 active:scale-90 transition-transform flex items-center justify-center"
+                                className="w-8 h-8 rounded-md hover:bg-[#F3ECDD]/10 text-[#C7BFB0] active:scale-90 transition-transform flex items-center justify-center"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                               </button>
@@ -805,7 +805,7 @@ export default function App() {
                           ) : (
                             <button 
                               onClick={(e) => addToCart(item, e)}
-                              className="w-full border px-4 py-2.5 rounded-lg font-display font-black text-xs transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse bg-white/5 hover:bg-brand-orange hover:text-black border-white/10 hover:border-transparent active:scale-95 cursor-pointer"
+                              className="w-full border px-4 py-2.5 rounded-lg font-display font-black text-xs transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse bg-[#F3ECDD]/5 hover:bg-brand-orange hover:text-[#1A1208] border-[#F3ECDD]/10 hover:border-transparent active:scale-95 cursor-pointer"
                             >
                               <Plus className="w-3.5 h-3.5" />
                               <span>{t.menu_add_to_cart}</span>
@@ -826,7 +826,7 @@ export default function App() {
                 const element = document.getElementById('hero') || document.getElementById('menu');
                 element?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-6 py-3.5 bg-brand-dark-card border border-brand-orange/40 hover:border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-black font-display font-extrabold text-xs md:text-sm tracking-wide rounded-xl transition-all duration-300 shadow-xl shadow-black/80 hover:shadow-brand-orange/20 flex items-center space-x-2.5 rtl:space-x-reverse cursor-pointer active:scale-95 group"
+              className="px-6 py-3.5 bg-brand-dark-card border border-brand-orange/40 hover:border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-[#1A1208] font-display font-extrabold text-xs md:text-sm tracking-wide rounded-xl transition-all duration-300 shadow-xl shadow-black/80 hover:shadow-brand-orange/20 flex items-center space-x-2.5 rtl:space-x-reverse cursor-pointer active:scale-95 group"
             >
               <ChevronUp className="w-4 h-4 group-hover:-translate-y-1 transition-transform duration-200" />
               <span>{t.back_to_top_menu}</span>
@@ -837,10 +837,10 @@ export default function App() {
       </section>
 
       {/* Compact Brand Section */}
-      <section id="brand-info-strip" className="py-5 bg-[#0D0D0D] border-t border-b border-white/5 relative z-10 flex flex-col items-center justify-center text-center">
+      <section id="brand-info-strip" className="py-5 bg-[#150F09] border-t border-b border-[#F3ECDD]/5 relative z-10 flex flex-col items-center justify-center text-center">
         <div className="max-w-xl mx-auto px-4 flex flex-col gap-2">
           {/* Brand Text Stack */}
-          <div className="flex flex-col gap-0.5 text-white/90 text-xs sm:text-sm md:text-base font-medium">
+          <div className="flex flex-col gap-0.5 text-[#F3ECDD]/90 text-xs sm:text-sm md:text-base font-medium">
             <p>{t.brand_line1}</p>
             <p>{t.brand_line2}</p>
             <p>{t.brand_line3}</p>
@@ -851,7 +851,7 @@ export default function App() {
             <a 
               href="#" 
               id="brand_google_link"
-              className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-400 hover:text-brand-orange transition-colors font-medium"
+              className="inline-flex items-center gap-1 text-xs sm:text-sm text-[#9A9490] hover:text-brand-orange transition-colors font-medium"
             >
               <Star className="w-3.5 h-3.5 fill-brand-orange text-brand-orange shrink-0" />
               <span>{t.brand_trust}</span>
@@ -865,7 +865,7 @@ export default function App() {
               target="_blank" 
               rel="noopener noreferrer"
               id="brand_instagram_link"
-              className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-400 hover:text-brand-orange transition-colors font-medium"
+              className="inline-flex items-center gap-1 text-xs sm:text-sm text-[#9A9490] hover:text-brand-orange transition-colors font-medium"
             >
               <Instagram className="w-3.5 h-3.5 text-brand-orange shrink-0" />
               <span>@domscafe_official</span>
@@ -880,31 +880,31 @@ export default function App() {
       </section>
 
       {/* Compact Hours and Location Card (Moved to bottom above footer) */}
-      <section id="location" className="py-12 relative bg-brand-dark overflow-hidden border-t border-white/5">
+      <section id="location" className="py-12 relative bg-brand-dark overflow-hidden border-t border-[#F3ECDD]/5">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-brand-orange/5 rounded-full blur-[80px] pointer-events-none"></div>
 
         <div className="max-w-2xl mx-auto px-4 relative z-10">
-          <div className="bg-brand-dark-card border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl shadow-black relative overflow-hidden group hover:border-brand-orange/20 transition-colors duration-300">
+          <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-2xl p-6 md:p-8 shadow-2xl shadow-black relative overflow-hidden group hover:border-brand-orange/20 transition-colors duration-300">
             {/* Ambient subtle spark glow */}
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-brand-orange/10 rounded-full blur-2xl group-hover:bg-brand-orange/20 transition-all duration-500"></div>
 
             <div className="text-center mb-6">
-              <span className="text-brand-orange font-mono font-black text-xs tracking-widest mb-2 uppercase inline-block">
+              <span className="text-brand-orange font-sans font-black text-xs tracking-widest mb-2 uppercase inline-block">
                 {t.location_tag}
               </span>
-              <h2 className="text-2xl md:text-3xl font-display font-black tracking-tight uppercase text-white mb-1">
+              <h2 className="text-2xl md:text-3xl font-display font-black tracking-tight uppercase text-[#F3ECDD] mb-1">
                 {t.location_title}
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-center md:text-start border-t border-white/5 pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-center md:text-start border-t border-[#F3ECDD]/5 pt-6">
               {/* Hours Details */}
               <div className="space-y-2">
-                <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-brand-orange flex items-center justify-center md:justify-start gap-1.5">
+                <h3 className="text-sm font-sans font-bold uppercase tracking-wider text-brand-orange flex items-center justify-center md:justify-start gap-1.5">
                   <Clock className="w-4 h-4" />
                   {t.location_hours_title}
                 </h3>
-                <div className="text-gray-300 space-y-1 text-sm font-light">
+                <div className="text-[#C7BFB0] space-y-1 text-sm font-light">
                   <p>{t.location_hours_weekdays}</p>
                   <p>{t.location_hours_weekends}</p>
                 </div>
@@ -912,7 +912,7 @@ export default function App() {
 
               {/* Address Details */}
               <div className="space-y-2">
-                <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-brand-orange flex items-center justify-center md:justify-start gap-1.5">
+                <h3 className="text-sm font-sans font-bold uppercase tracking-wider text-brand-orange flex items-center justify-center md:justify-start gap-1.5">
                   <MapPin className="w-4 h-4" />
                   {lang === 'ar' ? 'العنوان' : 'Adresse'}
                 </h3>
@@ -922,22 +922,22 @@ export default function App() {
                   href="https://www.google.com/maps/search/?api=1&query=Dom's+Café+%26+Restaurant,+26+rue+Jabal+Alayachi,+Agdal,+Rabat"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full aspect-[16/8] rounded-xl overflow-hidden border border-white/10 hover:border-brand-orange/40 transition-all duration-300 relative group/map cursor-pointer shadow-lg bg-[#0F0F0F] my-3"
+                  className="block w-full aspect-[16/8] rounded-xl overflow-hidden border border-[#F3ECDD]/10 hover:border-brand-orange/40 transition-all duration-300 relative group/map cursor-pointer shadow-lg bg-[#130D07] my-3"
                   title="Dom's Café & Restaurant @ Agdal, Rabat"
                 >
                   <svg viewBox="0 0 400 200" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                       <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#0B132B" />
-                        <stop offset="100%" stopColor="#1C2541" />
+                        <stop offset="0%" stopColor="#120C06" />
+                        <stop offset="100%" stopColor="#2A2013" />
                       </linearGradient>
                       <linearGradient id="landGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#0F0F0F" />
-                        <stop offset="100%" stopColor="#151515" />
+                        <stop offset="0%" stopColor="#130D07" />
+                        <stop offset="100%" stopColor="#17110A" />
                       </linearGradient>
                       <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stopColor="#FF5C00" stopOpacity={0.4} />
-                        <stop offset="100%" stopColor="#FF5C00" stopOpacity={0} />
+                        <stop offset="0%" stopColor="#C9A15A" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#C9A15A" stopOpacity={0} />
                       </radialGradient>
                     </defs>
 
@@ -946,92 +946,92 @@ export default function App() {
 
                     {/* Coastline/Water (Top-Left area representing Rabat coast) */}
                     <path d="M 0,130 Q 110,105 230,0 L 0,0 Z" fill="url(#oceanGrad)" opacity={0.9} />
-                    <path d="M 0,130 Q 110,105 230,0" fill="none" stroke="#3A506B" strokeWidth={2} opacity={0.5} />
-                    <path d="M 0,132 Q 110,107 232,0" fill="none" stroke="#FF5C00" strokeWidth={1} opacity={0.15} />
+                    <path d="M 0,130 Q 110,105 230,0" fill="none" stroke="#8A6423" strokeWidth={2} opacity={0.5} />
+                    <path d="M 0,132 Q 110,107 232,0" fill="none" stroke="#C9A15A" strokeWidth={1} opacity={0.15} />
 
                     {/* Grid Pattern for tech/modern touch */}
                     <g opacity={0.06}>
-                      <line x1="40" y1="0" x2="40" y2="200" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="80" y1="0" x2="80" y2="200" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="120" y1="0" x2="120" y2="200" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="160" y1="0" x2="160" y2="200" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="200" y1="0" x2="200" y2="200" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="240" y1="0" x2="240" y2="200" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="280" y1="0" x2="280" y2="200" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="320" y1="0" x2="320" y2="200" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="360" y1="0" x2="360" y2="200" stroke="#FFFFFF" strokeWidth={1} />
+                      <line x1="40" y1="0" x2="40" y2="200" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="80" y1="0" x2="80" y2="200" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="120" y1="0" x2="120" y2="200" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="160" y1="0" x2="160" y2="200" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="200" y1="0" x2="200" y2="200" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="240" y1="0" x2="240" y2="200" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="280" y1="0" x2="280" y2="200" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="320" y1="0" x2="320" y2="200" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="360" y1="0" x2="360" y2="200" stroke="#F3ECDD" strokeWidth={1} />
 
-                      <line x1="0" y1="40" x2="400" y2="40" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="0" y1="80" x2="400" y2="80" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="0" y1="120" x2="400" y2="120" stroke="#FFFFFF" strokeWidth={1} />
-                      <line x1="0" y1="160" x2="400" y2="160" stroke="#FFFFFF" strokeWidth={1} />
+                      <line x1="0" y1="40" x2="400" y2="40" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="0" y1="80" x2="400" y2="80" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="0" y1="120" x2="400" y2="120" stroke="#F3ECDD" strokeWidth={1} />
+                      <line x1="0" y1="160" x2="400" y2="160" stroke="#F3ECDD" strokeWidth={1} />
                     </g>
 
                     {/* Route Côtière (Coastal Road) */}
-                    <path d="M 0,165 Q 130,130 270,0" fill="none" stroke="#222222" strokeWidth={14} strokeLinecap="round" />
-                    <path d="M 0,165 Q 130,130 270,0" fill="none" stroke="#1A1A1A" strokeWidth={10} strokeLinecap="round" />
-                    <path d="M 0,165 Q 130,130 270,0" fill="none" stroke="#FF5C00" strokeWidth={1} strokeDasharray="4,6" opacity={0.5} />
+                    <path d="M 0,165 Q 130,130 270,0" fill="none" stroke="#241C13" strokeWidth={14} strokeLinecap="round" />
+                    <path d="M 0,165 Q 130,130 270,0" fill="none" stroke="#1D160D" strokeWidth={10} strokeLinecap="round" />
+                    <path d="M 0,165 Q 130,130 270,0" fill="none" stroke="#C9A15A" strokeWidth={1} strokeDasharray="4,6" opacity={0.5} />
 
                     {/* Secondary roads */}
-                    <path d="M 150,138 L 240,195" fill="none" stroke="#1C1C1C" strokeWidth={8} strokeLinecap="round" />
-                    <path d="M 230,118 L 320,175" fill="none" stroke="#1C1C1C" strokeWidth={8} strokeLinecap="round" />
-                    <path d="M 100,195 L 260,95" fill="none" stroke="#151515" strokeWidth={6} />
+                    <path d="M 150,138 L 240,195" fill="none" stroke="#201810" strokeWidth={8} strokeLinecap="round" />
+                    <path d="M 230,118 L 320,175" fill="none" stroke="#201810" strokeWidth={8} strokeLinecap="round" />
+                    <path d="M 100,195 L 260,95" fill="none" stroke="#17110A" strokeWidth={6} />
 
                     {/* Mall du Carrousel building footprint */}
                     <g transform="translate(155, 120) rotate(-15)">
-                      <rect x="0" y="0" width="70" height="32" rx="4" fill="#181818" stroke="#333333" strokeWidth={1.5} />
-                      <rect x="4" y="4" width="62" height="24" rx="2" fill="#222222" stroke="#444444" strokeWidth={1} />
-                      <line x1="15" y1="4" x2="15" y2="28" stroke="#333333" strokeWidth={1} />
-                      <line x1="35" y1="4" x2="35" y2="28" stroke="#333333" strokeWidth={1} />
-                      <line x1="55" y1="4" x2="55" y2="28" stroke="#333333" strokeWidth={1} />
+                      <rect x="0" y="0" width="70" height="32" rx="4" fill="#1B140C" stroke="#2A2118" strokeWidth={1.5} />
+                      <rect x="4" y="4" width="62" height="24" rx="2" fill="#241C13" stroke="#362C1F" strokeWidth={1} />
+                      <line x1="15" y1="4" x2="15" y2="28" stroke="#2A2118" strokeWidth={1} />
+                      <line x1="35" y1="4" x2="35" y2="28" stroke="#2A2118" strokeWidth={1} />
+                      <line x1="55" y1="4" x2="55" y2="28" stroke="#2A2118" strokeWidth={1} />
                     </g>
 
                     {/* Ocean text */}
-                    <text x="35" y="45" fill="#4B5563" fontFamily="monospace" fontSize="8" letterSpacing="1" fontWeight="bold" opacity={0.7} transform="rotate(-15, 35, 45)">
+                    <text x="35" y="45" fill="#6B6259" fontFamily="monospace" fontSize="8" letterSpacing="1" fontWeight="bold" opacity={0.7} transform="rotate(-15, 35, 45)">
                       {lang === 'ar' ? 'المحيط الأطلسي' : lang === 'fr' ? 'OCÉAN ATLANTIQUE' : 'ATLANTIC OCEAN'}
                     </text>
                     
                     {/* Road text */}
-                    <text x="75" y="142" fill="#6B7280" fontFamily="sans-serif" fontSize="7" fontWeight="bold" letterSpacing="0.5" transform="rotate(-14, 75, 142)">
+                    <text x="75" y="142" fill="#7A736C" fontFamily="sans-serif" fontSize="7" fontWeight="bold" letterSpacing="0.5" transform="rotate(-14, 75, 142)">
                       {lang === 'ar' ? 'الطريق الساحلي' : 'ROUTE CÔTIÈRE'}
                     </text>
 
                     {/* Mall label */}
-                    <text x="160" y="108" fill="#9CA3AF" fontFamily="sans-serif" fontSize="7" fontWeight="bold" letterSpacing="0.5">
+                    <text x="160" y="108" fill="#9A9490" fontFamily="sans-serif" fontSize="7" fontWeight="bold" letterSpacing="0.5">
                       RUE JABAL ALAYACHI, AGDAL
                     </text>
 
                     {/* Subtle orange glow and radar circle */}
                     <circle cx="210" cy="135" r="18" fill="url(#glow)" />
-                    <circle cx="210" cy="135" r="8" fill="none" stroke="#FF5C00" strokeWidth={1} opacity={0.6} />
+                    <circle cx="210" cy="135" r="8" fill="none" stroke="#C9A15A" strokeWidth={1} opacity={0.6} />
 
                     {/* Pin Marker */}
                     <g transform="translate(210, 135)">
                       <ellipse cx="0" cy="0" rx="3" ry="1.5" fill="#000000" opacity={0.6} />
-                      <path d="M 0,0 C -5,-5 -8,-12 -8,-18 A 8,8 0 1 1 8,-18 C 8,-12 5,-5 0,0 Z" fill="#FF5C00" stroke="#FFFFFF" strokeWidth={1} />
-                      <circle cx="0" cy="-18" r="3" fill="#FFFFFF" />
+                      <path d="M 0,0 C -5,-5 -8,-12 -8,-18 A 8,8 0 1 1 8,-18 C 8,-12 5,-5 0,0 Z" fill="#C9A15A" stroke="#F3ECDD" strokeWidth={1} />
+                      <circle cx="0" cy="-18" r="3" fill="#F3ECDD" />
                     </g>
 
                     {/* Dom's Café Premium Label Bubble */}
                     <g transform="translate(210, 110)">
-                      <rect x="-75" y="-32" width="150" height="18" rx="4" fill="#0D0D0D" stroke="#FF5C00" strokeWidth={1} opacity={0.95} />
-                      <text x="0" y="-20" fill="#FFFFFF" fontFamily="sans-serif" fontSize="7" fontWeight="900" textAnchor="middle" letterSpacing="0.2">
+                      <rect x="-75" y="-32" width="150" height="18" rx="4" fill="#150F09" stroke="#C9A15A" strokeWidth={1} opacity={0.95} />
+                      <text x="0" y="-20" fill="#F3ECDD" fontFamily="sans-serif" fontSize="7" fontWeight="900" textAnchor="middle" letterSpacing="0.2">
                         DOM'S CAFÉ & RESTAURANT ☕
                       </text>
-                      <polygon points="0,-14 -4,-9 4,-9" fill="#0D0D0D" stroke="#FF5C00" strokeWidth={1} transform="translate(0, -5)" />
-                      <line x1="-3" y1="-14" x2="3" y2="-14" stroke="#0D0D0D" strokeWidth={1.5} />
+                      <polygon points="0,-14 -4,-9 4,-9" fill="#150F09" stroke="#C9A15A" strokeWidth={1} transform="translate(0, -5)" />
+                      <line x1="-3" y1="-14" x2="3" y2="-14" stroke="#150F09" strokeWidth={1.5} />
                     </g>
                   </svg>
                   
                   {/* Subtle map overlay interaction cues */}
                   <div className="absolute inset-0 bg-brand-orange/0 group-hover/map:bg-brand-orange/[0.03] transition-colors duration-300 flex items-center justify-center">
-                    <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-[9px] font-mono font-medium text-brand-orange tracking-wider opacity-60 group-hover/map:opacity-100 transition-opacity">
+                    <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-[9px] font-sans font-medium text-brand-orange tracking-wider opacity-60 group-hover/map:opacity-100 transition-opacity">
                       {lang === 'ar' ? 'عرض الخريطة ↗' : lang === 'fr' ? 'VOIR LA CARTE ↗' : 'VIEW MAP ↗'}
                     </div>
                   </div>
                 </a>
 
-                <p className="text-gray-300 text-sm font-light">
+                <p className="text-[#C7BFB0] text-sm font-light">
                   {t.location_address}
                 </p>
               </div>
@@ -1043,7 +1043,7 @@ export default function App() {
                 href="https://www.google.com/maps/search/?api=1&query=Dom's+Café+%26+Restaurant,+26+rue+Jabal+Alayachi,+Agdal,+Rabat" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="inline-flex items-center space-x-2 rtl:space-x-reverse bg-white/5 hover:bg-white/10 border border-white/15 hover:border-brand-orange/40 text-white font-bold py-3 px-6 rounded-lg text-xs md:text-sm transition-all duration-300 w-full sm:w-auto justify-center cursor-pointer shadow-lg active:scale-95"
+                className="inline-flex items-center space-x-2 rtl:space-x-reverse bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 border border-[#F3ECDD]/15 hover:border-brand-orange/40 text-[#F3ECDD] font-bold py-3 px-6 rounded-lg text-xs md:text-sm transition-all duration-300 w-full sm:w-auto justify-center cursor-pointer shadow-lg active:scale-95"
               >
                 <MapPin className="w-3.5 h-3.5 text-brand-orange animate-bounce" />
                 <span>{t.location_maps_btn}</span>
@@ -1056,12 +1056,12 @@ export default function App() {
 
 
       {/* Main Footer */}
-      <footer className="border-t border-white/10 bg-black py-12 text-center text-xs text-gray-500 font-medium">
+      <footer className="border-t border-[#F3ECDD]/10 bg-black py-12 text-center text-xs text-[#7A736C] font-medium">
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           
           {/* Footer brand identification */}
           <div className="flex flex-col items-center md:items-start select-none leading-none">
-            <div className="font-logo text-2xl md:text-3xl text-white flex items-baseline tracking-normal">
+            <div className="font-logo text-2xl md:text-3xl text-[#F3ECDD] flex items-baseline tracking-normal">
               <span>Dom</span>
               <span className="text-brand-orange font-logo mx-[1px] font-black scale-110 select-none">'</span>
               <span>s</span>
@@ -1089,7 +1089,7 @@ export default function App() {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 border-t border-white/10 backdrop-blur-md px-4 py-3.5 shadow-2xl"
+            className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 border-t border-[#F3ECDD]/10 backdrop-blur-md px-4 py-3.5 shadow-2xl"
           >
             <div className="max-w-7xl mx-auto flex items-center justify-between">
               {/* Items count & Total price */}
@@ -1097,11 +1097,11 @@ export default function App() {
                 onClick={() => setIsCartOpen(true)}
                 className="flex items-center space-x-3.5 rtl:space-x-reverse cursor-pointer group shrink-0"
               >
-                <div className="bg-brand-orange text-black w-7 h-7 rounded-full font-mono text-sm flex items-center justify-center font-black group-hover:scale-105 transition-transform">
+                <div className="bg-brand-orange text-[#1A1208] w-7 h-7 rounded-full font-sans text-sm flex items-center justify-center font-black group-hover:scale-105 transition-transform">
                   {totalItemsCount}
                 </div>
                 <div className="flex flex-col text-start">
-                  <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">
+                  <span className="text-[10px] text-[#7A736C] font-sans uppercase tracking-wider">
                     {lang === 'ar' ? 'المجموع' : 'TOTAL'}
                   </span>
                   <span className="font-display font-black text-sm md:text-base text-brand-orange">
@@ -1118,7 +1118,7 @@ export default function App() {
                     setIsClearCartConfirmOpen(true);
                   }
                 }}
-                className="p-2 text-gray-500 hover:text-red-500 transition-colors cursor-pointer rounded-full hover:bg-white/5 disabled:opacity-50 mx-2 focus:outline-none"
+                className="p-2 text-[#7A736C] hover:text-red-500 transition-colors cursor-pointer rounded-full hover:bg-[#F3ECDD]/5 disabled:opacity-50 mx-2 focus:outline-none"
                 title={t.cart_clear_confirm}
               >
                 <Trash2 className="w-4 h-4" />
@@ -1127,7 +1127,7 @@ export default function App() {
               {/* View Order button */}
               <button 
                 onClick={() => setIsCartOpen(true)}
-                className="bg-brand-orange hover:bg-brand-orange-hover text-black px-5 py-2.5 rounded-lg font-display font-black text-xs md:text-sm transition-all flex items-center space-x-1.5 rtl:space-x-reverse cursor-pointer shadow-lg shadow-brand-orange/20 active:scale-95 shrink-0"
+                className="bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] px-5 py-2.5 rounded-lg font-display font-black text-xs md:text-sm transition-all flex items-center space-x-1.5 rtl:space-x-reverse cursor-pointer shadow-lg shadow-brand-orange/20 active:scale-95 shrink-0"
               >
                 <span>{t.cart_view_order}</span>
                 <ArrowRight className="w-4 h-4 rtl:rotate-180" />
@@ -1156,18 +1156,18 @@ export default function App() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed bottom-0 left-0 right-0 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 w-full lg:max-w-xl max-h-[88vh] bg-brand-dark-card border-t border-x border-white/10 rounded-t-[2.5rem] p-5 md:p-6 z-50 overflow-hidden shadow-2xl shadow-black flex flex-col justify-between"
+              className="fixed bottom-0 left-0 right-0 lg:left-1/2 lg:right-auto lg:-translate-x-1/2 w-full lg:max-w-xl max-h-[88vh] bg-brand-dark-card border-t border-x border-[#F3ECDD]/10 rounded-t-[2.5rem] p-5 md:p-6 z-50 overflow-hidden shadow-2xl shadow-black flex flex-col justify-between"
             >
-              <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4 shrink-0" />
+              <div className="w-12 h-1 bg-[#F3ECDD]/20 rounded-full mx-auto mb-4 shrink-0" />
 
-              <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5 shrink-0 text-start">
+              <div className="flex items-center justify-between border-b border-[#F3ECDD]/10 pb-4 mb-5 shrink-0 text-start">
                 <div className="flex items-center space-x-2.5 rtl:space-x-reverse">
                   <ShoppingBag className="w-5 h-5 text-brand-orange" />
                   <h3 className="font-display font-black text-lg">
                     {t.cart_title}
                   </h3>
                   {totalItemsCount > 0 && (
-                    <span className="bg-brand-orange/20 text-brand-orange font-mono font-bold text-xs px-2 py-0.5 rounded-md">
+                    <span className="bg-brand-orange/20 text-brand-orange font-sans font-bold text-xs px-2 py-0.5 rounded-md">
                       {totalItemsCount}
                     </span>
                   )}
@@ -1179,7 +1179,7 @@ export default function App() {
                           setIsClearCartConfirmOpen(true);
                         }
                       }}
-                      className="p-1 text-gray-500 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50 focus:outline-none"
+                      className="p-1 text-[#7A736C] hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50 focus:outline-none"
                       title={t.cart_clear_confirm}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1188,7 +1188,7 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setIsCartOpen(false)}
-                  className="p-1 text-gray-400 hover:text-white transition-colors"
+                  className="p-1 text-[#9A9490] hover:text-[#F3ECDD] transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1199,10 +1199,10 @@ export default function App() {
                   <div className="w-16 h-16 rounded-full bg-brand-orange/10 flex items-center justify-center mb-6 border-2 border-brand-orange text-brand-orange">
                     <Check className="w-8 h-8 stroke-[3]" />
                   </div>
-                  <h4 className="font-display font-black text-xl text-white mb-3">
+                  <h4 className="font-display font-black text-xl text-[#F3ECDD] mb-3">
                     {lang === 'ar' ? 'تم إرسال الطلب بنجاح!' : lang === 'fr' ? 'Commande envoyée !' : 'Order Sent Successfully!'}
                   </h4>
-                  <p className="text-sm text-gray-300 leading-relaxed max-w-sm mb-8">
+                  <p className="text-sm text-[#C7BFB0] leading-relaxed max-w-sm mb-8">
                     {orderType === 'dine_in' 
                       ? t.cart_confirm_dine_in 
                       : t.cart_confirm_delivery}
@@ -1214,15 +1214,15 @@ export default function App() {
                       setIsOrderPlaced(false);
                       setIsCartOpen(false);
                     }}
-                    className="w-full bg-brand-orange hover:bg-brand-orange-hover text-black py-3.5 rounded-lg font-display font-black text-sm text-center shadow-lg shadow-brand-orange/20 cursor-pointer"
+                    className="w-full bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] py-3.5 rounded-lg font-display font-black text-sm text-center shadow-lg shadow-brand-orange/20 cursor-pointer"
                   >
                     {t.cart_btn_new_order}
                   </motion.button>
                 </div>
               ) : cart.length === 0 ? (
-                <div className="py-16 text-center text-gray-500 grow flex flex-col justify-center">
-                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 border border-white/10">
-                    <ShoppingBag className="w-6 h-6 text-gray-400" />
+                <div className="py-16 text-center text-[#7A736C] grow flex flex-col justify-center">
+                  <div className="w-16 h-16 rounded-full bg-[#F3ECDD]/5 flex items-center justify-center mx-auto mb-4 border border-[#F3ECDD]/10">
+                    <ShoppingBag className="w-6 h-6 text-[#9A9490]" />
                   </div>
                   <p className="text-sm px-4">
                     {t.cart_empty}
@@ -1240,12 +1240,12 @@ export default function App() {
                           onClick={() => setOrderType('dine_in')}
                           className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-300 relative overflow-hidden ${
                             orderType === 'dine_in'
-                              ? 'bg-brand-orange text-black border-transparent font-black shadow-lg shadow-brand-orange/20'
-                              : 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10 font-bold'
+                              ? 'bg-brand-orange text-[#1A1208] border-transparent font-black shadow-lg shadow-brand-orange/20'
+                              : 'bg-[#F3ECDD]/5 border-[#F3ECDD]/10 text-[#C7BFB0] hover:text-[#F3ECDD] hover:bg-[#F3ECDD]/10 font-bold'
                           }`}
                         >
                           {orderType === 'dine_in' && (
-                            <div className="absolute top-1.5 right-1.5 bg-black/10 text-black w-4 h-4 rounded-full flex items-center justify-center">
+                            <div className="absolute top-1.5 right-1.5 bg-black/10 text-[#1A1208] w-4 h-4 rounded-full flex items-center justify-center">
                               <Check className="w-3 h-3 stroke-[3.5]" />
                             </div>
                           )}
@@ -1258,12 +1258,12 @@ export default function App() {
                           onClick={() => setOrderType('delivery')}
                           className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-300 relative overflow-hidden ${
                             orderType === 'delivery'
-                              ? 'bg-brand-orange text-black border-transparent font-black shadow-lg shadow-brand-orange/20'
-                              : 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10 font-bold'
+                              ? 'bg-brand-orange text-[#1A1208] border-transparent font-black shadow-lg shadow-brand-orange/20'
+                              : 'bg-[#F3ECDD]/5 border-[#F3ECDD]/10 text-[#C7BFB0] hover:text-[#F3ECDD] hover:bg-[#F3ECDD]/10 font-bold'
                           }`}
                         >
                           {orderType === 'delivery' && (
-                            <div className="absolute top-1.5 right-1.5 bg-black/10 text-black w-4 h-4 rounded-full flex items-center justify-center">
+                            <div className="absolute top-1.5 right-1.5 bg-black/10 text-[#1A1208] w-4 h-4 rounded-full flex items-center justify-center">
                               <Check className="w-3 h-3 stroke-[3.5]" />
                             </div>
                           )}
@@ -1274,11 +1274,11 @@ export default function App() {
                     </div>
 
                     {/* Cart Items List */}
-                    <div className="space-y-4 overflow-y-auto max-h-[180px] mb-6 text-start border-b border-white/5 pb-4">
+                    <div className="space-y-4 overflow-y-auto max-h-[180px] mb-6 text-start border-b border-[#F3ECDD]/5 pb-4">
                       {cart.map(item => (
                         <div key={item.menuItem.id} className="flex items-center justify-between">
                           <div className="flex items-center space-x-3 rtl:space-x-reverse">
-                            <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/10 flex items-center justify-center bg-brand-dark">
+                            <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-[#F3ECDD]/10 flex items-center justify-center bg-brand-dark">
                               <SafeImage 
                                 src={item.menuItem.image} 
                                 alt={item.menuItem.name[lang]} 
@@ -1288,24 +1288,24 @@ export default function App() {
                               />
                             </div>
                             <div>
-                              <h4 className="font-bold text-xs md:text-sm text-white">{item.menuItem.name[lang]}</h4>
-                              <p className="text-xs text-brand-orange font-mono font-bold">
+                              <h4 className="font-bold text-xs md:text-sm text-[#F3ECDD]">{item.menuItem.name[lang]}</h4>
+                              <p className="text-xs text-brand-orange font-sans font-bold">
                                 {(item.menuItem as any).drinkUpgrade === 'bubble_tea' ? `${item.menuItem.price}+XX` : item.menuItem.price} {lang === 'ar' ? 'درهم' : 'MAD'}
                               </p>
                             </div>
                           </div>
                           
                           <div className="flex items-center space-x-3.5 rtl:space-x-reverse">
-                            <div className="flex items-center bg-white/5 rounded border border-white/10 p-0.5 text-xs font-mono">
-                              <button onClick={() => removeFromCart(item.menuItem.id)} className="w-6 h-6 rounded flex items-center justify-center hover:bg-white/10">
+                            <div className="flex items-center bg-[#F3ECDD]/5 rounded border border-[#F3ECDD]/10 p-0.5 text-xs font-sans">
+                              <button onClick={() => removeFromCart(item.menuItem.id)} className="w-6 h-6 rounded flex items-center justify-center hover:bg-[#F3ECDD]/10">
                                 <Minus className="w-2.5 h-2.5" />
                               </button>
                               <span className="w-5 text-center text-brand-orange font-bold">{item.quantity}</span>
-                              <button onClick={(e) => addToCart(item.menuItem, e)} className="w-6 h-6 rounded flex items-center justify-center hover:bg-white/10">
+                              <button onClick={(e) => addToCart(item.menuItem, e)} className="w-6 h-6 rounded flex items-center justify-center hover:bg-[#F3ECDD]/10">
                                 <Plus className="w-2.5 h-2.5" />
                               </button>
                             </div>
-                            <button onClick={() => deleteFromCart(item.menuItem.id)} className="text-gray-500 hover:text-red-500 transition-colors">
+                            <button onClick={() => deleteFromCart(item.menuItem.id)} className="text-[#7A736C] hover:text-red-500 transition-colors">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -1349,14 +1349,14 @@ export default function App() {
                         : (lang === 'ar' ? '🍹 هل ترغب في إضافة عصير؟' : lang === 'fr' ? '🍹 Ajouter un jus ou cocktail ?' : '🍹 Would you like a drink?');
 
                       return (
-                        <div className="mb-6 p-3.5 bg-white/5 border border-brand-orange/30 rounded-2xl animate-fadeIn shadow-lg shadow-black/40">
+                        <div className="mb-6 p-3.5 bg-[#F3ECDD]/5 border border-brand-orange/30 rounded-2xl animate-fadeIn shadow-lg shadow-black/40">
                           <div className="flex items-center justify-between mb-2.5">
                             <h4 className="text-[11px] font-black text-brand-orange uppercase tracking-wider flex items-center space-x-1.5 rtl:space-x-reverse">
                               <span>{headingText}</span>
                             </h4>
                             <button
                               onClick={() => setIsSuggestionDismissed(true)}
-                              className="p-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"
+                              className="p-1 rounded-lg bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 border border-[#F3ECDD]/10 text-[#9A9490] hover:text-[#F3ECDD] transition-colors cursor-pointer"
                               title={lang === 'ar' ? 'إغلاق' : lang === 'fr' ? 'Ignorer' : 'Dismiss'}
                             >
                               <X className="w-3.5 h-3.5" />
@@ -1368,15 +1368,15 @@ export default function App() {
                               <button
                                 key={drink.id}
                                 onClick={(e) => addToCart(drink, e)}
-                                className="flex-none flex items-center space-x-2 rtl:space-x-reverse bg-brand-dark hover:bg-brand-orange/20 border border-white/15 hover:border-brand-orange text-white text-xs font-bold py-2 px-3 rounded-xl transition-all active:scale-95 cursor-pointer whitespace-nowrap group"
+                                className="flex-none flex items-center space-x-2 rtl:space-x-reverse bg-brand-dark hover:bg-brand-orange/20 border border-[#F3ECDD]/15 hover:border-brand-orange text-[#F3ECDD] text-xs font-bold py-2 px-3 rounded-xl transition-all active:scale-95 cursor-pointer whitespace-nowrap group"
                               >
                                 <span className="text-brand-orange text-sm group-hover:scale-110 transition-transform">
                                   {isBreakfast ? '☕' : '🍹'}
                                 </span>
-                                <span className="text-gray-200 group-hover:text-white">
+                                <span className="text-[#E3DCCB] group-hover:text-[#F3ECDD]">
                                   {drink.name[lang] || drink.name.fr}
                                 </span>
-                                <span className="text-brand-orange font-mono font-black text-[10px] bg-brand-orange/10 px-1.5 py-0.5 rounded-md">
+                                <span className="text-brand-orange font-sans font-black text-[10px] bg-brand-orange/10 px-1.5 py-0.5 rounded-md">
                                   +{drink.price} {lang === 'ar' ? 'د.م' : 'DH'}
                                 </span>
                               </button>
@@ -1390,7 +1390,7 @@ export default function App() {
                     {orderType === 'dine_in' ? (
                       <div className="grid grid-cols-2 gap-3 mb-6 text-start animate-fadeIn">
                         <div>
-                          <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">
+                          <label className="block text-xs font-bold text-[#C7BFB0] mb-1.5 uppercase tracking-wider">
                             {t.cart_table_number_label}
                           </label>
                           <input 
@@ -1398,11 +1398,11 @@ export default function App() {
                             value={tableNumber}
                             onChange={(e) => setTableNumber(e.target.value)}
                             placeholder={lang === 'ar' ? 'رقم الطاولة' : 'Ex: 5'}
-                            className="w-full bg-brand-dark border border-white/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 px-3 py-2.5 rounded-lg text-base text-white placeholder-gray-600 focus:outline-none transition-all"
+                            className="w-full bg-brand-dark border border-[#F3ECDD]/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 px-3 py-2.5 rounded-lg text-base text-[#F3ECDD] placeholder-gray-600 focus:outline-none transition-all"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">
+                          <label className="block text-xs font-bold text-[#C7BFB0] mb-1.5 uppercase tracking-wider">
                             {t.cart_first_name_label}
                           </label>
                           <input 
@@ -1410,14 +1410,14 @@ export default function App() {
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
                             placeholder={t.cart_first_name_placeholder}
-                            className="w-full bg-brand-dark border border-white/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 px-3 py-2.5 rounded-lg text-base text-white placeholder-gray-600 focus:outline-none transition-all"
+                            className="w-full bg-brand-dark border border-[#F3ECDD]/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 px-3 py-2.5 rounded-lg text-base text-[#F3ECDD] placeholder-gray-600 focus:outline-none transition-all"
                           />
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-4 mb-6 text-start animate-fadeIn">
                         <div>
-                          <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">
+                          <label className="block text-xs font-bold text-[#C7BFB0] mb-1.5 uppercase tracking-wider">
                             {t.cart_first_name_label} <span className="text-brand-orange">*</span>
                           </label>
                           <input 
@@ -1426,11 +1426,11 @@ export default function App() {
                             onChange={(e) => setFirstName(e.target.value)}
                             placeholder={t.cart_first_name_placeholder}
                             required
-                            className="w-full bg-brand-dark border border-white/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 px-3 py-2.5 rounded-lg text-base text-white placeholder-gray-600 focus:outline-none transition-all"
+                            className="w-full bg-brand-dark border border-[#F3ECDD]/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 px-3 py-2.5 rounded-lg text-base text-[#F3ECDD] placeholder-gray-600 focus:outline-none transition-all"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">
+                          <label className="block text-xs font-bold text-[#C7BFB0] mb-1.5 uppercase tracking-wider">
                             {t.cart_address_label} <span className="text-brand-orange">*</span>
                           </label>
                           <textarea 
@@ -1439,7 +1439,7 @@ export default function App() {
                             placeholder={t.cart_address_placeholder}
                             rows={2}
                             required
-                            className="w-full bg-brand-dark border border-white/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 p-2.5 rounded-lg text-base text-white placeholder-gray-500 focus:outline-none transition-all resize-none"
+                            className="w-full bg-brand-dark border border-[#F3ECDD]/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 p-2.5 rounded-lg text-base text-[#F3ECDD] placeholder-gray-500 focus:outline-none transition-all resize-none"
                           />
                         </div>
                       </div>
@@ -1447,25 +1447,25 @@ export default function App() {
                   </div>
 
                   {/* Calculations and Final Order Trigger */}
-                  <div className="border-t border-white/10 pt-4 text-start shrink-0">
+                  <div className="border-t border-[#F3ECDD]/10 pt-4 text-start shrink-0">
                     <div className="space-y-2 text-xs md:text-sm font-semibold mb-4">
-                      <div className="flex justify-between text-gray-400">
+                      <div className="flex justify-between text-[#9A9490]">
                         <span>{t.cart_subtotal}</span>
-                        <span className="font-mono text-white">{formatPriceDisplay(subtotal)}</span>
+                        <span className="font-sans text-[#F3ECDD]">{formatPriceDisplay(subtotal)}</span>
                       </div>
                       
                       {orderType === 'delivery' && (
-                        <div className="flex justify-between text-gray-400 items-center">
+                        <div className="flex justify-between text-[#9A9490] items-center">
                           <div className="flex items-center space-x-1.5 rtl:space-x-reverse">
                             <span>{t.cart_delivery}</span>
                             <span className="text-[10px] text-brand-orange font-bold underline cursor-help group relative">
                               <Info className="w-3.5 h-3.5 inline" />
-                              <span className="absolute bottom-6 left-1/2 -translate-x-1/2 hidden group-hover:block bg-brand-dark-card border border-white/15 p-2 rounded text-[10px] text-gray-300 w-44 z-50 normal-case">
+                              <span className="absolute bottom-6 left-1/2 -translate-x-1/2 hidden group-hover:block bg-brand-dark-card border border-[#F3ECDD]/15 p-2 rounded text-[10px] text-[#C7BFB0] w-44 z-50 normal-case">
                                 {t.cart_delivery_note}
                               </span>
                             </span>
                           </div>
-                          <span className="font-mono text-white">
+                          <span className="font-sans text-[#F3ECDD]">
                             {deliveryFee === 0 ? (
                               <span className="text-green-500 font-bold uppercase">{t.cart_free}</span>
                             ) : (
@@ -1475,9 +1475,9 @@ export default function App() {
                         </div>
                       )}
                       
-                      <div className="border-t border-white/10 pt-3 flex justify-between font-display font-black text-base md:text-lg text-white">
+                      <div className="border-t border-[#F3ECDD]/10 pt-3 flex justify-between font-display font-black text-base md:text-lg text-[#F3ECDD]">
                         <span>{t.cart_total}</span>
-                        <span className="text-brand-orange font-mono">{formatPriceDisplay(total)}</span>
+                        <span className="text-brand-orange font-sans">{formatPriceDisplay(total)}</span>
                       </div>
                     </div>
 
@@ -1490,7 +1490,7 @@ export default function App() {
                         return (
                           <button
                             disabled
-                            className="w-full bg-white/5 border border-white/10 text-gray-500 py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
+                            className="w-full bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 text-[#7A736C] py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
                           >
                             <Phone className="w-4 h-4 shrink-0" />
                             <span>{t.cart_dine_in_hint}</span>
@@ -1502,7 +1502,7 @@ export default function App() {
                         return (
                           <button
                             disabled
-                            className="w-full bg-white/5 border border-white/10 text-gray-500 py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
+                            className="w-full bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 text-[#7A736C] py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
                           >
                             <Phone className="w-4 h-4 shrink-0" />
                             <span>{t.cart_delivery_first_name_required}</span>
@@ -1514,7 +1514,7 @@ export default function App() {
                         return (
                           <button
                             disabled
-                            className="w-full bg-white/5 border border-white/10 text-gray-500 py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
+                            className="w-full bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 text-[#7A736C] py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
                           >
                             <Phone className="w-4 h-4 shrink-0" />
                             <span>
@@ -1539,7 +1539,7 @@ export default function App() {
                             (document.activeElement as HTMLElement)?.blur();
                             setIsCheckoutConfirmOpen(true);
                           }}
-                          className="w-full bg-brand-orange hover:bg-brand-orange-hover text-black py-3.5 rounded-lg font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                          className="w-full bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] py-3.5 rounded-lg font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                         >
                           <Phone className="w-4 h-4 fill-black shrink-0" />
                           <span>{t.cart_checkout_btn}</span>
@@ -1573,17 +1573,17 @@ export default function App() {
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="w-full max-w-md bg-brand-dark-card border border-white/10 rounded-2xl p-5 md:p-6 shadow-2xl pointer-events-auto text-left rtl:text-right overflow-hidden flex flex-col max-h-[90vh]"
+                className="w-full max-w-md bg-brand-dark-card border border-[#F3ECDD]/10 rounded-2xl p-5 md:p-6 shadow-2xl pointer-events-auto text-left rtl:text-right overflow-hidden flex flex-col max-h-[90vh]"
               >
                 {/* Header */}
-                <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4 shrink-0">
-                  <h3 className="font-display font-black text-lg text-white flex items-center gap-2">
+                <div className="flex items-center justify-between pb-3 border-b border-[#F3ECDD]/10 mb-4 shrink-0">
+                  <h3 className="font-display font-black text-lg text-[#F3ECDD] flex items-center gap-2">
                     <ShoppingBag className="w-5 h-5 text-brand-orange" />
                     <span>{t.checkout_modal_title}</span>
                   </h3>
                   <button 
                     onClick={() => setIsCheckoutConfirmOpen(false)}
-                    className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    className="w-8 h-8 rounded-full bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 flex items-center justify-center text-[#9A9490] hover:text-[#F3ECDD] transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1596,10 +1596,10 @@ export default function App() {
                 </div>
 
                 {/* Order Overview / Summary */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 mb-5 text-xs space-y-3 overflow-y-auto custom-scrollbar grow">
-                  <div className="font-bold text-gray-200 text-xs border-b border-white/10 pb-2 flex justify-between items-center">
+                <div className="bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 rounded-xl p-3.5 mb-5 text-xs space-y-3 overflow-y-auto custom-scrollbar grow">
+                  <div className="font-bold text-[#E3DCCB] text-xs border-b border-[#F3ECDD]/10 pb-2 flex justify-between items-center">
                     <span>{t.checkout_modal_order_summary}</span>
-                    <span className="text-brand-orange font-mono font-bold text-sm">{formatPriceDisplay(total)}</span>
+                    <span className="text-brand-orange font-sans font-bold text-sm">{formatPriceDisplay(total)}</span>
                   </div>
                   
                   {/* Items list */}
@@ -1609,35 +1609,35 @@ export default function App() {
                       const unitPrice = Number(item.menuItem?.price ?? (item as any).price ?? 0) || 0;
                       const itemPrice = unitPrice * item.quantity;
                       return (
-                        <div key={item.id} className="pt-1.5 first:pt-0 flex justify-between items-start text-gray-300">
+                        <div key={item.id} className="pt-1.5 first:pt-0 flex justify-between items-start text-[#C7BFB0]">
                           <div className="pr-2">
                             <span className="font-bold text-brand-orange mr-1.5">{item.quantity}x</span>
-                            <span className="font-medium text-white">{itemTitle}</span>
+                            <span className="font-medium text-[#F3ECDD]">{itemTitle}</span>
                             {item.selectedHotDrink && (
-                              <div className="text-gray-400 text-[11px] mt-0.5">
+                              <div className="text-[#9A9490] text-[11px] mt-0.5">
                                 + {item.selectedHotDrink}
                               </div>
                             )}
                           </div>
-                          <span className="font-mono text-gray-300 font-semibold shrink-0">{formatPriceDisplay(itemPrice)}</span>
+                          <span className="font-sans text-[#C7BFB0] font-semibold shrink-0">{formatPriceDisplay(itemPrice)}</span>
                         </div>
                       );
                     })}
                   </div>
 
                   {/* Fulfillment details */}
-                  <div className="pt-2 border-t border-white/10 text-xs text-gray-400 space-y-1">
+                  <div className="pt-2 border-t border-[#F3ECDD]/10 text-xs text-[#9A9490] space-y-1">
                     <div className="flex justify-between">
                       <span>{t.cart_subtotal}:</span>
-                      <span className="font-mono text-gray-300">{formatPriceDisplay(subtotal)}</span>
+                      <span className="font-sans text-[#C7BFB0]">{formatPriceDisplay(subtotal)}</span>
                     </div>
                     {orderType === 'delivery' && (
                       <div className="flex justify-between">
                         <span>{t.cart_delivery}:</span>
-                        <span className="font-mono text-gray-300">{deliveryFee === 0 ? t.cart_free : formatPriceDisplay(deliveryFee)}</span>
+                        <span className="font-sans text-[#C7BFB0]">{deliveryFee === 0 ? t.cart_free : formatPriceDisplay(deliveryFee)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between pt-1 font-bold text-gray-200">
+                    <div className="flex justify-between pt-1 font-bold text-[#E3DCCB]">
                       <span>{orderType === 'dine_in' ? t.cart_type_dine_in : t.cart_type_delivery}:</span>
                       <span className="text-brand-orange">
                         {orderType === 'dine_in'
@@ -1699,7 +1699,7 @@ export default function App() {
                         window.location.href = waUrl;
                       }
                     }}
-                    className="w-full bg-brand-orange hover:bg-brand-orange-hover text-black py-3.5 rounded-xl font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                    className="w-full bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] py-3.5 rounded-xl font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                   >
                     <Phone className="w-4 h-4 fill-black shrink-0" />
                     <span>{t.checkout_modal_confirm_btn}</span>
@@ -1707,7 +1707,7 @@ export default function App() {
 
                   <button 
                     onClick={() => setIsCheckoutConfirmOpen(false)}
-                    className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 py-3 rounded-xl font-medium text-xs text-center transition-all cursor-pointer"
+                    className="w-full bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 border border-[#F3ECDD]/10 text-[#C7BFB0] py-3 rounded-xl font-medium text-xs text-center transition-all cursor-pointer"
                   >
                     {t.checkout_modal_cancel_btn}
                   </button>
@@ -1737,24 +1737,24 @@ export default function App() {
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="w-full max-w-sm bg-brand-dark-card border border-white/10 rounded-2xl p-6 shadow-2xl pointer-events-auto text-center"
+                className="w-full max-w-sm bg-brand-dark-card border border-[#F3ECDD]/10 rounded-2xl p-6 shadow-2xl pointer-events-auto text-center"
               >
                 <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 text-red-500">
                   <Trash2 className="w-6 h-6" />
                 </div>
-                <h3 className="font-display font-black text-lg text-white mb-2">
+                <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-2">
                   {t.cart_clear_confirm}
                 </h3>
                 <div className="flex space-x-3 rtl:space-x-reverse mt-6">
                   <button
                     onClick={() => setIsClearCartConfirmOpen(false)}
-                    className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer border border-white/10 text-xs md:text-sm active:scale-95 focus:outline-none"
+                    className="flex-1 bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 text-[#F3ECDD] font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer border border-[#F3ECDD]/10 text-xs md:text-sm active:scale-95 focus:outline-none"
                   >
                     {t.cart_clear_cancel}
                   </button>
                   <button
                     onClick={clearCart}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer text-xs md:text-sm active:scale-95 shadow-lg shadow-red-600/20 focus:outline-none"
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-[#F3ECDD] font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer text-xs md:text-sm active:scale-95 shadow-lg shadow-red-600/20 focus:outline-none"
                   >
                     {t.cart_clear_yes}
                   </button>
