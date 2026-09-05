@@ -175,11 +175,13 @@ function SafeImage({ src, alt, fallbackName, className, isCart }: { src: string;
   }
 
   return (
-    <img 
-      src={src} 
-      alt={alt} 
+    <img
+      src={src}
+      alt={alt}
       className={className}
       referrerPolicy="no-referrer"
+      loading="lazy"
+      decoding="async"
       onError={() => setHasError(true)}
     />
   );
