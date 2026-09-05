@@ -301,7 +301,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'p-margherita-superiore',
     category: 'pizzas',
-    price: 38,
+    price: 45,
     name: { fr: "Margherita Superiore", en: "Margherita Superiore", ar: "مارغريتا سوبيريوري" },
     description: {
       fr: "Mozzarella fondante, sauce tomate, basilic frais, filet d'huile d'olive",
@@ -313,7 +313,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'p-manzo-ricco',
     category: 'pizzas',
-    price: 50,
+    price: 75,
     name: { fr: "Manzo Ricco", en: "Manzo Ricco", ar: "مانزو ريكو" },
     description: {
       fr: "Mozzarella, bœuf braisé effiloché, oignons caramélisés, copeaux de parmesan",
@@ -323,21 +323,21 @@ export const menuItems: MenuItem[] = [
     image: "/pizzas/manzo-ricco.webp"
   },
   {
-    id: 'p-tonijn-riviera',
+    id: 'p-tuna-riviera',
     category: 'pizzas',
-    price: 46,
-    name: { fr: "Tonijn Riviera", en: "Tonijn Riviera", ar: "تونيجن ريفييرا" },
+    price: 52,
+    name: { fr: "Tuna Riviera", en: "Tuna Riviera", ar: "تونة ريفييرا" },
     description: {
       fr: "Mozzarella, thon émietté, oignon rouge, câpres, olives kalamata, zeste de citron",
       en: "Mozzarella, flaked tuna, red onion, capers, kalamata olives, lemon zest",
       ar: "موزاريلا، تونة مفتتة، بصل أحمر، كبر، زيتون كالاماتا، قشر ليمون"
     },
-    image: "/pizzas/tonijn-riviera.webp"
+    image: "/pizzas/tuna-riviera.webp"
   },
   {
     id: 'p-poulet-chermoula',
     category: 'pizzas',
-    price: 46,
+    price: 58,
     name: { fr: "Poulet Chermoula", en: "Poulet Chermoula", ar: "بولي شرمولة" },
     description: {
       fr: "Mozzarella, poulet grillé façon chermoula, oignons caramélisés, poivrons, coriandre fraîche",
@@ -350,7 +350,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'p-merguez-piquante',
     category: 'pizzas',
-    price: 48,
+    price: 60,
     name: { fr: "Merguez Piquante", en: "Merguez Piquante", ar: "مرقاز حار" },
     description: {
       fr: "Mozzarella, merguez grillée, poivrons rôtis, huile de harissa, œuf au plat",
@@ -363,7 +363,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'p-el-reto',
     category: 'pizzas',
-    price: 50,
+    price: 75,
     name: { fr: "El Reto", en: "El Reto", ar: "الريتو" },
     description: {
       fr: "Mozzarella, sauce tomate au harissa, jalapeños, piments doux, viande épicée, sauce piquante",
@@ -376,7 +376,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'p-quattro-formaggi',
     category: 'pizzas',
-    price: 50,
+    price: 80,
     name: { fr: "Quattro Formaggi Nobile", en: "Quattro Formaggi Nobile", ar: "كواترو فورماجي نوبيلي" },
     description: {
       fr: "Mozzarella, gorgonzola, chèvre, copeaux de parmesan, filet de miel",
@@ -388,7 +388,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'p-rabat-nights',
     category: 'pizzas',
-    price: 55,
+    price: 90,
     name: { fr: "Signature « Rabat Nights »", en: "Signature \"Rabat Nights\"", ar: "التوقيع \"ليالي الرباط\"" },
     description: {
       fr: "Mozzarella, khlea effilochée, oignons caramélisés, olives noires, œuf au plat, filet d'amlou",
@@ -1992,10 +1992,10 @@ if (pManzoRiccoItem) {
   pManzoRiccoItem.image = '/pizzas/manzo-ricco.webp';
 }
 
-// Explicitly override image for Pizza Tonijn Riviera
-const pTonijnRivieraItem = menuItems.find(item => item.id === 'p-tonijn-riviera');
-if (pTonijnRivieraItem) {
-  pTonijnRivieraItem.image = '/pizzas/tonijn-riviera.webp';
+// Explicitly override image for Pizza Tuna Riviera
+const pTunaRivieraItem = menuItems.find(item => item.id === 'p-tuna-riviera');
+if (pTunaRivieraItem) {
+  pTunaRivieraItem.image = '/pizzas/tuna-riviera.webp';
 }
 
 // Explicitly override image for Pizza Poulet Chermoula
