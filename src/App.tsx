@@ -36,7 +36,8 @@ import {
   ChefHat,
   Heart,
   Volume2,
-  VolumeX
+  VolumeX,
+  Search
 } from 'lucide-react';
 import { menuItems, translations, MenuItem, philosophyValues, testimonialsData } from './data';
 import { 
@@ -193,6 +194,7 @@ export default function App() {
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [address, setAddress] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>(menuItems);
   const [liveCategories, setLiveCategories] = useState<FirestoreCategory[]>(initialCategories);
   const [selectedAtomic, setSelectedAtomic] = useState<Record<string, boolean>>({});
@@ -495,13 +497,40 @@ export default function App() {
     return `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`;
   };
 
+  // Normalized search query — trimmed/lowercased once so every consumer
+  // below shares the same notion of "is a search active".
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
   const filteredItems = useMemo(() => {
+    const categoryPriority: Record<string, number> = {
+      'boissons_chaudes': 1,
+      'jus_cocktails': 2,
+      'boissons_fraiches': 3
+    };
+
+    // A live search runs across the entire menu regardless of the active
+    // category pill — that matches how people expect a search bar to
+    // behave (find the dish wherever it lives), rather than requiring
+    // them to first pick the right tab. Matches on name/description in
+    // all three languages so it still finds items when the visitor is
+    // browsing in French but half-remembers an English or Arabic name.
+    if (normalizedSearch) {
+      return liveMenuItems
+        .filter(item => {
+          const haystack = [
+            item.name?.fr, item.name?.en, item.name?.ar,
+            item.description?.fr, item.description?.en, item.description?.ar
+          ].filter(Boolean).join(' ').toLowerCase();
+          return haystack.includes(normalizedSearch);
+        })
+        .sort((a, b) => {
+          const pA = categoryPriority[a.category] || 99;
+          const pB = categoryPriority[b.category] || 99;
+          return pA - pB;
+        });
+    }
+
     if (activeCategory === 'all') {
-      const categoryPriority: Record<string, number> = {
-        'boissons_chaudes': 1,
-        'jus_cocktails': 2,
-        'boissons_fraiches': 3
-      };
       return [...liveMenuItems].sort((a, b) => {
         const pA = categoryPriority[a.category] || 99;
         const pB = categoryPriority[b.category] || 99;
@@ -512,7 +541,16 @@ export default function App() {
       return liveMenuItems.filter(item => LUNCH_CATEGORIES.includes(item.category));
     }
     return liveMenuItems.filter(item => item.category === activeCategory);
-  }, [activeCategory, liveMenuItems]);
+  }, [activeCategory, liveMenuItems, normalizedSearch]);
+
+  // "Populair" row — bestsellers pulled straight from each item's existing
+  // `popular` flag, shown only on the unfiltered "Tout afficher" view and
+  // hidden the moment a search is active (the search results ARE the
+  // filtered view at that point, a separate popular row would be noise).
+  const popularItems = useMemo(() => {
+    if (activeCategory !== 'all' || normalizedSearch) return [];
+    return liveMenuItems.filter(item => item.popular);
+  }, [activeCategory, liveMenuItems, normalizedSearch]);
 
   return (
     <div 
@@ -754,6 +792,81 @@ export default function App() {
               {t.menu_subtitle}
             </p>
           </div>
+
+          {/* Sitewide Menu Search — searches across every category at once
+              (name + description, in all 3 languages) rather than only
+              the active tab, since that's what people expect from a
+              search box. Sits above the grid so it works no matter which
+              filter pill is selected. */}
+          <div className="max-w-xl mx-auto mb-8 px-2">
+            <div className="relative">
+              <Search className="absolute start-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A736C] pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t.menu_search_placeholder}
+                className="w-full bg-brand-dark-card border border-[#F3ECDD]/15 focus:border-brand-orange/50 rounded-full py-3 ps-11 pe-11 text-sm text-[#F3ECDD] placeholder:text-[#7A736C] outline-none transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  aria-label={t.menu_search_clear}
+                  className="absolute end-4 top-1/2 -translate-y-1/2 text-[#7A736C] hover:text-brand-orange transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* "Populair" row — bestsellers pulled from each item's existing
+              `popular` flag. Only shown on the unfiltered "Tout afficher"
+              view with no active search (see popularItems above). Tapping
+              a chip runs a search for that exact dish, which re-uses the
+              full item card below (variants, add-to-cart, everything)
+              instead of duplicating that logic here. */}
+          {popularItems.length > 0 && (
+            <div className="mb-10">
+              <h3 className="flex items-center justify-center gap-2 text-center font-display font-bold text-sm md:text-base uppercase tracking-widest text-brand-orange mb-4">
+                <Sparkles className="w-4 h-4 fill-brand-orange shrink-0" />
+                <span>{t.menu_popular_title}</span>
+              </h3>
+              <div className="flex overflow-x-auto no-scrollbar gap-3 px-1 pb-1 snap-x scroll-smooth">
+                {popularItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setSearchQuery(item.name[lang])}
+                    className="shrink-0 w-32 md:w-36 snap-start bg-brand-dark-card border border-[#F3ECDD]/10 hover:border-brand-orange/50 rounded-xl overflow-hidden text-start transition-all active:scale-95 group"
+                  >
+                    <div className="h-20 md:h-24 overflow-hidden bg-brand-dark">
+                      <SafeImage
+                        src={item.image}
+                        alt={item.name[lang]}
+                        fallbackName={item.name[lang]}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                    <div className="p-2.5">
+                      <p className="text-xs font-bold text-[#F3ECDD] leading-tight line-clamp-2 mb-1">
+                        {item.name[lang]}
+                      </p>
+                      <p className="text-[11px] font-black text-brand-orange">
+                        {item.price} {lang === 'ar' ? 'درهم' : 'MAD'}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Search: empty-state message when nothing matches */}
+          {normalizedSearch && filteredItems.length === 0 && (
+            <div className="text-center py-16 text-[#9A9490] text-sm">
+              {t.menu_search_no_results}
+            </div>
+          )}
 
           {/* Interactive Menu Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
