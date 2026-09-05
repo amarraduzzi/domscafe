@@ -732,45 +732,11 @@ export default function App() {
         </div>
       </section>
 
-      {/* "Why people come" highlight band — see the `occasions` const above
-          for the reasoning. Pizza gets a visually bigger, accent-bordered
-          card (its own reason to visit, same weight as coffee/breakfast/
-          lunch) instead of just being one pill among many further down. */}
-      <section className="py-10 md:py-14 relative bg-brand-dark border-t border-b border-[#F3ECDD]/5">
-        <div className="max-w-5xl mx-auto px-4 md:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            {occasions.map((occ) => (
-              <button
-                key={occ.id}
-                onClick={() => {
-                  setActiveCategory(occ.id);
-                  document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className={`group flex flex-col items-center text-center rounded-2xl px-3 py-5 md:py-6 transition-all duration-300 hover:-translate-y-1 active:scale-95 ${
-                  occ.featured
-                    ? 'bg-gradient-to-b from-brand-orange/15 to-brand-dark-card border-2 border-brand-orange/50 hover:border-brand-orange'
-                    : 'bg-brand-dark-card border border-[#F3ECDD]/10 hover:border-brand-orange/40'
-                }`}
-              >
-                <span className={`text-3xl md:text-4xl mb-2 transition-transform duration-300 group-hover:scale-110 ${occ.featured ? 'drop-shadow-[0_0_14px_rgba(201,161,90,0.5)]' : ''}`}>
-                  {occ.icon}
-                </span>
-                <span className="font-display font-bold text-sm md:text-lg text-[#F3ECDD]">
-                  {occ.title[lang]}
-                </span>
-                <span className="text-[10px] md:text-xs text-[#9A9490] mt-1 leading-snug">
-                  {occ.tag[lang]}
-                </span>
-                {occ.featured && (
-                  <span className="mt-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-brand-orange">
-                    {lang === 'ar' ? 'الأكثر طلبًا ↗' : lang === 'en' ? 'Most popular ↗' : 'Le plus demandé ↗'}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* "Why people come" highlight band was removed: it duplicated the
+          hero filter pills directly above it (both just jump to a
+          category), and now overlapped with the search bar / Populair
+          row below too. The `occasions` const stays — it still backs the
+          "lunch" section title lookup further down. */}
 
       {/* Interactive Menu & WhatsApp Cart */}
       <section id="menu" className="pt-8 pb-12 relative">
