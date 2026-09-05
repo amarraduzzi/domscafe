@@ -791,22 +791,6 @@ export const menuItems: MenuItem[] = [
 
   // 14. Boissons chaudes
   {
-    id: 'bc-lait-froid',
-    category: 'boissons_chaudes',
-    price: 12,
-    name: { fr: "Lait chaud", en: "Hot Milk", ar: "حليب ساخن" },
-    description: { fr: "Lait chaud réconfortant", en: "Warm comforting milk", ar: "حليب ساخن دافئ" },
-    image: ""
-  },
-  {
-    id: 'bc-lait-chaud',
-    category: 'boissons_chaudes',
-    price: 14,
-    name: { fr: "Lait chaud", en: "Hot Milk", ar: "حليب ساخن" },
-    description: { fr: "Lait chaud réconfortant", en: "Warm comforting milk", ar: "حليب ساخن دافئ" },
-    image: ""
-  },
-  {
     id: 'bc-cafe-noir',
     category: 'boissons_chaudes',
     price: 16,
@@ -933,6 +917,22 @@ export const menuItems: MenuItem[] = [
     price: 20,
     name: { fr: "Thé aromatisé", en: "Flavored Tea", ar: "شاي معطر" },
     description: { fr: "Thé sélectionné parfumé aux fruits ou fleurs", en: "Fine teas flavored with fruits or flowers", ar: "شاي فاخر معطر بالفواكه أو الزهور" },
+    image: ""
+  },
+  {
+    id: 'bc-lait-froid',
+    category: 'boissons_chaudes',
+    price: 12,
+    name: { fr: "Lait chaud", en: "Hot Milk", ar: "حليب ساخن" },
+    description: { fr: "Lait chaud réconfortant", en: "Warm comforting milk", ar: "حليب ساخن دافئ" },
+    image: ""
+  },
+  {
+    id: 'bc-lait-chaud',
+    category: 'boissons_chaudes',
+    price: 14,
+    name: { fr: "Lait chaud", en: "Hot Milk", ar: "حليب ساخن" },
+    description: { fr: "Lait chaud réconfortant", en: "Warm comforting milk", ar: "حليب ساخن دافئ" },
     image: ""
   },
 
