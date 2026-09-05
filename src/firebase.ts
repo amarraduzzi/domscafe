@@ -159,16 +159,19 @@ export interface FirestoreCategory {
 
 export const initialCategories: FirestoreCategory[] = [
   { id: 'all', name: { fr: "Tout afficher", en: "Show All", ar: "الكل" }, emoji: "🍽️", displayOrder: 0 },
-  { id: 'boissons_chaudes', name: { fr: "Boissons Chaudes", en: "Hot Drinks", ar: "مشروبات ساخنة" }, emoji: "☕", displayOrder: 1 },
-  { id: 'boissons_fraiches', name: { fr: "Boissons Fraîches", en: "Cold Drinks", ar: "مشروبات باردة" }, emoji: "🥤", displayOrder: 2 },
-  { id: 'jus_cocktails', name: { fr: "Jus & Cocktails", en: "Cocktails & Juices", ar: "عصائر و كوكتيلات" }, emoji: "🍹", displayOrder: 3 },
-  { id: 'breakfasts', name: { fr: "Petits-Déjeuners", en: "Breakfast", ar: "إفطار" }, emoji: "🍳", displayOrder: 4 },
-  { id: 'omelettes', name: { fr: "Omelettes", en: "Omelettes", ar: "أومليت" }, emoji: "🥚", displayOrder: 4 },
-  { id: 'toasts', name: { fr: "Toasts", en: "Toasts", ar: "توست" }, emoji: "🍞", displayOrder: 5 },
-  { id: 'viennoiserie', name: { fr: "Viennoiseries", en: "Viennoiserie", ar: "معجنات" }, emoji: "🥐", displayOrder: 6 },
-  { id: 'crepes_sucrees', name: { fr: "Crêpes Sucrées", en: "Sweet Crêpes", ar: "كريب حلو" }, emoji: "🥞", displayOrder: 7 },
-  { id: 'crepes_salees', name: { fr: "Crêpes Salées", en: "Savory Crêpes", ar: "كريب مالح" }, emoji: "🌯", displayOrder: 8 },
-  { id: 'pizzas', name: { fr: "Pizzas", en: "Pizzas", ar: "بيتزا" }, emoji: "🍕", displayOrder: 9 },
+  // Pizzas moved to the first category slot (right after "Tout afficher")
+  // at the client's explicit request — it's the site's flagship item and
+  // should be the first thing people can filter to, ahead of drinks.
+  { id: 'pizzas', name: { fr: "Pizzas", en: "Pizzas", ar: "بيتزا" }, emoji: "🍕", displayOrder: 1 },
+  { id: 'boissons_chaudes', name: { fr: "Boissons Chaudes", en: "Hot Drinks", ar: "مشروبات ساخنة" }, emoji: "☕", displayOrder: 2 },
+  { id: 'boissons_fraiches', name: { fr: "Boissons Fraîches", en: "Cold Drinks", ar: "مشروبات باردة" }, emoji: "🥤", displayOrder: 3 },
+  { id: 'jus_cocktails', name: { fr: "Jus & Cocktails", en: "Cocktails & Juices", ar: "عصائر و كوكتيلات" }, emoji: "🍹", displayOrder: 4 },
+  { id: 'breakfasts', name: { fr: "Petits-Déjeuners", en: "Breakfast", ar: "إفطار" }, emoji: "🍳", displayOrder: 5 },
+  { id: 'omelettes', name: { fr: "Omelettes", en: "Omelettes", ar: "أومليت" }, emoji: "🥚", displayOrder: 5 },
+  { id: 'toasts', name: { fr: "Toasts", en: "Toasts", ar: "توست" }, emoji: "🍞", displayOrder: 6 },
+  { id: 'viennoiserie', name: { fr: "Viennoiseries", en: "Viennoiserie", ar: "معجنات" }, emoji: "🥐", displayOrder: 7 },
+  { id: 'crepes_sucrees', name: { fr: "Crêpes Sucrées", en: "Sweet Crêpes", ar: "كريب حلو" }, emoji: "🥞", displayOrder: 8 },
+  { id: 'crepes_salees', name: { fr: "Crêpes Salées", en: "Savory Crêpes", ar: "كريب مالح" }, emoji: "🌯", displayOrder: 9 },
   { id: 'sandwiches', name: { fr: "Sandwiches", en: "Sandwiches", ar: "ساندويتشات" }, emoji: "🥪", displayOrder: 10 },
   { id: 'tacos', name: { fr: "Tacos", en: "Tacos", ar: "تاكو" }, emoji: "🌮", displayOrder: 11 },
   { id: 'pasticcie', name: { fr: "Pasticcies", en: "Pasticcie", ar: "باستيشيو" }, emoji: "🍲", displayOrder: 12 },
