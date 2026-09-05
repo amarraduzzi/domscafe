@@ -651,9 +651,16 @@ export default function App() {
             {t.hero_tagline}
           </p>
 
-          {/* Tab Categories Switcher inside Hero directly below */}
+          {/* Tab Categories Switcher inside Hero directly below — restyled to
+              match the main site's slim MenuContent.astro filter pills
+              (.menu-filter-btn): individually thin-bordered pills directly on
+              the section background, no grouping card/blur/shadow, and the
+              category emoji sized to match the label text (em-relative)
+              rather than a fixed larger icon size, so it reads as a subtle
+              inline glyph instead of a small colorful image next to the
+              text. */}
           <div className="flex justify-center w-full max-w-full px-2">
-            <div className="bg-brand-dark-card/90 backdrop-blur-md border border-[#F3ECDD]/15 p-1.5 rounded-xl flex flex-nowrap overflow-x-auto justify-start gap-2 text-xs md:text-sm font-bold shadow-xl shadow-black/80 max-w-full no-scrollbar snap-x scroll-smooth">
+            <div className="flex flex-nowrap overflow-x-auto justify-start gap-2 text-xs md:text-sm font-bold max-w-full no-scrollbar snap-x scroll-smooth">
               {liveCategories.map((cat) => {
                 const catLabel = cat.name?.[lang] || cat.name?.fr || (t as any)[`menu_filter_${cat.id}`] || cat.id;
                 return (
@@ -663,15 +670,15 @@ export default function App() {
                       setActiveCategory(cat.id);
                       document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-1.5 rtl:space-x-reverse cursor-pointer shrink-0 snap-start ${
+                    className={`px-4 py-2 rounded-full border transition-all flex items-center space-x-1.5 rtl:space-x-reverse cursor-pointer shrink-0 snap-start ${
                       activeCategory === cat.id
-                        ? 'bg-brand-orange text-[#1A1208] font-extrabold shadow-md shadow-brand-orange/20'
-                        : 'text-[#9A9490] hover:text-[#F3ECDD] hover:bg-[#F3ECDD]/5'
+                        ? 'bg-brand-orange text-[#1A1208] border-brand-orange font-extrabold'
+                        : 'bg-transparent border-[#F3ECDD]/15 text-[#9A9490] hover:text-brand-orange hover:border-brand-orange/40'
                     }`}
                   >
-                    <span className="text-base flex items-center justify-center">
+                    <span className="text-[0.95em] leading-none flex items-center justify-center">
                       {cat.id === 'boissons_fraiches' ? (
-                        <ColaCanIcon className="w-5 h-5 inline-block shrink-0 drop-shadow-sm" />
+                        <ColaCanIcon className="w-3.5 h-3.5 inline-block shrink-0" />
                       ) : (
                         cat.emoji
                       )}
