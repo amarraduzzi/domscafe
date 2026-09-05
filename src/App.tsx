@@ -108,6 +108,42 @@ const categories = [
   { id: 'desserts', icon: '🍰', translationKey: 'menu_filter_desserts' }
 ] as const;
 
+// "Why people come" highlight band, shown between the hero and the menu
+// grid — client asked for a natural flow (coffee / breakfast / lunch /
+// pizza) rather than just bumping pizza to the top of the existing category
+// pill bar, and for pizza specifically to be highlighted. Each card jumps to
+// #menu and applies a filter; 'lunch' is a synthetic id grouping several
+// existing categories (see LUNCH_CATEGORIES below) purely for this band —
+// the real category pills and their data are untouched.
+const LUNCH_CATEGORIES = ['sandwiches', 'tacos', 'burgers', 'pasticcie', 'salades', 'pates'];
+const occasions = [
+  {
+    id: 'boissons_chaudes',
+    icon: '☕',
+    title: { fr: 'Le Café', en: 'Coffee', ar: 'القهوة' },
+    tag: { fr: 'Le matin commence ici', en: 'Morning starts here', ar: 'يبدأ الصباح هنا' },
+  },
+  {
+    id: 'breakfasts',
+    icon: '🍳',
+    title: { fr: 'Le Petit-déjeuner', en: 'Breakfast', ar: 'الفطور' },
+    tag: { fr: 'Œufs, viennoiseries, crêpes', en: 'Eggs, pastries, crêpes', ar: 'بيض ومعجنات وكريب' },
+  },
+  {
+    id: 'lunch',
+    icon: '🥪',
+    title: { fr: 'Le Déjeuner', en: 'Lunch', ar: 'الغداء' },
+    tag: { fr: 'Sandwichs, tacos, pâtes, salades', en: 'Sandwiches, tacos, pasta, salads', ar: 'سندويشات وتاكو ومعكرونة وسلطات' },
+  },
+  {
+    id: 'pizzas',
+    icon: '🍕',
+    title: { fr: 'La Pizza', en: 'Pizza', ar: 'البيتزا' },
+    tag: { fr: 'Cuite à la commande', en: 'Made fresh to order', ar: 'تُحضَّر عند الطلب' },
+    featured: true,
+  },
+] as const;
+
 // SafeImage component that falls back to solid brand-colored (#C9A15A) placeholder on load error
 function SafeImage({ src, alt, fallbackName, className, isCart }: { src: string; alt: string; fallbackName: string; className?: string; isCart?: boolean }) {
   const [hasError, setHasError] = useState(false);
@@ -470,6 +506,9 @@ export default function App() {
         return pA - pB;
       });
     }
+    if (activeCategory === 'lunch') {
+      return liveMenuItems.filter(item => LUNCH_CATEGORIES.includes(item.category));
+    }
     return liveMenuItems.filter(item => item.category === activeCategory);
   }, [activeCategory, liveMenuItems]);
 
@@ -517,16 +556,12 @@ export default function App() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between">
-          {/* Logo & Brand Identity */}
-          <a href="#app-root" className="flex flex-col select-none group items-start leading-none">
-            <div className="font-logo text-3xl md:text-4xl text-[#F3ECDD] group-hover:text-brand-orange/90 transition-colors flex items-baseline tracking-normal">
-              <span>Dom</span>
-              <span className="text-brand-orange font-logo mx-[1px] font-black scale-110 select-none">'</span>
-              <span>s</span>
-            </div>
-            <span className="text-[10px] md:text-xs font-sans italic tracking-widest text-brand-orange pl-6 md:pl-8 -mt-1 font-semibold uppercase">
-              Café & Restaurant
-            </span>
+          {/* Logo & Brand Identity — real logo artwork (same file as the main
+              domscafeagdal site's header), replacing the old styled-text
+              "Dom's" wordmark so both properties show the same mark instead
+              of two different approximations of it. */}
+          <a href="#app-root" className="flex items-center select-none group">
+            <img src="/logo.webp" alt="Dom's Café & Restaurant" className="h-11 md:h-14 w-auto object-contain" />
           </a>
 
           {/* Right Header Actions */}
@@ -592,13 +627,18 @@ export default function App() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section 
-        id="hero" 
-        className="relative min-h-[30vh] md:min-h-[35vh] flex flex-col items-center justify-center pt-28 pb-8 overflow-hidden bg-cover bg-center"
-        style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(10,10,10,0.85), rgba(10,10,10,0.95)), url("/src/assets/images/louais_storefront_queue_1783773637793.jpg")`
-        }}
+      {/* Hero Section — the background photo here used to be
+          "louais_storefront_queue...jpg", a leftover asset from whatever
+          other business (unrelated "Louai" branding, see the localStorage
+          key below too) this template was originally built for, not an
+          actual photo of Dom's. Rather than show a wrong storefront (or
+          fabricate an AI "interior" photo, which the client has separately
+          said not to do), this is now the same plain warm gradient look the
+          main marketing site uses for sections without a real photo, until
+          a real Dom's photo is supplied. */}
+      <section
+        id="hero"
+        className="relative min-h-[30vh] md:min-h-[35vh] flex flex-col items-center justify-center pt-28 pb-8 overflow-hidden bg-cover bg-center bg-brand-dark"
       >
         {/* Ambient glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-brand-orange/10 rounded-full blur-[100px] pointer-events-none"></div>
@@ -645,6 +685,46 @@ export default function App() {
         </div>
       </section>
 
+      {/* "Why people come" highlight band — see the `occasions` const above
+          for the reasoning. Pizza gets a visually bigger, accent-bordered
+          card (its own reason to visit, same weight as coffee/breakfast/
+          lunch) instead of just being one pill among many further down. */}
+      <section className="py-10 md:py-14 relative bg-brand-dark border-t border-b border-[#F3ECDD]/5">
+        <div className="max-w-5xl mx-auto px-4 md:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            {occasions.map((occ) => (
+              <button
+                key={occ.id}
+                onClick={() => {
+                  setActiveCategory(occ.id);
+                  document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className={`group flex flex-col items-center text-center rounded-2xl px-3 py-5 md:py-6 transition-all duration-300 hover:-translate-y-1 active:scale-95 ${
+                  occ.featured
+                    ? 'bg-gradient-to-b from-brand-orange/15 to-brand-dark-card border-2 border-brand-orange/50 hover:border-brand-orange'
+                    : 'bg-brand-dark-card border border-[#F3ECDD]/10 hover:border-brand-orange/40'
+                }`}
+              >
+                <span className={`text-3xl md:text-4xl mb-2 transition-transform duration-300 group-hover:scale-110 ${occ.featured ? 'drop-shadow-[0_0_14px_rgba(201,161,90,0.5)]' : ''}`}>
+                  {occ.icon}
+                </span>
+                <span className="font-display font-bold text-sm md:text-lg text-[#F3ECDD]">
+                  {occ.title[lang]}
+                </span>
+                <span className="text-[10px] md:text-xs text-[#9A9490] mt-1 leading-snug">
+                  {occ.tag[lang]}
+                </span>
+                {occ.featured && (
+                  <span className="mt-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-brand-orange">
+                    {lang === 'ar' ? 'الأكثر طلبًا ↗' : lang === 'en' ? 'Most popular ↗' : 'Le plus demandé ↗'}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Interactive Menu & WhatsApp Cart */}
       <section id="menu" className="pt-8 pb-12 relative">
         <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
@@ -655,8 +735,10 @@ export default function App() {
               {t.menu_tag}
             </span>
             <h2 className="text-3xl md:text-5xl font-display font-black tracking-tight mb-2">
-              {activeCategory === 'all' 
-                ? t.menu_title 
+              {activeCategory === 'all'
+                ? t.menu_title
+                : activeCategory === 'lunch'
+                ? occasions.find(o => o.id === 'lunch')!.title[lang]
                 : (liveCategories.find(c => c.id === activeCategory)?.name?.[lang] || (t as any)[`menu_filter_${activeCategory}`] || activeCategory)}
             </h2>
             <p className="text-[#9A9490] text-sm md:text-base">
@@ -1059,16 +1141,9 @@ export default function App() {
       <footer className="border-t border-[#F3ECDD]/10 bg-black py-12 text-center text-xs text-[#7A736C] font-medium">
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           
-          {/* Footer brand identification */}
-          <div className="flex flex-col items-center md:items-start select-none leading-none">
-            <div className="font-logo text-2xl md:text-3xl text-[#F3ECDD] flex items-baseline tracking-normal">
-              <span>Dom</span>
-              <span className="text-brand-orange font-logo mx-[1px] font-black scale-110 select-none">'</span>
-              <span>s</span>
-            </div>
-            <span className="text-[9px] md:text-xs font-sans tracking-widest text-brand-orange pl-5 md:pl-8 -mt-1 font-semibold uppercase">
-              Café & Restaurant
-            </span>
+          {/* Footer brand identification — same real logo as the header. */}
+          <div className="flex flex-col items-center md:items-start select-none">
+            <img src="/logo.webp" alt="Dom's Café & Restaurant" className="h-10 md:h-12 w-auto object-contain" />
           </div>
 
           <p className="max-w-md">
