@@ -308,7 +308,11 @@ export const menuItems: MenuItem[] = [
       en: "Melted mozzarella, tomato sauce, fresh basil, olive oil drizzle",
       ar: "موزاريلا ذائبة، صلصة طماطم، ريحان طازج، زيت الزيتون"
     },
-    image: "/pizzas/margherita-superiore.webp"
+    image: "/pizzas/margherita-superiore.webp",
+    variants: [
+      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 45 },
+      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 7 }
+    ]
   },
   {
     id: 'p-manzo-ricco',
@@ -320,7 +324,11 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, braised pulled beef, caramelized onions, parmesan shavings",
       ar: "موزاريلا، لحم بقري مطهو ببطء، بصل مكرمل، رقائق البارميزان"
     },
-    image: "/pizzas/manzo-ricco.webp"
+    image: "/pizzas/manzo-ricco.webp",
+    variants: [
+      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 75 },
+      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 12 }
+    ]
   },
   {
     id: 'p-tuna-riviera',
@@ -332,7 +340,11 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, flaked tuna, red onion, capers, kalamata olives, lemon zest",
       ar: "موزاريلا، تونة مفتتة، بصل أحمر، كبر، زيتون كالاماتا، قشر ليمون"
     },
-    image: "/pizzas/tuna-riviera.webp"
+    image: "/pizzas/tuna-riviera.webp",
+    variants: [
+      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 52 },
+      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 8 }
+    ]
   },
   {
     id: 'p-poulet-chermoula',
@@ -345,7 +357,11 @@ export const menuItems: MenuItem[] = [
       ar: "موزاريلا، دجاج مشوي بالشرمولة، بصل مكرمل، فلفل حلو، كزبرة طازجة"
     },
     image: "/pizzas/poulet-chermoula.webp",
-    popular: true
+    popular: true,
+    variants: [
+      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 58 },
+      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 9 }
+    ]
   },
   {
     id: 'p-merguez-piquante',
@@ -358,7 +374,11 @@ export const menuItems: MenuItem[] = [
       ar: "موزاريلا، مرقاز مشوي، فلفل مشوي، زيت الهريسة، بيضة مقلية"
     },
     image: "/pizzas/merguez-piquante.webp",
-    spicy: true
+    spicy: true,
+    variants: [
+      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 60 },
+      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 9 }
+    ]
   },
   {
     id: 'p-el-reto',
@@ -371,7 +391,11 @@ export const menuItems: MenuItem[] = [
       ar: "موزاريلا، صلصة طماطم بالهريسة، هالبينو، فلفل حار خفيف، لحم متبل، صلصة حارة"
     },
     image: "/pizzas/el-reto.webp",
-    spicy: true
+    spicy: true,
+    variants: [
+      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 75 },
+      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 12 }
+    ]
   },
   {
     id: 'p-quattro-formaggi',
@@ -383,7 +407,11 @@ export const menuItems: MenuItem[] = [
       en: "Mozzarella, gorgonzola, goat cheese, parmesan shavings, honey drizzle",
       ar: "موزاريلا، جبن غورغونزولا، جبن الماعز، رقائق البارميزان، صلصة العسل"
     },
-    image: "/pizzas/quattro-formaggi.webp"
+    image: "/pizzas/quattro-formaggi.webp",
+    variants: [
+      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 80 },
+      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 13 }
+    ]
   },
   {
     id: 'p-rabat-nights',
@@ -396,7 +424,11 @@ export const menuItems: MenuItem[] = [
       ar: "موزاريلا، خليع مفروم، بصل مكرمل، زيتون أسود، بيضة مقلية، صلصة أملو"
     },
     image: "/pizzas/rabat-nights.webp",
-    popular: true
+    popular: true,
+    variants: [
+      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 90 },
+      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 14 }
+    ]
   },
 
   // 8. Sandwichs
