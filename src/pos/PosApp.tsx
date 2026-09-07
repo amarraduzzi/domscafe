@@ -81,12 +81,24 @@ interface OrderDoc {
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  new: 'Nouveau',
-  preparing: 'En préparation',
-  ready: 'Prêt',
-  served: 'Servi',
-  cancelled: 'Annulé',
+  new: '🆕 Nouveau',
+  preparing: '🔥 En préparation',
+  ready: '🔔 Prêt',
+  served: '✓ Servi',
+  cancelled: '✕ Annulé',
 };
+
+// Category groups for the item picker -- purely a display grouping so the
+// "Petit-déjeuner / Plats / Boissons / Desserts" sections stay legible
+// instead of ~18 category chips wrapping in a random-looking block. The
+// underlying category ids/order in firebase.ts's initialCategories are
+// untouched; this only decides how they're clustered on screen.
+const CATEGORY_GROUPS: { label: string; ids: string[] }[] = [
+  { label: 'Petit-déj', ids: ['breakfasts', 'omelettes', 'toasts', 'viennoiserie', 'crepes_sucrees', 'crepes_salees'] },
+  { label: 'Plats', ids: ['pizzas', 'sandwiches', 'tacos', 'pasticcie', 'burgers', 'salades', 'pates'] },
+  { label: 'Boissons', ids: ['boissons_chaudes', 'boissons_fraiches', 'jus_cocktails'] },
+  { label: 'Desserts', ids: ['desserts'] },
+];
 
 const SOURCE_STYLE: Record<OrderSource, { label: string; className: string }> = {
   site: { label: 'Site', className: 'bg-brand-orange/15 text-brand-orange border-brand-orange/40' },
@@ -169,10 +181,10 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-brand-dark flex items-center justify-center px-6">
-      <div className="w-full max-w-sm bg-brand-dark-card border border-[#F3ECDD]/10 rounded-2xl p-8 text-center">
-        <h1 className="font-display font-black text-2xl text-[#F3ECDD] mb-1">DOM'S CAFÉ</h1>
-        <p className="text-[#9A9490] text-sm mb-6">Écran commandes — code personnel</p>
+    <div className="min-h-screen bg-brand-dark bg-grid-pattern flex items-center justify-center px-6">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-8 text-center animate-pop">
+        <h1 className="font-display font-black text-3xl text-[#F3ECDD] mb-1 tracking-wide">DOM'S CAFÉ</h1>
+        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-6">Écran commandes — code personnel</p>
         <input
           type="password"
           inputMode="numeric"
@@ -183,13 +195,13 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
             setValue(e.target.value.replace(/\D/g, ''));
           }}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
-          className="w-full text-center tracking-[0.5em] text-2xl bg-black/30 border border-[#F3ECDD]/20 rounded-xl py-3 text-[#F3ECDD] focus:outline-none focus:border-brand-orange mb-3"
+          className="w-full text-center tracking-[0.5em] text-2xl bg-black/30 border border-[#F3ECDD]/20 rounded-xl py-3 text-[#F3ECDD] focus:outline-none focus:border-brand-orange focus:shadow-[0_0_0_3px_rgba(201,161,90,0.25)] transition-all mb-3"
           placeholder="••••"
         />
-        {error && <p className="text-red-400 text-xs mb-3">Code incorrect.</p>}
+        {error && <p className="text-red-400 text-xs mb-3 animate-pop">Code incorrect.</p>}
         <button
           onClick={submit}
-          className="w-full bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] font-display font-black py-3 rounded-xl transition-all"
+          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all"
         >
           Déverrouiller
         </button>
@@ -210,25 +222,25 @@ function PaymentMethodModal({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/70 z-[70] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-brand-dark-card border border-[#F3ECDD]/10 rounded-2xl p-6 text-center">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center px-4 animate-fade-in">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 text-center animate-pop">
         <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1">{label}</h3>
-        <p className="text-[#9A9490] text-sm mb-5">Mode de paiement ?</p>
+        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-5">Mode de paiement ?</p>
         <div className="grid grid-cols-2 gap-3 mb-4">
           <button
             onClick={() => onChoose('cash')}
-            className="py-4 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] font-display font-black transition-all"
+            className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all"
           >
             💵 Cash
           </button>
           <button
             onClick={() => onChoose('card')}
-            className="py-4 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] font-display font-black transition-all"
+            className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all"
           >
             💳 Carte
           </button>
         </div>
-        <button onClick={onCancel} className="text-[#9A9490] text-sm hover:text-[#F3ECDD]">
+        <button onClick={onCancel} className="text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
           Annuler
         </button>
       </div>
@@ -261,12 +273,12 @@ function OrderCard({
   const nextLabel = status === 'new' ? 'Démarrer' : status === 'preparing' ? 'Prêt' : status === 'ready' ? 'Servi' : null;
 
   return (
-    <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4 flex flex-col gap-3">
+    <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4 flex flex-col gap-3 transition-transform hover:-translate-y-0.5">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-display font-bold text-[#F3ECDD] text-lg leading-tight">{kindLabel(order)}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${SOURCE_STYLE[source].className}`}>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${SOURCE_STYLE[source].className}`}>
               {SOURCE_STYLE[source].label}
             </span>
             <span className={`text-xs font-bold ${elapsedStyle(mins)}`}>{elapsedLabel(mins)}</span>
@@ -275,7 +287,7 @@ function OrderCard({
         <button
           onClick={() => onCancel(order)}
           title="Annuler la commande"
-          className="text-[#7A736C] hover:text-red-400 text-xs shrink-0 px-1"
+          className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-xs shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
         >
           ✕
         </button>
@@ -293,8 +305,8 @@ function OrderCard({
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-[#F3ECDD]/10 pt-2">
-        <span className="font-display font-black text-brand-orange">{formatMAD(order.total)}</span>
+      <div className="flex items-center justify-between border-t border-[#F3ECDD]/10 pt-2.5">
+        <span className="font-display font-black text-brand-orange text-xl">{formatMAD(order.total)}</span>
         <button
           onClick={() => onTogglePaid(order)}
           className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors ${
@@ -310,7 +322,7 @@ function OrderCard({
       {nextLabel && (
         <button
           onClick={() => onAdvance(order)}
-          className="w-full bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] font-display font-black py-2.5 rounded-lg transition-all"
+          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] text-[#1A1208] font-display font-black py-2.5 rounded-lg shadow-md shadow-brand-orange/10 transition-all"
         >
           {nextLabel}
         </button>
@@ -343,8 +355,26 @@ function MenuGrid({
 }) {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [justAdded, setJustAdded] = useState<string | null>(null);
 
   const categories = useMemo(() => initialCategories.filter((c) => c.id !== 'all'), []);
+  const categoryById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  // Group the flat category list into labeled rows (point requested
+  // separately: "categorien niet mooi gerangschikt") -- any category id not
+  // covered by CATEGORY_GROUPS still renders, in a trailing "Autres" row, so
+  // a future menu addition never silently disappears from the picker.
+  const groupedRows = useMemo(() => {
+    const used = new Set<string>();
+    const rows = CATEGORY_GROUPS.map((g) => {
+      const cats = g.ids.map((id) => categoryById.get(id)).filter((c): c is typeof categories[number] => !!c);
+      cats.forEach((c) => used.add(c.id));
+      return { label: g.label, cats };
+    }).filter((r) => r.cats.length > 0);
+    const rest = categories.filter((c) => !used.has(c.id));
+    if (rest.length > 0) rows.push({ label: 'Autres', cats: rest });
+    return rows;
+  }, [categories, categoryById]);
+
   const items = useMemo(() => {
     const available = staticMenuItems.filter((it) => it.available !== false);
     const bySearch = search.trim()
@@ -355,6 +385,12 @@ function MenuGrid({
 
   const total = draft.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
 
+  const handleAdd = (id: string, name: string, unitPrice: number, station?: string) => {
+    onAdd(name, unitPrice, station);
+    setJustAdded(id);
+    window.setTimeout(() => setJustAdded((cur) => (cur === id ? null : cur)), 320);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto flex">
       <div className="flex-1 p-5 overflow-y-auto">
@@ -362,59 +398,80 @@ function MenuGrid({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Rechercher un article…"
-          className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 mb-3 text-base text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
+          className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 mb-4 text-base text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange focus:shadow-[0_0_0_3px_rgba(201,161,90,0.2)] transition-shadow"
         />
-        <div className="flex gap-2 flex-wrap mb-4">
-          <button
-            onClick={() => setActiveCategory('all')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${
-              activeCategory === 'all' ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
-            }`}
-          >
-            Tout
-          </button>
-          {categories.map((c) => (
+
+        <div className="mb-5 space-y-2">
+          <div className="flex gap-2 flex-wrap">
             <button
-              key={c.id}
-              onClick={() => setActiveCategory(c.id)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${
-                activeCategory === c.id ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
+              onClick={() => setActiveCategory('all')}
+              className={`px-3.5 py-1.5 rounded-full text-sm font-bold border transition-all ${
+                activeCategory === 'all'
+                  ? 'bg-brand-orange text-[#1A1208] border-brand-orange shadow-md shadow-brand-orange/20'
+                  : 'text-[#9A9490] border-[#F3ECDD]/15 hover:border-[#F3ECDD]/35 hover:text-[#F3ECDD]'
               }`}
             >
-              {c.emoji} {c.name.fr}
+              🍽️ Tout
             </button>
+          </div>
+          {groupedRows.map((row) => (
+            <div key={row.label} className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider text-[#7A736C] font-bold w-[76px] shrink-0">
+                {row.label}
+              </span>
+              <div className="flex gap-2 flex-wrap">
+                {row.cats.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setActiveCategory(c.id)}
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-bold border transition-all ${
+                      activeCategory === c.id
+                        ? 'bg-brand-orange text-[#1A1208] border-brand-orange shadow-md shadow-brand-orange/20'
+                        : 'text-[#9A9490] border-[#F3ECDD]/15 hover:border-[#F3ECDD]/35 hover:text-[#F3ECDD]'
+                    }`}
+                  >
+                    {c.emoji} {c.name.fr}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {items.map((it) => (
             <button
               key={it.id}
-              onClick={() => onAdd(it.name.fr, it.price, it.station)}
-              className="text-start bg-brand-dark-card border border-[#F3ECDD]/10 hover:border-brand-orange/50 active:scale-[0.97] rounded-xl p-3.5 transition-all"
+              onClick={() => handleAdd(it.id, it.name.fr, it.price, it.station)}
+              className={`text-start pos-surface border rounded-xl p-3.5 transition-all active:scale-[0.96] ${
+                justAdded === it.id
+                  ? 'border-brand-orange ring-2 ring-brand-orange/60 animate-pop'
+                  : 'border-[#F3ECDD]/10 hover:border-brand-orange/50 hover:-translate-y-0.5'
+              }`}
             >
               <p className="text-base font-bold text-[#F3ECDD] leading-tight">{it.name.fr}</p>
-              <p className="text-sm text-brand-orange font-black">{formatMAD(it.price)}</p>
+              <p className="text-base text-brand-orange font-display font-black mt-1">{formatMAD(it.price)}</p>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="w-72 border-s border-[#F3ECDD]/10 p-5 flex flex-col shrink-0">
-        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-2">Panier</p>
+      <div className="w-72 border-s border-[#F3ECDD]/10 p-5 flex flex-col shrink-0 bg-black/10">
+        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-3">Panier</p>
         <div className="flex-1 overflow-y-auto space-y-2">
           {draft.length === 0 && <p className="text-[#7A736C] text-sm">Aucun article.</p>}
           {draft.map((l, idx) => (
-            <div key={idx} className="flex items-center justify-between bg-brand-dark-card rounded-lg px-2 py-1.5">
+            <div key={idx} className="flex items-center justify-between pos-surface rounded-lg px-2.5 py-2 animate-pop">
               <div className="min-w-0">
-                <p className="text-sm text-[#F3ECDD] truncate">{l.name}</p>
-                <p className="text-xs text-[#9A9490]">{formatMAD(l.unitPrice * l.quantity)}</p>
+                <p className="text-sm text-[#F3ECDD] truncate font-medium">{l.name}</p>
+                <p className="text-xs text-brand-orange font-bold">{formatMAD(l.unitPrice * l.quantity)}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <button onClick={() => onChangeQty(idx, -1)} className="w-7 h-7 rounded bg-black/30 text-[#F3ECDD] text-lg leading-none">
+                <button onClick={() => onChangeQty(idx, -1)} className="w-7 h-7 rounded-full bg-black/30 hover:bg-black/50 text-[#F3ECDD] text-lg leading-none transition-colors">
                   −
                 </button>
-                <span className="text-sm text-[#F3ECDD] w-4 text-center">{l.quantity}</span>
-                <button onClick={() => onChangeQty(idx, 1)} className="w-7 h-7 rounded bg-black/30 text-[#F3ECDD] text-lg leading-none">
+                <span className="text-sm text-[#F3ECDD] w-4 text-center font-bold">{l.quantity}</span>
+                <button onClick={() => onChangeQty(idx, 1)} className="w-7 h-7 rounded-full bg-black/30 hover:bg-black/50 text-[#F3ECDD] text-lg leading-none transition-colors">
                   +
                 </button>
               </div>
@@ -422,9 +479,9 @@ function MenuGrid({
           ))}
         </div>
         <div className="border-t border-[#F3ECDD]/10 pt-3 mt-3">
-          <div className="flex justify-between">
-            <span className="text-[#9A9490] text-sm">Total</span>
-            <span className="text-brand-orange font-display font-black text-lg">{formatMAD(total)}</span>
+          <div className="flex justify-between items-baseline">
+            <span className="text-[#9A9490] text-sm font-bold uppercase tracking-wide">Total</span>
+            <span className="text-brand-orange font-display font-black text-2xl">{formatMAD(total)}</span>
           </div>
         </div>
       </div>
@@ -512,11 +569,11 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-stretch justify-end">
-      <div className="w-full max-w-2xl bg-brand-dark border-l border-[#F3ECDD]/10 flex flex-col h-full">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#F3ECDD]/10 shrink-0">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-stretch justify-end animate-fade-in">
+      <div className="w-full max-w-2xl bg-brand-dark border-l border-[#F3ECDD]/10 shadow-2xl shadow-black/60 flex flex-col h-full animate-slide-in">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#F3ECDD]/10 shrink-0 pos-surface">
           <h2 className="font-display font-black text-xl text-[#F3ECDD]">Nouvelle commande</h2>
-          <button onClick={onClose} className="text-[#9A9490] hover:text-[#F3ECDD] text-2xl leading-none">
+          <button onClick={onClose} className="text-[#9A9490] hover:text-[#F3ECDD] w-8 h-8 rounded-full hover:bg-white/5 flex items-center justify-center text-2xl leading-none transition-colors">
             ×
           </button>
         </div>
@@ -527,9 +584,9 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
               <button
                 key={k}
                 onClick={() => setKind(k)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold border transition-all ${
+                className={`px-4 py-2 rounded-full text-sm font-bold border transition-all ${
                   kind === k
-                    ? 'bg-brand-orange text-[#1A1208] border-brand-orange'
+                    ? 'bg-brand-orange text-[#1A1208] border-brand-orange shadow-md shadow-brand-orange/20'
                     : 'bg-transparent text-[#9A9490] border-[#F3ECDD]/20 hover:border-[#F3ECDD]/40'
                 }`}
               >
@@ -568,11 +625,11 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
 
         <MenuGrid draft={draft} onAdd={addItem} onChangeQty={changeQty} />
 
-        <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0">
+        <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0 pos-surface">
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || submitting}
-            className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3.5 rounded-xl transition-all text-lg"
+            className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3.5 rounded-xl shadow-lg shadow-brand-orange/20 transition-all text-lg"
           >
             {submitting ? 'Envoi…' : `Envoyer la commande — ${formatMAD(total)}`}
           </button>
@@ -620,11 +677,11 @@ function TablePanel({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-stretch justify-end">
-      <div className="w-full max-w-2xl bg-brand-dark border-l border-[#F3ECDD]/10 flex flex-col h-full">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#F3ECDD]/10 shrink-0">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-stretch justify-end animate-fade-in">
+      <div className="w-full max-w-2xl bg-brand-dark border-l border-[#F3ECDD]/10 shadow-2xl shadow-black/60 flex flex-col h-full animate-slide-in">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#F3ECDD]/10 shrink-0 pos-surface">
           <h2 className="font-display font-black text-xl text-[#F3ECDD]">Table {table}</h2>
-          <button onClick={onClose} className="text-[#9A9490] hover:text-[#F3ECDD] text-2xl leading-none">
+          <button onClick={onClose} className="text-[#9A9490] hover:text-[#F3ECDD] w-8 h-8 rounded-full hover:bg-white/5 flex items-center justify-center text-2xl leading-none transition-colors">
             ×
           </button>
         </div>
@@ -636,18 +693,18 @@ function TablePanel({
               const mins = minutesSince(o.createdAt);
               const status = o.status || 'new';
               return (
-                <div key={o.id} className="bg-brand-dark-card rounded-lg p-3">
+                <div key={o.id} className="pos-surface rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-bold text-[#9A9490]">
                       {STATUS_LABEL[status]} · <span className={elapsedStyle(mins)}>{elapsedLabel(mins)}</span>
                     </span>
                     <div className="flex items-center gap-3">
                       {status !== 'served' && status !== 'cancelled' && status !== 'ready' && (
-                        <button onClick={() => onAdvanceOrder(o)} className="text-[11px] font-black text-brand-orange underline">
+                        <button onClick={() => onAdvanceOrder(o)} className="text-[11px] font-black text-brand-orange hover:text-brand-orange-hover underline underline-offset-2 transition-colors">
                           {status === 'preparing' ? 'Marquer prêt' : 'Démarrer'}
                         </button>
                       )}
-                      <button onClick={() => onCancelOrder(o)} className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 underline">
+                      <button onClick={() => onCancelOrder(o)} className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 underline underline-offset-2 transition-colors">
                         Annuler
                       </button>
                     </div>
@@ -664,10 +721,10 @@ function TablePanel({
               );
             })}
             <div className="flex items-center justify-between pt-2 border-t border-[#F3ECDD]/10">
-              <span className="font-display font-black text-brand-orange text-lg">{formatMAD(billTotal)}</span>
+              <span className="font-display font-black text-brand-orange text-2xl">{formatMAD(billTotal)}</span>
               <button
                 onClick={onCheckout}
-                className="text-sm font-black px-4 py-2.5 rounded-lg bg-brand-orange text-[#1A1208]"
+                className="text-sm font-black px-5 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.97] text-[#1A1208] shadow-lg shadow-brand-orange/20 transition-all"
               >
                 {allPaid ? 'Clôturer la table' : 'Encaisser'}
               </button>
@@ -681,11 +738,11 @@ function TablePanel({
 
         <MenuGrid draft={draft} onAdd={addItem} onChangeQty={changeQty} />
 
-        <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0">
+        <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0 pos-surface">
           <button
             onClick={submitAdd}
             disabled={draft.length === 0 || submitting}
-            className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3.5 rounded-xl transition-all text-lg"
+            className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3.5 rounded-xl shadow-lg shadow-brand-orange/20 transition-all text-lg"
           >
             {submitting ? 'Ajout…' : draft.length === 0 ? 'Ajouter à la table' : `Ajouter à la table — ${formatMAD(total)}`}
           </button>
@@ -1072,47 +1129,63 @@ export default function PosApp() {
         <div className="bg-[#F3ECDD]/10 text-[#9A9490] text-sm px-5 py-2 text-center">Connexion à Firestore…</div>
       )}
 
-      <header className="sticky top-0 z-40 bg-brand-dark/95 backdrop-blur border-b border-[#F3ECDD]/10 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-display font-black text-xl leading-tight">DOM'S CAFÉ</h1>
-          <p className="text-[#9A9490] text-xs">
-            Écran commandes ·{' '}
-            {new Date(now).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-          </p>
+      <header className="sticky top-0 z-40 bg-gradient-to-b from-brand-dark to-[#1f160c]/98 backdrop-blur border-b border-[#F3ECDD]/10 shadow-lg shadow-black/30 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="font-display font-black text-xl leading-tight tracking-wide">DOM'S CAFÉ</h1>
+            <p className="text-[#9A9490] text-xs flex items-center gap-1.5">
+              <span className={`inline-block w-1.5 h-1.5 rounded-full ${connected ? 'bg-[#8FBF8A] animate-pulse-dot' : 'bg-[#7A736C]'}`} />
+              Écran commandes ·{' '}
+              {new Date(now).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(['tables', 'live', 'kitchen', 'history', 'reports'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${
-                tab === t ? 'bg-brand-orange text-[#1A1208]' : 'bg-brand-dark-card text-[#9A9490] hover:text-[#F3ECDD]'
-              }`}
-            >
-              {t === 'tables'
-                ? `Tables (${occupiedTableCount}/${TABLE_COUNT})`
-                : t === 'live'
-                ? `Commandes (${liveOrders.length})`
-                : t === 'kitchen'
-                ? `Cuisine (${kitchenOrderCount})`
-                : t === 'history'
-                ? 'Historique'
-                : 'Rapports'}
-            </button>
-          ))}
+          {(['tables', 'live', 'kitchen', 'history', 'reports'] as Tab[]).map((t) => {
+            const needsAttention = t === 'kitchen' && kitchenOrderCount > 0;
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`relative px-3.5 py-2 rounded-full text-sm font-bold transition-all ${
+                  tab === t
+                    ? 'bg-brand-orange text-[#1A1208] shadow-md shadow-brand-orange/25'
+                    : 'bg-brand-dark-card text-[#9A9490] hover:text-[#F3ECDD] hover:bg-[#F3ECDD]/5'
+                }`}
+              >
+                {needsAttention && tab !== t && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand-orange animate-pulse-dot" />
+                )}
+                {t === 'tables'
+                  ? `Tables (${occupiedTableCount}/${TABLE_COUNT})`
+                  : t === 'live'
+                  ? `Commandes (${liveOrders.length})`
+                  : t === 'kitchen'
+                  ? `Cuisine (${kitchenOrderCount})`
+                  : t === 'history'
+                  ? 'Historique'
+                  : 'Rapports'}
+              </button>
+            );
+          })}
           <button
             onClick={() => setShowNewOrder(true)}
-            className="px-4 py-2 rounded-lg text-sm font-black bg-[#F3ECDD]/10 hover:bg-[#F3ECDD]/20 text-[#F3ECDD] transition-all"
+            className="px-4 py-2 rounded-full text-sm font-black bg-[#F3ECDD]/10 hover:bg-[#F3ECDD]/20 active:scale-[0.97] text-[#F3ECDD] transition-all"
           >
             + Emporter / Livraison / Glovo
           </button>
         </div>
       </header>
 
-      <main className="p-5">
+      <main key={tab} className="p-5 animate-fade-in">
         {tab === 'tables' && (
           <div>
-            <p className="text-[#9A9490] text-sm mb-4">Touchez une table pour voir ou démarrer son addition.</p>
+            <div className="flex items-center gap-4 text-xs font-bold text-[#9A9490] mb-4">
+              <span>Touchez une table pour voir ou démarrer son addition.</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md pos-surface border border-[#F3ECDD]/15" /> Libre</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md bg-brand-orange" /> En cours</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md bg-[#8FBF8A]/60" /> Payée</span>
+            </div>
             <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-3 max-w-3xl">
               {TABLE_NUMBERS.map((n) => {
                 const tOrders = tablesMap.get(n) || [];
@@ -1123,14 +1196,15 @@ export default function PosApp() {
                   <button
                     key={n}
                     onClick={() => setSelectedTable(n)}
-                    className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all ${
+                    className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all hover:-translate-y-0.5 ${
                       allPaid
-                        ? 'bg-[#8FBF8A]/25 border-[#8FBF8A]/60 text-[#F3ECDD]'
+                        ? 'bg-gradient-to-b from-[#8FBF8A]/35 to-[#8FBF8A]/15 border-[#8FBF8A]/60 text-[#F3ECDD] shadow-md shadow-[#8FBF8A]/10'
                         : occupied
-                        ? 'bg-brand-orange border-brand-orange text-[#1A1208]'
-                        : 'bg-brand-dark-card border-[#F3ECDD]/10 text-[#F3ECDD] hover:border-brand-orange/50'
+                        ? 'bg-gradient-to-b from-brand-orange to-brand-orange-hover border-brand-orange text-[#1A1208] shadow-lg shadow-brand-orange/25'
+                        : 'pos-surface border-[#F3ECDD]/10 text-[#F3ECDD] hover:border-brand-orange/50'
                     }`}
                   >
+                    <span className="text-xs leading-none opacity-80">{allPaid ? '✓' : occupied ? '🕐' : ''}</span>
                     <span className="font-display font-black text-xl leading-none">{n}</span>
                     {occupied && <span className="text-[10px] font-bold">{formatMAD(total)}</span>}
                   </button>
@@ -1192,7 +1266,7 @@ export default function PosApp() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {kitchenByStation.map(([station, stOrders]) => (
-                <div key={station} className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+                <div key={station} className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                   <h3 className="font-display font-black text-lg text-brand-orange mb-3">
                     {station === 'Bar' ? '🍹 Bar' : '🍳 Cuisine'}
                   </h3>
@@ -1255,7 +1329,7 @@ export default function PosApp() {
             ) : (
               <div className="space-y-2">
                 {historyOrders.map((o) => (
-                  <div key={o.id} className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-lg px-4 py-2.5 flex items-center justify-between gap-3">
+                  <div key={o.id} className="pos-surface border border-[#F3ECDD]/10 rounded-lg px-4 py-2.5 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-[#F3ECDD]">{kindLabel(o)}</p>
                       <p className="text-xs text-[#9A9490] truncate">
@@ -1312,19 +1386,19 @@ export default function PosApp() {
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                 <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Chiffre d'affaires</p>
                 <p className="font-display font-black text-2xl text-brand-orange">{formatMAD(reportStats.revenue)}</p>
               </div>
-              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                 <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Commandes</p>
                 <p className="font-display font-black text-2xl text-[#F3ECDD]">{reportStats.orderCount}</p>
               </div>
-              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                 <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Panier moyen</p>
                 <p className="font-display font-black text-2xl text-[#F3ECDD]">{formatMAD(reportStats.avg)}</p>
               </div>
-              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                 <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Non payées / annulées</p>
                 <p className="font-display font-black text-2xl text-[#F3ECDD]">
                   {reportStats.unpaidCount} <span className="text-[#7A736C] text-base">/ {reportStats.cancelledCount}</span>
@@ -1333,7 +1407,7 @@ export default function PosApp() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                 <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Mode de paiement</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-[#9A9490]">💵 Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.cash)}</span></div>
@@ -1355,7 +1429,7 @@ export default function PosApp() {
                 </div>
               </div>
 
-              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                 <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Produits les plus vendus</h3>
                 {reportStats.topItems.length === 0 ? (
                   <p className="text-[#7A736C] text-sm">Aucune vente sur cette période.</p>
