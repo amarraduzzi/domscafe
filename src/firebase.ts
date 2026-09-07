@@ -201,6 +201,7 @@ export const createFirestoreOrder = async (
   tableNumber: string,
   items: any[],
   totalAmount?: number,
+  note?: string,
   restaurantId: string = "doms-cafe"
 ): Promise<void> => {
   // Every order now reaches the restaurant exclusively through this
@@ -245,6 +246,12 @@ export const createFirestoreOrder = async (
     source: "site",
     orderType: (tableNumber && tableNumber !== "?") ? "dine_in" : "delivery",
     paid: false,
+    // Order-level "special request" note from the customer's cart (allergy,
+    // no onion, etc.) -- kept separate from the per-item notes above since
+    // the customer site's cart has no per-item note UI, just one note for
+    // the whole order. Omitted entirely rather than an empty string so it
+    // doesn't clutter every order doc with a blank field.
+    ...(note && note.trim() ? { note: note.trim() } : {}),
   });
 };
 

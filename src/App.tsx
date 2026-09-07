@@ -206,6 +206,7 @@ export default function App() {
   const [orderType, setOrderType] = useState<'dine_in' | 'delivery'>('dine_in');
   const [tableNumber, setTableNumber] = useState<string>('');
   const [firstName, setFirstName] = useState<string>('');
+  const [orderNote, setOrderNote] = useState<string>('');
   const [isOrderPlaced, setIsOrderPlaced] = useState<boolean>(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
   const [orderError, setOrderError] = useState<boolean>(false);
@@ -1567,6 +1568,24 @@ export default function App() {
                         </div>
                       </div>
                     )}
+
+                    {/* Special request note -- "als de klant iets speciaals
+                        wilt" (allergy, no onion, extra spicy...). Shared by
+                        every order type, kept separate from the per-type
+                        fields above so it doesn't get lost when switching
+                        between dine-in and delivery. */}
+                    <div className="text-start mb-6">
+                      <label className="block text-xs font-bold text-[#C7BFB0] mb-1.5 uppercase tracking-wider">
+                        {t.cart_note_label}
+                      </label>
+                      <textarea
+                        value={orderNote}
+                        onChange={(e) => setOrderNote(e.target.value)}
+                        placeholder={t.cart_note_placeholder}
+                        rows={2}
+                        className="w-full bg-brand-dark border border-[#F3ECDD]/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 p-2.5 rounded-lg text-sm text-[#F3ECDD] placeholder-gray-600 focus:outline-none transition-all resize-none"
+                      />
+                    </div>
                   </div>
 
                   {/* Calculations and Final Order Trigger */}
@@ -1768,6 +1787,12 @@ export default function App() {
                           : (address || 'Rabat')}
                       </span>
                     </div>
+                    {orderNote.trim() && (
+                      <div className="pt-2 mt-1 border-t border-[#F3ECDD]/10">
+                        <span className="block text-[10px] uppercase tracking-wider text-[#7A736C] font-bold mb-0.5">{t.cart_note_label}</span>
+                        <span className="text-[#E3DCCB]">{orderNote.trim()}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1818,11 +1843,12 @@ export default function App() {
                       // bounded.
                       try {
                         await Promise.race([
-                          createFirestoreOrder(finalTableNumber, orderItems, orderTotal),
+                          createFirestoreOrder(finalTableNumber, orderItems, orderTotal, orderNote.trim()),
                           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
                         ]);
                         setIsCheckoutConfirmOpen(false);
                         setIsOrderPlaced(true);
+                        setOrderNote('');
                       } catch (err) {
                         console.warn("Firestore order write failed:", err);
                         setOrderError(true);

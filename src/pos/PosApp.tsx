@@ -80,6 +80,11 @@ interface OrderDoc {
   customerName?: string;
   address?: string;
   glovoRef?: string;
+  // Order-level "special request" -- from the customer's cart note, or
+  // typed in directly by the cashier here. Kept visible everywhere an order
+  // is displayed, including the kitchen view: this screen may end up
+  // physically in the kitchen later, so a note has to survive that move.
+  note?: string;
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -200,6 +205,7 @@ function buildReceiptHTML(opts: {
   items: ReceiptLine[];
   total: number;
   paidLine?: string;
+  note?: string;
 }): string {
   const itemRows = opts.items
     .map(
@@ -221,6 +227,7 @@ function buildReceiptHTML(opts: {
   .rule { border-top: 1px dashed #000; margin: 6px 0; }
   .row { display: flex; justify-content: space-between; gap: 10px; padding: 1.5px 0; }
   .total { font-weight: bold; font-size: 15px; margin-top: 2px; }
+  .note { border: 1px dashed #000; padding: 4px 6px; margin: 6px 0; font-weight: bold; }
   .foot { text-align: center; margin-top: 12px; font-size: 11px; }
 </style>
 </head>
@@ -229,6 +236,7 @@ function buildReceiptHTML(opts: {
   <div class="meta">${opts.metaLines.map(escapeHtml).join('<br/>')}</div>
   <div class="rule"></div>
   ${itemRows}
+  ${opts.note ? `<div class="note">📝 ${escapeHtml(opts.note)}</div>` : ''}
   <div class="rule"></div>
   <div class="row total"><span>TOTAL</span><span>${formatMAD(opts.total)}</span></div>
   ${opts.paidLine ? `<div class="row"><span>Statut</span><span>${escapeHtml(opts.paidLine)}</span></div>` : ''}
@@ -275,6 +283,7 @@ function printOrderReceipt(order: OrderDoc) {
       items: order.items,
       total: order.total,
       paidLine: order.paid ? `Payé${order.paymentMethod ? ` (${order.paymentMethod === 'cash' ? 'cash' : 'carte'})` : ''}` : 'Non payé',
+      note: order.note,
     })
   );
 }
@@ -283,12 +292,14 @@ function printTableReceipt(table: string, orders: OrderDoc[]) {
   const items = orders.flatMap((o) => o.items);
   const total = orders.reduce((s, o) => s + o.total, 0);
   const allPaid = orders.length > 0 && orders.every((o) => o.paid);
+  const notes = orders.map((o) => o.note).filter((n): n is string => !!n);
   printReceipt(
     buildReceiptHTML({
       metaLines: [`Table ${table}`, new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
       items,
       total,
       paidLine: allPaid ? 'Payé' : 'Non payé',
+      note: notes.length > 0 ? notes.join(' / ') : undefined,
     })
   );
 }
@@ -387,12 +398,14 @@ function OrderCard({
   onTogglePaid,
   onCancel,
   onDelete,
+  onEditNote,
 }: {
   order: OrderDoc;
   onAdvance: (order: OrderDoc) => void | Promise<void>;
   onTogglePaid: (order: OrderDoc) => void | Promise<void>;
   onCancel: (order: OrderDoc) => void | Promise<void>;
   onDelete: (order: OrderDoc) => void | Promise<void>;
+  onEditNote: (order: OrderDoc) => void | Promise<void>;
 }) {
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -419,6 +432,15 @@ function OrderCard({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <button
+            onClick={() => onEditNote(order)}
+            title={order.note ? 'Modifier la remarque' : 'Ajouter une remarque'}
+            className={`text-sm w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+              order.note ? 'text-brand-orange hover:text-brand-orange-hover hover:bg-brand-orange/10' : 'text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5'
+            }`}
+          >
+            📝
+          </button>
+          <button
             onClick={() => printOrderReceipt(order)}
             title="Imprimer le reçu"
             className="text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5 text-sm w-6 h-6 rounded-full flex items-center justify-center transition-colors"
@@ -441,6 +463,13 @@ function OrderCard({
           </button>
         </div>
       </div>
+
+      {order.note && (
+        <div className="bg-brand-orange/10 border border-brand-orange/25 rounded-lg px-3 py-2 flex items-start gap-2">
+          <span className="text-sm shrink-0">📝</span>
+          <p className="text-sm text-brand-orange font-medium leading-snug">{order.note}</p>
+        </div>
+      )}
 
       <div className="border-t border-[#F3ECDD]/10 pt-2 space-y-1">
         {order.items.map((it, idx) => (
@@ -714,6 +743,7 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [glovoRef, setGlovoRef] = useState('');
+  const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { draft, addItem, changeQty, total, asOrderItems, reset } = useDraft();
 
@@ -742,9 +772,11 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
     if (customerName.trim()) payload.customerName = customerName.trim();
     if (kind === 'delivery' && address.trim()) payload.address = address.trim();
     if (kind === 'glovo' && glovoRef.trim()) payload.glovoRef = glovoRef.trim();
+    if (note.trim()) payload.note = note.trim();
     await onSubmit(payload);
     setSubmitting(false);
     reset();
+    setNote('');
     onClose();
   };
 
@@ -801,6 +833,12 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
               />
             )}
           </div>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="📝 Remarque (allergie, sans oignon...)"
+            className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
+          />
         </div>
 
         <MenuGrid draft={draft} onAdd={addItem} onChangeQty={changeQty} />
@@ -834,6 +872,7 @@ function TablePanel({
   onAdvanceOrder,
   onCancelOrder,
   onDeleteOrder,
+  onEditNote,
 }: {
   table: string;
   orders: OrderDoc[];
@@ -843,6 +882,7 @@ function TablePanel({
   onAdvanceOrder: (order: OrderDoc) => void | Promise<void>;
   onCancelOrder: (order: OrderDoc) => void | Promise<void>;
   onDeleteOrder: (order: OrderDoc) => void | Promise<void>;
+  onEditNote: (order: OrderDoc) => void | Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const { draft, addItem, changeQty, total, asOrderItems, reset } = useDraft();
@@ -889,11 +929,24 @@ function TablePanel({
                       <button onClick={() => onCancelOrder(o)} className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 underline underline-offset-2 transition-colors">
                         Annuler
                       </button>
+                      <button
+                        onClick={() => onEditNote(o)}
+                        title={o.note ? 'Modifier la remarque' : 'Ajouter une remarque'}
+                        className={`text-[11px] font-bold transition-colors ${o.note ? 'text-brand-orange hover:text-brand-orange-hover' : 'text-[#7A736C] hover:text-[#F3ECDD]'}`}
+                      >
+                        📝
+                      </button>
                       <button onClick={() => onDeleteOrder(o)} title="Supprimer définitivement (serveur inclus)" className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 transition-colors">
                         🗑️
                       </button>
                     </div>
                   </div>
+                  {o.note && (
+                    <div className="bg-brand-orange/10 border border-brand-orange/25 rounded-lg px-2.5 py-1.5 mb-2 flex items-start gap-1.5">
+                      <span className="text-xs shrink-0">📝</span>
+                      <p className="text-xs text-brand-orange font-medium leading-snug">{o.note}</p>
+                    </div>
+                  )}
                   {o.items.map((it, i) => (
                     <div key={i} className="flex justify-between text-sm text-[#E3DCCB]">
                       <span>
@@ -1123,6 +1176,19 @@ export default function PosApp() {
     if (!window.confirm(`Supprimer définitivement cette commande (${kindLabel(order)}) ? Cette action est irréversible.`)) return;
     try {
       await deleteDoc(doc(db, 'orders', order.id));
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  // Add/edit the order-level note -- the cashier's side of "de kassier dat
+  // kunnen bij een bestelling", for customer-site orders that arrived with
+  // one, orders that need one added after the fact, or manual orders this
+  // screen creates itself (see NewOrderPanel/TablePanel below).
+  const editNote = async (order: OrderDoc) => {
+    const value = window.prompt('Remarque pour cette commande :', order.note || '');
+    if (value === null) return;
+    try {
+      await updateDoc(doc(db, 'orders', order.id), { note: value.trim() });
     } catch (err) {
       reportWriteError(err);
     }
@@ -1484,7 +1550,7 @@ export default function PosApp() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {liveOrders.map((o) => (
-                <OrderCard key={o.id} order={o} onAdvance={advance} onTogglePaid={togglePaid} onCancel={cancel} onDelete={deleteOrder} />
+                <OrderCard key={o.id} order={o} onAdvance={advance} onTogglePaid={togglePaid} onCancel={cancel} onDelete={deleteOrder} onEditNote={editNote} />
               ))}
             </div>
           )
@@ -1517,6 +1583,11 @@ export default function PosApp() {
                                 <span className="font-bold text-brand-orange">{it.quantity}×</span> {it.name}
                               </p>
                             ))}
+                          {o.note && (
+                            <p className="text-xs text-brand-orange font-bold bg-brand-orange/10 border border-brand-orange/25 rounded-lg px-2 py-1 mt-1.5 ms-2">
+                              📝 {o.note}
+                            </p>
+                          )}
                           <button
                             onClick={() => advance(o)}
                             className="mt-1.5 text-xs font-black px-2.5 py-1.5 rounded-lg bg-brand-orange text-[#1A1208]"
@@ -1578,6 +1649,7 @@ export default function PosApp() {
                         {o.createdAt?.toDate().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ·{' '}
                         {o.status === 'cancelled' ? 'Annulé' : o.paid ? `Payé (${o.paymentMethod === 'cash' ? 'cash' : o.paymentMethod === 'card' ? 'carte' : '—'})` : 'Non payé'}
                       </p>
+                      {o.note && <p className="text-xs text-brand-orange font-medium mt-0.5">📝 {o.note}</p>}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="text-brand-orange font-black">{formatMAD(o.total)}</span>
@@ -1723,6 +1795,7 @@ export default function PosApp() {
           onAdvanceOrder={advance}
           onCancelOrder={cancel}
           onDeleteOrder={deleteOrder}
+          onEditNote={editNote}
         />
       )}
 
