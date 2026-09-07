@@ -5,6 +5,8 @@ import {
   orderBy,
   query,
   updateDoc,
+  deleteDoc,
+  writeBatch,
   doc,
   addDoc,
   serverTimestamp,
@@ -308,8 +310,9 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-brand-dark bg-grid-pattern flex items-center justify-center px-6">
+    <div className="min-h-screen bg-brand-dark bg-grid-pattern flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-8 text-center animate-pop">
+        <img src="/logo.webp" alt="Dom's Café" className="h-16 w-auto mx-auto mb-3 object-contain" />
         <h1 className="font-display font-black text-3xl text-[#F3ECDD] mb-1 tracking-wide">DOM'S CAFÉ</h1>
         <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-6">Écran commandes — code personnel</p>
         <input
@@ -333,6 +336,7 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
           Déverrouiller
         </button>
       </div>
+      <p className="text-[#5a5148] text-[10px] mt-6 tracking-wide">Développé par Amplify Growth Studio</p>
     </div>
   );
 }
@@ -382,11 +386,13 @@ function OrderCard({
   onAdvance,
   onTogglePaid,
   onCancel,
+  onDelete,
 }: {
   order: OrderDoc;
   onAdvance: (order: OrderDoc) => void | Promise<void>;
   onTogglePaid: (order: OrderDoc) => void | Promise<void>;
   onCancel: (order: OrderDoc) => void | Promise<void>;
+  onDelete: (order: OrderDoc) => void | Promise<void>;
 }) {
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -425,6 +431,13 @@ function OrderCard({
             className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-xs w-6 h-6 rounded-full flex items-center justify-center transition-colors"
           >
             ✕
+          </button>
+          <button
+            onClick={() => onDelete(order)}
+            title="Supprimer définitivement (serveur inclus)"
+            className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-sm w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+          >
+            🗑️
           </button>
         </div>
       </div>
@@ -820,6 +833,7 @@ function TablePanel({
   onCheckout,
   onAdvanceOrder,
   onCancelOrder,
+  onDeleteOrder,
 }: {
   table: string;
   orders: OrderDoc[];
@@ -828,6 +842,7 @@ function TablePanel({
   onCheckout: () => void;
   onAdvanceOrder: (order: OrderDoc) => void | Promise<void>;
   onCancelOrder: (order: OrderDoc) => void | Promise<void>;
+  onDeleteOrder: (order: OrderDoc) => void | Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const { draft, addItem, changeQty, total, asOrderItems, reset } = useDraft();
@@ -873,6 +888,9 @@ function TablePanel({
                       )}
                       <button onClick={() => onCancelOrder(o)} className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 underline underline-offset-2 transition-colors">
                         Annuler
+                      </button>
+                      <button onClick={() => onDeleteOrder(o)} title="Supprimer définitivement (serveur inclus)" className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 transition-colors">
+                        🗑️
                       </button>
                     </div>
                   </div>
@@ -1096,6 +1114,41 @@ export default function PosApp() {
       reportWriteError(err);
     }
   };
+  // Real, permanent removal -- unlike cancel() above (which only sets
+  // status: "cancelled" and keeps the doc around for the history/reports
+  // count), this deletes the Firestore document itself, immediately. This
+  // is what "gewist ... ook uit de server meteen" actually asks for: not a
+  // soft cancel, a real delete.
+  const deleteOrder = async (order: OrderDoc) => {
+    if (!window.confirm(`Supprimer définitivement cette commande (${kindLabel(order)}) ? Cette action est irréversible.`)) return;
+    try {
+      await deleteDoc(doc(db, 'orders', order.id));
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  // Wipe every order ever recorded, permanently -- "de historie helemaal
+  // kunnen wissen". `orders` already holds the entire collection (the
+  // listener above has no date filter), so this clears everything, not just
+  // the currently selected date range. Guarded by a type-to-confirm prompt
+  // since there is no undo for a Firestore batch delete.
+  const wipeAllHistory = async () => {
+    if (orders.length === 0) return;
+    const typed = window.prompt(
+      `Ceci va supprimer DÉFINITIVEMENT les ${orders.length} commande(s) enregistrées (tout l'historique, pas seulement la période affichée). Cette action est irréversible.\n\nTape SUPPRIMER pour confirmer.`
+    );
+    if (typed !== 'SUPPRIMER') return;
+    try {
+      for (let i = 0; i < orders.length; i += 450) {
+        const chunk = orders.slice(i, i + 450);
+        const batch = writeBatch(db);
+        chunk.forEach((o) => batch.delete(doc(db, 'orders', o.id)));
+        await batch.commit();
+      }
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
   const submitNewOrder = async (payload: any) => {
     try {
       await addDoc(collection(db, 'orders'), payload);
@@ -1307,6 +1360,7 @@ export default function PosApp() {
 
       <header className="sticky top-0 z-40 bg-gradient-to-b from-brand-dark to-[#1f160c]/98 backdrop-blur border-b border-[#F3ECDD]/10 shadow-lg shadow-black/30 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
+          <img src="/logo.webp" alt="Dom's Café" className="h-9 w-auto object-contain" />
           <div>
             <h1 className="font-display font-black text-xl leading-tight tracking-wide">DOM'S CAFÉ</h1>
             <p className="text-[#9A9490] text-xs flex items-center gap-1.5">
@@ -1430,7 +1484,7 @@ export default function PosApp() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {liveOrders.map((o) => (
-                <OrderCard key={o.id} order={o} onAdvance={advance} onTogglePaid={togglePaid} onCancel={cancel} />
+                <OrderCard key={o.id} order={o} onAdvance={advance} onTogglePaid={togglePaid} onCancel={cancel} onDelete={deleteOrder} />
               ))}
             </div>
           )
@@ -1481,18 +1535,27 @@ export default function PosApp() {
 
         {tab === 'history' && (
           <div className="max-w-2xl mx-auto">
-            <div className="flex gap-2 flex-wrap mb-3">
-              {(['today', 'yesterday', 'week', 'month', 'all'] as ReportRange[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setReportRange(r)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${
-                    reportRange === r ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
-                  }`}
-                >
-                  {RANGE_LABEL[r]}
-                </button>
-              ))}
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+              <div className="flex gap-2 flex-wrap">
+                {(['today', 'yesterday', 'week', 'month', 'all'] as ReportRange[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setReportRange(r)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${
+                      reportRange === r ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
+                    }`}
+                  >
+                    {RANGE_LABEL[r]}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={wipeAllHistory}
+                title="Supprimer définitivement tout l'historique (toutes périodes)"
+                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-red-500/30 text-red-400/80 hover:text-red-400 hover:border-red-500/60 hover:bg-red-500/10 transition-all"
+              >
+                🗑️ Vider tout l'historique
+              </button>
             </div>
             <input
               value={historySearch}
@@ -1524,6 +1587,13 @@ export default function PosApp() {
                         className="text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5 text-sm w-7 h-7 rounded-full flex items-center justify-center transition-colors"
                       >
                         🖨️
+                      </button>
+                      <button
+                        onClick={() => deleteOrder(o)}
+                        title="Supprimer définitivement (serveur inclus)"
+                        className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-sm w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                      >
+                        🗑️
                       </button>
                     </div>
                   </div>
@@ -1652,6 +1722,7 @@ export default function PosApp() {
           }
           onAdvanceOrder={advance}
           onCancelOrder={cancel}
+          onDeleteOrder={deleteOrder}
         />
       )}
 
@@ -1662,6 +1733,10 @@ export default function PosApp() {
           onCancel={() => setPayingTarget(null)}
         />
       )}
+
+      <p className="fixed bottom-1.5 right-3 text-[9px] text-[#4a423a] pointer-events-none select-none tracking-wide z-30">
+        Développé par Amplify Growth Studio
+      </p>
     </div>
   );
 }
