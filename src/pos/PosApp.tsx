@@ -345,12 +345,18 @@ function NewOrderPanel({
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
+    // Most items in data.ts don't declare a `station` -- l.station is
+    // `undefined` for those, and Firestore rejects an `undefined` value
+    // even nested inside an array item, so default it instead of passing
+    // it through (this was the actual, still-present cause of the
+    // invalid-argument error: it fired for almost every item, pizzas
+    // included, not just the top-level customer/address/glovo fields).
     const orderItems: OrderItem[] = draft.map((l) => ({
       name: l.name,
       quantity: l.quantity,
       unitPrice: l.unitPrice,
       lineTotal: l.unitPrice * l.quantity,
-      station: l.station,
+      station: l.station || 'Kitchen',
     }));
     // Firestore's addDoc() throws "invalid-argument" if any field is a
     // literal `undefined` (this is what caused the POS write error) -- so
