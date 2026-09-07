@@ -260,6 +260,7 @@ export const migrateMenuDataToFirestore = async (
   force = false
 ): Promise<{
   itemsMigrated: number;
+  itemsRemoved: number;
   categoriesMigrated: number;
   status: string;
 }> => {
@@ -271,6 +272,7 @@ export const migrateMenuDataToFirestore = async (
     const catSnap = await getDocs(catColl);
 
     let itemsMigrated = 0;
+    let itemsRemoved = 0;
     let categoriesMigrated = 0;
 
     // Remove legacy 'jc-soda' item from Firestore if present
@@ -290,6 +292,23 @@ export const migrateMenuDataToFirestore = async (
         .filter(d => (d.data().restaurantId || "doms-cafe") === restaurantId)
         .map(d => d.id)
     );
+
+    // Remove stale Firestore docs that no longer exist in data.ts (e.g. old
+    // pizza names from an earlier menu that were never cleaned up -- the
+    // live site reads menuItems from Firestore, not from data.ts directly,
+    // so a discontinued item stays visible forever unless it's deleted here).
+    const currentIds = new Set(menuItems.map(i => i.id));
+    for (const d of menuSnap.docs) {
+      const data = d.data();
+      if ((data.restaurantId || "doms-cafe") === restaurantId && !currentIds.has(d.id)) {
+        try {
+          await deleteDoc(doc(db, "menuItems", d.id));
+          itemsRemoved++;
+        } catch (e) {
+          console.log("Failed to delete stale menu item:", d.id, e);
+        }
+      }
+    }
 
     // Sync any missing or new menu items from data.ts to Firestore
     for (const item of menuItems) {
@@ -314,6 +333,7 @@ export const migrateMenuDataToFirestore = async (
 
     return {
       itemsMigrated,
+      itemsRemoved,
       categoriesMigrated,
       status: "success"
     };
@@ -321,6 +341,7 @@ export const migrateMenuDataToFirestore = async (
     console.error("Migration to Firestore failed:", err);
     return {
       itemsMigrated: 0,
+      itemsRemoved: 0,
       categoriesMigrated: 0,
       status: `error: ${err}`
     };

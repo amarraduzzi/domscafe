@@ -285,9 +285,17 @@ interface DraftLine {
   station?: string;
 }
 
-function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (payload: any) => Promise<void> }) {
+function NewOrderPanel({
+  onClose,
+  onSubmit,
+  initialTable,
+}: {
+  onClose: () => void;
+  onSubmit: (payload: any) => Promise<void>;
+  initialTable?: string;
+}) {
   const [kind, setKind] = useState<OrderKind>('dine_in');
-  const [tableNumber, setTableNumber] = useState('');
+  const [tableNumber, setTableNumber] = useState(initialTable || '');
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [glovoRef, setGlovoRef] = useState('');
@@ -344,7 +352,11 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
       lineTotal: l.unitPrice * l.quantity,
       station: l.station,
     }));
-    await onSubmit({
+    // Firestore's addDoc() throws "invalid-argument" if any field is a
+    // literal `undefined` (this is what caused the POS write error) -- so
+    // build the payload with only the fields that actually apply, instead
+    // of assigning `undefined` to skip one.
+    const payload: Record<string, unknown> = {
       restaurantId: 'doms-cafe',
       tableNumber: kind === 'dine_in' ? tableNumber.trim() : '?',
       items: orderItems,
@@ -353,11 +365,12 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
       source: (kind === 'glovo' ? 'glovo' : 'manual') as OrderSource,
       orderType: kind,
       paid: false,
-      customerName: customerName.trim() || undefined,
-      address: kind === 'delivery' ? address.trim() : undefined,
-      glovoRef: kind === 'glovo' ? glovoRef.trim() : undefined,
       createdAt: serverTimestamp(),
-    });
+    };
+    if (customerName.trim()) payload.customerName = customerName.trim();
+    if (kind === 'delivery' && address.trim()) payload.address = address.trim();
+    if (kind === 'glovo' && glovoRef.trim()) payload.glovoRef = glovoRef.trim();
+    await onSubmit(payload as Parameters<typeof onSubmit>[0]);
     setSubmitting(false);
     onClose();
   };
@@ -519,6 +532,8 @@ export default function PosApp() {
   const [orders, setOrders] = useState<OrderDoc[]>([]);
   const [tab, setTab] = useState<Tab>('live');
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const [newOrderTable, setNewOrderTable] = useState<string | undefined>(undefined);
+  const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
   const [now, setNow] = useState(Date.now());
   // null = still connecting, string = a listener/write error to show instead
@@ -687,7 +702,10 @@ export default function PosApp() {
             </button>
           ))}
           <button
-            onClick={() => setShowNewOrder(true)}
+            onClick={() => {
+              setNewOrderTable(undefined);
+              setShowNewOrder(true);
+            }}
             className="px-4 py-2 rounded-lg text-sm font-black bg-[#F3ECDD]/10 hover:bg-[#F3ECDD]/20 text-[#F3ECDD] transition-all"
           >
             + Nouvelle commande
@@ -720,7 +738,18 @@ export default function PosApp() {
                   <div key={table} className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <p className="font-display font-black text-lg">Table {table}</p>
-                      <span className="text-xs text-[#9A9490]">{tableOrders.length} commande{tableOrders.length > 1 ? 's' : ''}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[#9A9490]">{tableOrders.length} commande{tableOrders.length > 1 ? 's' : ''}</span>
+                        <button
+                          onClick={() => {
+                            setNewOrderTable(table);
+                            setShowNewOrder(true);
+                          }}
+                          className="text-xs font-black px-2 py-1 rounded-lg bg-[#F3ECDD]/10 hover:bg-[#F3ECDD]/20 text-[#F3ECDD]"
+                        >
+                          + Commande
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-2 border-t border-[#F3ECDD]/10 pt-2">
                       {tableOrders.map((o) => (
@@ -740,15 +769,23 @@ export default function PosApp() {
                     <div className="flex items-center justify-between border-t border-[#F3ECDD]/10 pt-2">
                       <span className="font-display font-black text-brand-orange">{formatMAD(tableTotal)}</span>
                       <button
+                        disabled={checkoutBusy === table}
                         onClick={async () => {
                           if (!window.confirm(`Encaisser et clôturer la table ${table} ?`)) return;
-                          await Promise.all(
-                            tableOrders.map((o) => updateDoc(doc(db, 'orders', o.id), { paid: true, status: 'served' }))
-                          );
+                          setCheckoutBusy(table);
+                          try {
+                            await Promise.all(
+                              tableOrders.map((o) => updateDoc(doc(db, 'orders', o.id), { paid: true, status: 'served' }))
+                            );
+                          } catch (err) {
+                            reportWriteError(err);
+                          } finally {
+                            setCheckoutBusy(null);
+                          }
                         }}
-                        className="text-xs font-black px-3 py-1.5 rounded-lg bg-brand-orange text-[#1A1208]"
+                        className="text-xs font-black px-3 py-1.5 rounded-lg bg-brand-orange text-[#1A1208] disabled:opacity-50"
                       >
-                        {allPaid ? 'Clôturer' : 'Encaisser'}
+                        {checkoutBusy === table ? '…' : allPaid ? 'Clôturer' : 'Encaisser'}
                       </button>
                     </div>
                   </div>
@@ -780,7 +817,13 @@ export default function PosApp() {
         )}
       </main>
 
-      {showNewOrder && <NewOrderPanel onClose={() => setShowNewOrder(false)} onSubmit={submitNewOrder} />}
+      {showNewOrder && (
+        <NewOrderPanel
+          initialTable={newOrderTable}
+          onClose={() => setShowNewOrder(false)}
+          onSubmit={submitNewOrder}
+        />
+      )}
     </div>
   );
 }

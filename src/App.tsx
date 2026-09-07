@@ -215,8 +215,8 @@ export default function App() {
   // Auto-migrate menu data to Firestore if empty, and subscribe to real-time updates
   useEffect(() => {
     migrateMenuDataToFirestore().then((res) => {
-      if (res.itemsMigrated > 0 || res.categoriesMigrated > 0) {
-        console.log(`Firestore migration complete: ${res.itemsMigrated} items, ${res.categoriesMigrated} categories created.`);
+      if (res.itemsMigrated > 0 || res.itemsRemoved > 0 || res.categoriesMigrated > 0) {
+        console.log(`Firestore migration complete: ${res.itemsMigrated} items added, ${res.itemsRemoved} stale items removed, ${res.categoriesMigrated} categories created.`);
       }
     });
 
