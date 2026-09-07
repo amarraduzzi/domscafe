@@ -178,7 +178,11 @@ export const initialCategories: FirestoreCategory[] = [
   { id: 'burgers', name: { fr: "Burgers", en: "Burgers", ar: "برغر" }, emoji: "🍔", displayOrder: 13 },
   { id: 'salades', name: { fr: "Salades", en: "Salads", ar: "سلطات" }, emoji: "🥗", displayOrder: 14 },
   { id: 'pates', name: { fr: "Pâtes", en: "Pasta", ar: "باستا" }, emoji: "🍝", displayOrder: 15 },
-  { id: 'desserts', name: { fr: "Desserts", en: "Desserts", ar: "حلويات" }, emoji: "🍰", displayOrder: 16 }
+  { id: 'desserts', name: { fr: "Desserts", en: "Desserts", ar: "حلويات" }, emoji: "🍰", displayOrder: 16 },
+  // Snooker (billard) -- pas un plat, une prestation facturable à 30 MAD la
+  // partie ; pas listé dans PosApp.tsx's CATEGORY_GROUPS donc elle tombe
+  // automatiquement dans le groupe "Autres" du rail de catégories.
+  { id: 'snooker', name: { fr: "Snooker", en: "Snooker", ar: "سنوكر" }, emoji: "🎱", displayOrder: 17 }
 ];
 
 // Helper to remove undefined properties before saving to Firestore

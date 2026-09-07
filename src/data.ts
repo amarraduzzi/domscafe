@@ -1191,6 +1191,23 @@ export const menuItems: MenuItem[] = [
     name: { fr: "Pâtisserie du jour", en: "Pastry of the Day", ar: "حلوى اليوم" },
     description: { fr: "Sélection raffinée de pâtisseries du chef", en: "Chef's daily choice of fine fresh pastry", ar: "حلويات طازجة من اختيار الشيف" },
     image: ""
+  },
+
+  // Snooker -- pas un plat/boisson mais une prestation facturable (partie de
+  // billard), demandée pour pouvoir l'ajouter à une addition comme n'importe
+  // quel article. Category id nouveau ("snooker"), pas dans un CATEGORY_GROUPS
+  // existant côté caisse -- il apparaît donc automatiquement dans le groupe
+  // "Autres" du rail de catégories, sans toucher au reste du menu.
+  // station: "Bar" pour qu'il atterrisse au comptoir, pas dans la liste de
+  // préparation cuisine (il n'y a rien à cuisiner).
+  {
+    id: 'snooker',
+    category: 'snooker',
+    price: 30,
+    name: { fr: "Snooker", en: "Snooker", ar: "سنوكر" },
+    description: { fr: "Partie de snooker (billard)", en: "Snooker (billiards) game", ar: "لعبة سنوكر (بيلياردو)" },
+    image: "",
+    station: "Bar"
   }
 ];
 

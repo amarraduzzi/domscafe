@@ -100,10 +100,13 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 // instead of ~18 category chips wrapping in a random-looking block. The
 // underlying category ids/order in firebase.ts's initialCategories are
 // untouched; this only decides how they're clustered on screen.
+// "Boissons" listed first -- client feedback: les boissons chaudes sont les
+// commandes les plus fréquentes, elles doivent être en haut de la liste.
+// (Boissons Chaudes is already first within this group, see firebase.ts.)
 const CATEGORY_GROUPS: { label: string; ids: string[] }[] = [
+  { label: 'Boissons', ids: ['boissons_chaudes', 'boissons_fraiches', 'jus_cocktails'] },
   { label: 'Petit-déj', ids: ['breakfasts', 'omelettes', 'toasts', 'viennoiserie', 'crepes_sucrees', 'crepes_salees'] },
   { label: 'Plats', ids: ['pizzas', 'sandwiches', 'tacos', 'pasticcie', 'burgers', 'salades', 'pates'] },
-  { label: 'Boissons', ids: ['boissons_chaudes', 'boissons_fraiches', 'jus_cocktails'] },
   { label: 'Desserts', ids: ['desserts'] },
 ];
 
@@ -1437,38 +1440,44 @@ export default function PosApp() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(['tables', 'live', 'kitchen', 'history', 'reports'] as Tab[]).map((t) => {
-            const needsAttention = t === 'kitchen' && kitchenOrderCount > 0;
-            return (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`relative px-3.5 py-2 rounded-full text-sm font-bold transition-all ${
-                  tab === t
-                    ? 'bg-brand-orange text-[#1A1208] shadow-md shadow-brand-orange/25'
-                    : 'bg-brand-dark-card text-[#9A9490] hover:text-[#F3ECDD] hover:bg-[#F3ECDD]/5'
-                }`}
-              >
-                {needsAttention && tab !== t && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand-orange animate-pulse-dot" />
-                )}
-                {t === 'tables'
-                  ? `Tables (${occupiedTableCount}/${TABLE_COUNT})`
-                  : t === 'live'
-                  ? `Commandes (${liveOrders.length})`
-                  : t === 'kitchen'
-                  ? `Cuisine (${kitchenOrderCount})`
-                  : t === 'history'
-                  ? 'Historique'
-                  : 'Rapports'}
-              </button>
-            );
-          })}
+          <div className="flex items-center gap-1.5 flex-wrap p-1 rounded-full pos-surface border border-[#F3ECDD]/10">
+            {(['tables', 'live', 'kitchen', 'history', 'reports'] as Tab[]).map((t) => {
+              const needsAttention = t === 'kitchen' && kitchenOrderCount > 0;
+              const icon =
+                t === 'tables' ? '🪑' : t === 'live' ? '🧾' : t === 'kitchen' ? '🍳' : t === 'history' ? '📜' : '📊';
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-bold transition-all ${
+                    tab === t
+                      ? 'bg-brand-orange text-[#1A1208] shadow-md shadow-brand-orange/30'
+                      : 'text-[#9A9490] hover:text-[#F3ECDD] hover:bg-white/5'
+                  }`}
+                >
+                  {needsAttention && tab !== t && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand-orange animate-pulse-dot" />
+                  )}
+                  <span aria-hidden="true">{icon}</span>
+                  {t === 'tables'
+                    ? `Tables (${occupiedTableCount}/${TABLE_COUNT})`
+                    : t === 'live'
+                    ? `Commandes (${liveOrders.length})`
+                    : t === 'kitchen'
+                    ? `Cuisine (${kitchenOrderCount})`
+                    : t === 'history'
+                    ? 'Historique'
+                    : 'Rapports'}
+                </button>
+              );
+            })}
+          </div>
+          <div className="w-px self-stretch bg-[#F3ECDD]/15 mx-0.5" />
           <button
             onClick={() => setShowNewOrder(true)}
-            className="px-4 py-2 rounded-full text-sm font-black bg-[#F3ECDD]/10 hover:bg-[#F3ECDD]/20 active:scale-[0.97] text-[#F3ECDD] transition-all"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-black border border-brand-orange/40 bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.97] text-brand-orange transition-all shadow-sm shadow-black/20"
           >
-            + Emporter / Livraison / Glovo
+            <span aria-hidden="true">+</span> Emporter / Livraison / Glovo
           </button>
         </div>
       </header>
