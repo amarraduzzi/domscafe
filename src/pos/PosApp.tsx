@@ -22,16 +22,19 @@ import { initialCategories } from '../firebase';
 //   - the customer ordering site (App.tsx -> createFirestoreOrder), already
 //     live, writes {restaurantId, tableNumber, items, total, createdAt,
 //     status: "new"} with no `source`/`orderType`/`paid` field yet.
-//   - this screen's own "Nouvelle commande" panel, for walk-ins, phone
-//     orders and (until the real API integration exists) Glovo orders
+//   - this screen's own "+ Emporter / Livraison / Glovo" panel, for walk-ins,
+//     phone orders and (until the real API integration exists) Glovo orders
 //     staff key in by hand, tagged with `source`.
+//   - table orders, created and added-to exclusively through the Tables tab
+//     below (tap a numbered table -> add items -> one running bill per
+//     table, merged into a single order doc instead of a new one each time).
 // Older docs from before this screen existed simply lack `source`,
 // `orderType` and `paid` — every read below treats those as optional and
 // falls back sensibly, so nothing already written breaks.
 //
 // No payment processing happens here on purpose (per the brief: "geen
-// bankverbinding nodig, gewoon een verzamelpunt"). "Marquer payé" only
-// flips a boolean for the team's own bookkeeping.
+// bankverbinding nodig, gewoon een verzamelpunt"). "Encaisser" / "Marquer
+// payé" only record cash-vs-carte for the team's own bookkeeping.
 //
 // Access: this URL has no real login, only a 4-digit PIN gate (like the
 // billiards cancel-PIN elsewhere on this site) so it isn't wide open to
@@ -43,10 +46,13 @@ import { initialCategories } from '../firebase';
 
 const POS_PIN = '4271';
 const PIN_SESSION_KEY = 'domscafe_pos_unlocked';
+const TABLE_COUNT = 25;
+const TABLE_NUMBERS = Array.from({ length: TABLE_COUNT }, (_, i) => String(i + 1));
 
 type OrderStatus = 'new' | 'preparing' | 'ready' | 'served' | 'cancelled';
 type OrderSource = 'site' | 'manual' | 'glovo';
 type OrderKind = 'dine_in' | 'takeaway' | 'delivery' | 'glovo';
+type PaymentMethod = 'cash' | 'card';
 
 interface OrderItem {
   name: string;
@@ -68,6 +74,7 @@ interface OrderDoc {
   source?: OrderSource;
   orderType?: OrderKind;
   paid?: boolean;
+  paymentMethod?: PaymentMethod;
   customerName?: string;
   address?: string;
   glovoRef?: string;
@@ -112,6 +119,10 @@ function elapsedStyle(mins: number): string {
   if (mins >= 15) return 'text-red-400';
   if (mins >= 6) return 'text-amber-400';
   return 'text-[#8FBF8A]';
+}
+
+function elapsedLabel(mins: number): string {
+  return mins === 0 ? "à l'instant" : `il y a ${mins} min`;
 }
 
 function startOfToday(): number {
@@ -195,6 +206,44 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 
 // ---------------------------------------------------------------------------
 
+function PaymentMethodModal({
+  label,
+  onChoose,
+  onCancel,
+}: {
+  label: string;
+  onChoose: (m: PaymentMethod) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/70 z-[70] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm bg-brand-dark-card border border-[#F3ECDD]/10 rounded-2xl p-6 text-center">
+        <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1">{label}</h3>
+        <p className="text-[#9A9490] text-sm mb-5">Mode de paiement ?</p>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <button
+            onClick={() => onChoose('cash')}
+            className="py-4 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] font-display font-black transition-all"
+          >
+            💵 Cash
+          </button>
+          <button
+            onClick={() => onChoose('card')}
+            className="py-4 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] font-display font-black transition-all"
+          >
+            💳 Carte
+          </button>
+        </div>
+        <button onClick={onCancel} className="text-[#9A9490] text-sm hover:text-[#F3ECDD]">
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 function OrderCard({
   order,
   onAdvance,
@@ -226,7 +275,7 @@ function OrderCard({
             <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${SOURCE_STYLE[source].className}`}>
               {SOURCE_STYLE[source].label}
             </span>
-            <span className={`text-xs font-bold ${elapsedStyle(mins)}`}>{mins === 0 ? "à l'instant" : `il y a ${mins} min`}</span>
+            <span className={`text-xs font-bold ${elapsedStyle(mins)}`}>{elapsedLabel(mins)}</span>
           </div>
         </div>
         <button
@@ -260,7 +309,7 @@ function OrderCard({
               : 'bg-transparent text-[#9A9490] border-[#F3ECDD]/20 hover:border-[#F3ECDD]/40'
           }`}
         >
-          {order.paid ? '✓ Payé' : 'Marquer payé'}
+          {order.paid ? `✓ Payé${order.paymentMethod ? ` (${order.paymentMethod === 'cash' ? 'cash' : 'carte'})` : ''}` : 'Marquer payé'}
         </button>
       </div>
 
@@ -285,30 +334,23 @@ interface DraftLine {
   station?: string;
 }
 
-function NewOrderPanel({
-  onClose,
-  onSubmit,
-  initialTable,
+// Shared menu grid + cart, reused by the "+ Emporter / Livraison / Glovo"
+// panel and by the per-table "Ajouter des articles" panel. Bigger tap
+// targets throughout (point 3 of the requested improvements) — this runs on
+// a tablet behind the counter, not a mouse-driven desktop.
+function MenuGrid({
+  draft,
+  onAdd,
+  onChangeQty,
 }: {
-  onClose: () => void;
-  onSubmit: (payload: any) => Promise<void>;
-  initialTable?: string;
+  draft: DraftLine[];
+  onAdd: (name: string, unitPrice: number, station?: string) => void;
+  onChangeQty: (idx: number, delta: number) => void;
 }) {
-  const [kind, setKind] = useState<OrderKind>('dine_in');
-  const [tableNumber, setTableNumber] = useState(initialTable || '');
-  const [customerName, setCustomerName] = useState('');
-  const [address, setAddress] = useState('');
-  const [glovoRef, setGlovoRef] = useState('');
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [draft, setDraft] = useState<DraftLine[]>([]);
-  const [submitting, setSubmitting] = useState(false);
 
-  const categories = useMemo(
-    () => initialCategories.filter((c) => c.id !== 'all'),
-    []
-  );
-
+  const categories = useMemo(() => initialCategories.filter((c) => c.id !== 'all'), []);
   const items = useMemo(() => {
     const available = staticMenuItems.filter((it) => it.available !== false);
     const bySearch = search.trim()
@@ -319,6 +361,85 @@ function NewOrderPanel({
 
   const total = draft.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
 
+  return (
+    <div className="flex-1 overflow-y-auto flex">
+      <div className="flex-1 p-5 overflow-y-auto">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Rechercher un article…"
+          className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 mb-3 text-base text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
+        />
+        <div className="flex gap-2 flex-wrap mb-4">
+          <button
+            onClick={() => setActiveCategory('all')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${
+              activeCategory === 'all' ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
+            }`}
+          >
+            Tout
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setActiveCategory(c.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${
+                activeCategory === c.id ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
+              }`}
+            >
+              {c.emoji} {c.name.fr}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {items.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => onAdd(it.name.fr, it.price, it.station)}
+              className="text-start bg-brand-dark-card border border-[#F3ECDD]/10 hover:border-brand-orange/50 active:scale-[0.97] rounded-xl p-3.5 transition-all"
+            >
+              <p className="text-base font-bold text-[#F3ECDD] leading-tight">{it.name.fr}</p>
+              <p className="text-sm text-brand-orange font-black">{formatMAD(it.price)}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="w-72 border-s border-[#F3ECDD]/10 p-5 flex flex-col shrink-0">
+        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-2">Panier</p>
+        <div className="flex-1 overflow-y-auto space-y-2">
+          {draft.length === 0 && <p className="text-[#7A736C] text-sm">Aucun article.</p>}
+          {draft.map((l, idx) => (
+            <div key={idx} className="flex items-center justify-between bg-brand-dark-card rounded-lg px-2 py-1.5">
+              <div className="min-w-0">
+                <p className="text-sm text-[#F3ECDD] truncate">{l.name}</p>
+                <p className="text-xs text-[#9A9490]">{formatMAD(l.unitPrice * l.quantity)}</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => onChangeQty(idx, -1)} className="w-7 h-7 rounded bg-black/30 text-[#F3ECDD] text-lg leading-none">
+                  −
+                </button>
+                <span className="text-sm text-[#F3ECDD] w-4 text-center">{l.quantity}</span>
+                <button onClick={() => onChangeQty(idx, 1)} className="w-7 h-7 rounded bg-black/30 text-[#F3ECDD] text-lg leading-none">
+                  +
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-[#F3ECDD]/10 pt-3 mt-3">
+          <div className="flex justify-between">
+            <span className="text-[#9A9490] text-sm">Total</span>
+            <span className="text-brand-orange font-display font-black text-lg">{formatMAD(total)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function useDraft() {
+  const [draft, setDraft] = useState<DraftLine[]>([]);
   const addItem = (name: string, unitPrice: number, station?: string) => {
     setDraft((prev) => {
       const existing = prev.find((l) => l.name === name && l.unitPrice === unitPrice);
@@ -335,37 +456,51 @@ function NewOrderPanel({
         .filter((l) => l.quantity > 0)
     );
   };
+  const total = draft.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
+  const asOrderItems = (): OrderItem[] =>
+    draft.map((l) => ({
+      name: l.name,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      lineTotal: l.unitPrice * l.quantity,
+      // Most items in data.ts don't declare a `station` -- default it
+      // instead of passing `undefined` through, which Firestore rejects
+      // even nested inside an array item (this was the actual cause of the
+      // invalid-argument error: it fired for almost every item, pizzas
+      // included).
+      station: l.station || 'Kitchen',
+    }));
+  return { draft, addItem, changeQty, total, asOrderItems, reset: () => setDraft([]) };
+}
+
+// ---------------------------------------------------------------------------
+// "+ Emporter / Livraison / Glovo" -- table orders are created and grown
+// exclusively through the Tables tab (TablePanel below), so this panel only
+// ever handles the three order kinds that don't have a table number.
+
+function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (payload: any) => Promise<void> }) {
+  const [kind, setKind] = useState<Exclude<OrderKind, 'dine_in'>>('takeaway');
+  const [customerName, setCustomerName] = useState('');
+  const [address, setAddress] = useState('');
+  const [glovoRef, setGlovoRef] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const { draft, addItem, changeQty, total, asOrderItems, reset } = useDraft();
 
   const canSubmit =
     draft.length > 0 &&
-    (kind !== 'dine_in' || tableNumber.trim()) &&
     (kind !== 'delivery' || (customerName.trim() && address.trim())) &&
     (kind !== 'glovo' || glovoRef.trim());
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
-    // Most items in data.ts don't declare a `station` -- l.station is
-    // `undefined` for those, and Firestore rejects an `undefined` value
-    // even nested inside an array item, so default it instead of passing
-    // it through (this was the actual, still-present cause of the
-    // invalid-argument error: it fired for almost every item, pizzas
-    // included, not just the top-level customer/address/glovo fields).
-    const orderItems: OrderItem[] = draft.map((l) => ({
-      name: l.name,
-      quantity: l.quantity,
-      unitPrice: l.unitPrice,
-      lineTotal: l.unitPrice * l.quantity,
-      station: l.station || 'Kitchen',
-    }));
     // Firestore's addDoc() throws "invalid-argument" if any field is a
-    // literal `undefined` (this is what caused the POS write error) -- so
-    // build the payload with only the fields that actually apply, instead
-    // of assigning `undefined` to skip one.
+    // literal `undefined` -- build the payload with only the fields that
+    // actually apply, instead of assigning `undefined` to skip one.
     const payload: Record<string, unknown> = {
       restaurantId: 'doms-cafe',
-      tableNumber: kind === 'dine_in' ? tableNumber.trim() : '?',
-      items: orderItems,
+      tableNumber: '?',
+      items: asOrderItems(),
       total,
       status: 'new' as OrderStatus,
       source: (kind === 'glovo' ? 'glovo' : 'manual') as OrderSource,
@@ -376,8 +511,9 @@ function NewOrderPanel({
     if (customerName.trim()) payload.customerName = customerName.trim();
     if (kind === 'delivery' && address.trim()) payload.address = address.trim();
     if (kind === 'glovo' && glovoRef.trim()) payload.glovoRef = glovoRef.trim();
-    await onSubmit(payload as Parameters<typeof onSubmit>[0]);
+    await onSubmit(payload);
     setSubmitting(false);
+    reset();
     onClose();
   };
 
@@ -393,36 +529,28 @@ function NewOrderPanel({
 
         <div className="p-5 space-y-4 border-b border-[#F3ECDD]/10 shrink-0">
           <div className="flex gap-2 flex-wrap">
-            {(['dine_in', 'takeaway', 'delivery', 'glovo'] as OrderKind[]).map((k) => (
+            {(['takeaway', 'delivery', 'glovo'] as const).map((k) => (
               <button
                 key={k}
                 onClick={() => setKind(k)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+                className={`px-4 py-2 rounded-lg text-sm font-bold border transition-all ${
                   kind === k
                     ? 'bg-brand-orange text-[#1A1208] border-brand-orange'
                     : 'bg-transparent text-[#9A9490] border-[#F3ECDD]/20 hover:border-[#F3ECDD]/40'
                 }`}
               >
-                {k === 'dine_in' ? 'Sur place' : k === 'takeaway' ? 'À emporter' : k === 'delivery' ? 'Livraison' : 'Glovo'}
+                {k === 'takeaway' ? 'À emporter' : k === 'delivery' ? 'Livraison' : 'Glovo'}
               </button>
             ))}
           </div>
 
           <div className="flex gap-3 flex-wrap">
-            {kind === 'dine_in' && (
-              <input
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-                placeholder="N° de table"
-                className="flex-1 min-w-[140px] bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
-              />
-            )}
             {(kind === 'takeaway' || kind === 'delivery') && (
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Nom du client"
-                className="flex-1 min-w-[140px] bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
+                className="flex-1 min-w-[140px] bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
               />
             )}
             {kind === 'delivery' && (
@@ -430,7 +558,7 @@ function NewOrderPanel({
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Adresse de livraison"
-                className="flex-[2] min-w-[200px] bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
+                className="flex-[2] min-w-[200px] bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
               />
             )}
             {kind === 'glovo' && (
@@ -438,91 +566,135 @@ function NewOrderPanel({
                 value={glovoRef}
                 onChange={(e) => setGlovoRef(e.target.value)}
                 placeholder="Référence Glovo / nom client"
-                className="flex-1 min-w-[140px] bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
+                className="flex-1 min-w-[140px] bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
               />
             )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto flex">
-          <div className="flex-1 p-5 overflow-y-auto">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un article…"
-              className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2 mb-3 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
-            />
-            <div className="flex gap-2 flex-wrap mb-4">
-              <button
-                onClick={() => setActiveCategory('all')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                  activeCategory === 'all' ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
-                }`}
-              >
-                Tout
-              </button>
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setActiveCategory(c.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                    activeCategory === c.id ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
-                  }`}
-                >
-                  {c.emoji} {c.name.fr}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {items.map((it) => (
-                <button
-                  key={it.id}
-                  onClick={() => addItem(it.name.fr, it.price, it.station)}
-                  className="text-start bg-brand-dark-card border border-[#F3ECDD]/10 hover:border-brand-orange/50 rounded-lg p-2.5 transition-all"
-                >
-                  <p className="text-sm font-bold text-[#F3ECDD] leading-tight">{it.name.fr}</p>
-                  <p className="text-xs text-brand-orange font-black">{formatMAD(it.price)}</p>
-                </button>
-              ))}
-            </div>
-          </div>
+        <MenuGrid draft={draft} onAdd={addItem} onChangeQty={changeQty} />
 
-          <div className="w-72 border-s border-[#F3ECDD]/10 p-5 flex flex-col shrink-0">
-            <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-2">Panier</p>
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {draft.length === 0 && <p className="text-[#7A736C] text-sm">Aucun article.</p>}
-              {draft.map((l, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-brand-dark-card rounded-lg px-2 py-1.5">
-                  <div className="min-w-0">
-                    <p className="text-sm text-[#F3ECDD] truncate">{l.name}</p>
-                    <p className="text-xs text-[#9A9490]">{formatMAD(l.unitPrice * l.quantity)}</p>
+        <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0">
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit || submitting}
+            className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3.5 rounded-xl transition-all text-lg"
+          >
+            {submitting ? 'Envoi…' : `Envoyer la commande — ${formatMAD(total)}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Table panel: the whole "real POS" table flow lives here -- tap a table in
+// the grid to open this, see the running bill (one order per table, grown
+// in place instead of piling up separate orders), add more items, and check
+// out. This is the only way a dine-in order is created or grown.
+
+function TablePanel({
+  table,
+  orders,
+  onClose,
+  onAddItems,
+  onCheckout,
+  onAdvanceOrder,
+  onCancelOrder,
+}: {
+  table: string;
+  orders: OrderDoc[];
+  onClose: () => void;
+  onAddItems: (items: OrderItem[], total: number) => Promise<void>;
+  onCheckout: () => void;
+  onAdvanceOrder: (order: OrderDoc) => void | Promise<void>;
+  onCancelOrder: (order: OrderDoc) => void | Promise<void>;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const { draft, addItem, changeQty, total, asOrderItems, reset } = useDraft();
+
+  const billTotal = orders.reduce((s, o) => s + o.total, 0);
+  const allPaid = orders.length > 0 && orders.every((o) => o.paid);
+
+  const submitAdd = async () => {
+    if (draft.length === 0 || submitting) return;
+    setSubmitting(true);
+    await onAddItems(asOrderItems(), total);
+    reset();
+    setSubmitting(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-stretch justify-end">
+      <div className="w-full max-w-2xl bg-brand-dark border-l border-[#F3ECDD]/10 flex flex-col h-full">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#F3ECDD]/10 shrink-0">
+          <h2 className="font-display font-black text-xl text-[#F3ECDD]">Table {table}</h2>
+          <button onClick={onClose} className="text-[#9A9490] hover:text-[#F3ECDD] text-2xl leading-none">
+            ×
+          </button>
+        </div>
+
+        {orders.length > 0 && (
+          <div className="p-5 border-b border-[#F3ECDD]/10 shrink-0 space-y-3 max-h-[40vh] overflow-y-auto">
+            <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold">Addition en cours</p>
+            {orders.map((o) => {
+              const mins = minutesSince(o.createdAt);
+              const status = o.status || 'new';
+              return (
+                <div key={o.id} className="bg-brand-dark-card rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-[#9A9490]">
+                      {STATUS_LABEL[status]} · <span className={elapsedStyle(mins)}>{elapsedLabel(mins)}</span>
+                    </span>
+                    <div className="flex items-center gap-3">
+                      {status !== 'served' && status !== 'cancelled' && status !== 'ready' && (
+                        <button onClick={() => onAdvanceOrder(o)} className="text-[11px] font-black text-brand-orange underline">
+                          {status === 'preparing' ? 'Marquer prêt' : 'Démarrer'}
+                        </button>
+                      )}
+                      <button onClick={() => onCancelOrder(o)} className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 underline">
+                        Annuler
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => changeQty(idx, -1)} className="w-6 h-6 rounded bg-black/30 text-[#F3ECDD]">
-                      −
-                    </button>
-                    <span className="text-sm text-[#F3ECDD] w-4 text-center">{l.quantity}</span>
-                    <button onClick={() => changeQty(idx, 1)} className="w-6 h-6 rounded bg-black/30 text-[#F3ECDD]">
-                      +
-                    </button>
-                  </div>
+                  {o.items.map((it, i) => (
+                    <div key={i} className="flex justify-between text-sm text-[#E3DCCB]">
+                      <span>
+                        <span className="font-bold text-brand-orange">{it.quantity}×</span> {it.name}
+                      </span>
+                      <span className="text-[#9A9490]">{formatMAD(it.lineTotal)}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="border-t border-[#F3ECDD]/10 pt-3 mt-3">
-              <div className="flex justify-between mb-3">
-                <span className="text-[#9A9490] text-sm">Total</span>
-                <span className="text-brand-orange font-display font-black text-lg">{formatMAD(total)}</span>
-              </div>
+              );
+            })}
+            <div className="flex items-center justify-between pt-2 border-t border-[#F3ECDD]/10">
+              <span className="font-display font-black text-brand-orange text-lg">{formatMAD(billTotal)}</span>
               <button
-                onClick={handleSubmit}
-                disabled={!canSubmit || submitting}
-                className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3 rounded-xl transition-all"
+                onClick={onCheckout}
+                className="text-sm font-black px-4 py-2.5 rounded-lg bg-brand-orange text-[#1A1208]"
               >
-                {submitting ? 'Envoi…' : 'Envoyer la commande'}
+                {allPaid ? 'Clôturer la table' : 'Encaisser'}
               </button>
             </div>
           </div>
+        )}
+
+        <div className="px-5 pt-4 shrink-0">
+          <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold">Ajouter des articles</p>
+        </div>
+
+        <MenuGrid draft={draft} onAdd={addItem} onChangeQty={changeQty} />
+
+        <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0">
+          <button
+            onClick={submitAdd}
+            disabled={draft.length === 0 || submitting}
+            className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3.5 rounded-xl transition-all text-lg"
+          >
+            {submitting ? 'Ajout…' : draft.length === 0 ? 'Ajouter à la table' : `Ajouter à la table — ${formatMAD(total)}`}
+          </button>
         </div>
       </div>
     </div>
@@ -531,15 +703,16 @@ function NewOrderPanel({
 
 // ---------------------------------------------------------------------------
 
-type Tab = 'live' | 'tables' | 'history';
+type Tab = 'tables' | 'live' | 'kitchen' | 'history';
+type PayTarget = { kind: 'table'; table: string; orders: OrderDoc[] } | { kind: 'order'; order: OrderDoc };
 
 export default function PosApp() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(PIN_SESSION_KEY) === '1');
   const [orders, setOrders] = useState<OrderDoc[]>([]);
-  const [tab, setTab] = useState<Tab>('live');
+  const [tab, setTab] = useState<Tab>('tables');
   const [showNewOrder, setShowNewOrder] = useState(false);
-  const [newOrderTable, setNewOrderTable] = useState<string | undefined>(undefined);
-  const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [payingTarget, setPayingTarget] = useState<PayTarget | null>(null);
   const [flash, setFlash] = useState(false);
   const [now, setNow] = useState(Date.now());
   // null = still connecting, string = a listener/write error to show instead
@@ -617,9 +790,16 @@ export default function PosApp() {
       reportWriteError(err);
     }
   };
+  // Turning payment ON opens the cash/carte choice (handled by
+  // payingTarget + choosePayment below); turning it OFF is an instant
+  // correction, no method prompt needed.
   const togglePaid = async (order: OrderDoc) => {
+    if (!order.paid) {
+      setPayingTarget({ kind: 'order', order });
+      return;
+    }
     try {
-      await updateDoc(doc(db, 'orders', order.id), { paid: !order.paid });
+      await updateDoc(doc(db, 'orders', order.id), { paid: false });
     } catch (err) {
       reportWriteError(err);
     }
@@ -640,12 +820,41 @@ export default function PosApp() {
     }
   };
 
+  const choosePayment = (method: PaymentMethod) => {
+    if (!payingTarget) return;
+    // Close the modal immediately instead of waiting on the network round
+    // trip -- Firestore's local cache already applies the change optimistically
+    // for every listener (that's how the rest of this screen behaves too:
+    // advance/togglePaid/cancel never block the UI on a server round trip).
+    // Blocking here instead would leave the modal stuck open on a slow or
+    // flaky connection, which is exactly the kind of thing a "perfect
+    // werkend" POS can't do.
+    const target = payingTarget;
+    setPayingTarget(null);
+    const write =
+      target.kind === 'table'
+        ? Promise.all(
+            target.orders.map((o) =>
+              updateDoc(doc(db, 'orders', o.id), { paid: true, status: 'served', paymentMethod: method })
+            )
+          )
+        : updateDoc(doc(db, 'orders', target.order.id), { paid: true, paymentMethod: method });
+    write.catch((err) => reportWriteError(err));
+    if (target.kind === 'table' && selectedTable === target.table) {
+      setSelectedTable(null);
+    }
+  };
+
   const activeOrders = useMemo(
     () => orders.filter((o) => (o.status || 'new') !== 'served' && o.status !== 'cancelled'),
     [orders]
   );
+  // Non-table orders only — table orders are managed entirely from the
+  // Tables tab now, so they're excluded here to avoid two separate places
+  // claiming to manage the same order (that duplication is exactly what a
+  // real POS doesn't do).
   const liveOrders = useMemo(
-    () => [...activeOrders].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)),
+    () => [...activeOrders].filter((o) => kindOf(o) !== 'dine_in').sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)),
     [activeOrders]
   );
   const tablesMap = useMemo(() => {
@@ -656,14 +865,63 @@ export default function PosApp() {
         const key = o.tableNumber || '?';
         map.set(key, [...(map.get(key) || []), o]);
       });
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    return map;
   }, [activeOrders]);
+  const occupiedTableCount = tablesMap.size;
   const historyOrders = useMemo(() => {
     const today = startOfToday();
     return orders
       .filter((o) => (o.status === 'served' || o.status === 'cancelled') && (o.createdAt?.toMillis() || 0) >= today)
       .slice(0, 60);
   }, [orders]);
+
+  // Kitchen view: everything still to prepare (new/preparing), grouped by
+  // station instead of by table/order, so the kitchen sees a prep list
+  // instead of having to mentally filter out payment status and table
+  // numbers that don't matter to them.
+  const kitchenByStation = useMemo(() => {
+    const map = new Map<string, OrderDoc[]>();
+    activeOrders
+      .filter((o) => (o.status || 'new') === 'new' || o.status === 'preparing')
+      .forEach((o) => {
+        const stations = new Set(o.items.map((it) => it.station || 'Kitchen'));
+        stations.forEach((st) => map.set(st, [...(map.get(st) || []), o]));
+      });
+    for (const list of map.values()) {
+      list.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+    }
+    return Array.from(map.entries());
+  }, [activeOrders]);
+  const kitchenOrderCount = useMemo(
+    () => activeOrders.filter((o) => (o.status || 'new') === 'new' || o.status === 'preparing').length,
+    [activeOrders]
+  );
+
+  const addItemsToTable = async (table: string, newItems: OrderItem[], newTotal: number) => {
+    try {
+      const existing = tablesMap.get(table)?.[0];
+      if (existing) {
+        await updateDoc(doc(db, 'orders', existing.id), {
+          items: [...existing.items, ...newItems],
+          total: existing.total + newTotal,
+        });
+      } else {
+        await addDoc(collection(db, 'orders'), {
+          restaurantId: 'doms-cafe',
+          tableNumber: table,
+          items: newItems,
+          total: newTotal,
+          status: 'new' as OrderStatus,
+          source: 'manual' as OrderSource,
+          orderType: 'dine_in' as OrderKind,
+          paid: false,
+          createdAt: serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
 
   if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />;
 
@@ -695,8 +953,8 @@ export default function PosApp() {
             {new Date(now).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {(['live', 'tables', 'history'] as Tab[]).map((t) => (
+        <div className="flex items-center gap-2 flex-wrap">
+          {(['tables', 'live', 'kitchen', 'history'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -704,22 +962,55 @@ export default function PosApp() {
                 tab === t ? 'bg-brand-orange text-[#1A1208]' : 'bg-brand-dark-card text-[#9A9490] hover:text-[#F3ECDD]'
               }`}
             >
-              {t === 'live' ? `Commandes (${liveOrders.length})` : t === 'tables' ? `Tables (${tablesMap.length})` : 'Historique'}
+              {t === 'tables'
+                ? `Tables (${occupiedTableCount}/${TABLE_COUNT})`
+                : t === 'live'
+                ? `Commandes (${liveOrders.length})`
+                : t === 'kitchen'
+                ? `Cuisine (${kitchenOrderCount})`
+                : 'Historique'}
             </button>
           ))}
           <button
-            onClick={() => {
-              setNewOrderTable(undefined);
-              setShowNewOrder(true);
-            }}
+            onClick={() => setShowNewOrder(true)}
             className="px-4 py-2 rounded-lg text-sm font-black bg-[#F3ECDD]/10 hover:bg-[#F3ECDD]/20 text-[#F3ECDD] transition-all"
           >
-            + Nouvelle commande
+            + Emporter / Livraison / Glovo
           </button>
         </div>
       </header>
 
       <main className="p-5">
+        {tab === 'tables' && (
+          <div>
+            <p className="text-[#9A9490] text-sm mb-4">Touchez une table pour voir ou démarrer son addition.</p>
+            <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-3 max-w-3xl">
+              {TABLE_NUMBERS.map((n) => {
+                const tOrders = tablesMap.get(n) || [];
+                const occupied = tOrders.length > 0;
+                const total = tOrders.reduce((s, o) => s + o.total, 0);
+                const allPaid = occupied && tOrders.every((o) => o.paid);
+                return (
+                  <button
+                    key={n}
+                    onClick={() => setSelectedTable(n)}
+                    className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all ${
+                      allPaid
+                        ? 'bg-[#8FBF8A]/25 border-[#8FBF8A]/60 text-[#F3ECDD]'
+                        : occupied
+                        ? 'bg-brand-orange border-brand-orange text-[#1A1208]'
+                        : 'bg-brand-dark-card border-[#F3ECDD]/10 text-[#F3ECDD] hover:border-brand-orange/50'
+                    }`}
+                  >
+                    <span className="font-display font-black text-xl leading-none">{n}</span>
+                    {occupied && <span className="text-[10px] font-bold">{formatMAD(total)}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {tab === 'live' && (
           liveOrders.length === 0 ? (
             <p className="text-[#7A736C] text-center py-20">Aucune commande en cours.</p>
@@ -732,71 +1023,45 @@ export default function PosApp() {
           )
         )}
 
-        {tab === 'tables' && (
-          tablesMap.length === 0 ? (
-            <p className="text-[#7A736C] text-center py-20">Aucune table active.</p>
+        {tab === 'kitchen' && (
+          kitchenByStation.length === 0 ? (
+            <p className="text-[#7A736C] text-center py-20">Rien à préparer.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {tablesMap.map(([table, tableOrders]) => {
-                const tableTotal = tableOrders.reduce((s, o) => s + o.total, 0);
-                const allPaid = tableOrders.every((o) => o.paid);
-                return (
-                  <div key={table} className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4 flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <p className="font-display font-black text-lg">Table {table}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-[#9A9490]">{tableOrders.length} commande{tableOrders.length > 1 ? 's' : ''}</span>
-                        <button
-                          onClick={() => {
-                            setNewOrderTable(table);
-                            setShowNewOrder(true);
-                          }}
-                          className="text-xs font-black px-2 py-1 rounded-lg bg-[#F3ECDD]/10 hover:bg-[#F3ECDD]/20 text-[#F3ECDD]"
-                        >
-                          + Commande
-                        </button>
-                      </div>
-                    </div>
-                    <div className="space-y-2 border-t border-[#F3ECDD]/10 pt-2">
-                      {tableOrders.map((o) => (
-                        <div key={o.id} className="text-sm">
-                          <div className="flex justify-between text-[#9A9490]">
-                            <span>{STATUS_LABEL[o.status || 'new']}</span>
-                            <span>{formatMAD(o.total)}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {kitchenByStation.map(([station, stOrders]) => (
+                <div key={station} className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+                  <h3 className="font-display font-black text-lg text-brand-orange mb-3">
+                    {station === 'Bar' ? '🍹 Bar' : '🍳 Cuisine'}
+                  </h3>
+                  <div className="space-y-3">
+                    {stOrders.map((o) => {
+                      const mins = minutesSince(o.createdAt);
+                      const status = o.status || 'new';
+                      return (
+                        <div key={o.id} className="border-t border-[#F3ECDD]/10 pt-2 first:border-0 first:pt-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-bold text-[#F3ECDD]">{kindLabel(o)}</span>
+                            <span className={`text-xs font-bold ${elapsedStyle(mins)}`}>{elapsedLabel(mins)}</span>
                           </div>
-                          {o.items.map((it, i) => (
-                            <p key={i} className="text-[#E3DCCB] text-xs ps-2">
-                              {it.quantity}× {it.name}
-                            </p>
-                          ))}
+                          {o.items
+                            .filter((it) => (it.station || 'Kitchen') === station)
+                            .map((it, i) => (
+                              <p key={i} className="text-sm text-[#E3DCCB] ps-2">
+                                <span className="font-bold text-brand-orange">{it.quantity}×</span> {it.name}
+                              </p>
+                            ))}
+                          <button
+                            onClick={() => advance(o)}
+                            className="mt-1.5 text-xs font-black px-2.5 py-1.5 rounded-lg bg-brand-orange text-[#1A1208]"
+                          >
+                            {status === 'preparing' ? 'Marquer prêt' : 'Démarrer'}
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between border-t border-[#F3ECDD]/10 pt-2">
-                      <span className="font-display font-black text-brand-orange">{formatMAD(tableTotal)}</span>
-                      <button
-                        disabled={checkoutBusy === table}
-                        onClick={async () => {
-                          if (!window.confirm(`Encaisser et clôturer la table ${table} ?`)) return;
-                          setCheckoutBusy(table);
-                          try {
-                            await Promise.all(
-                              tableOrders.map((o) => updateDoc(doc(db, 'orders', o.id), { paid: true, status: 'served' }))
-                            );
-                          } catch (err) {
-                            reportWriteError(err);
-                          } finally {
-                            setCheckoutBusy(null);
-                          }
-                        }}
-                        className="text-xs font-black px-3 py-1.5 rounded-lg bg-brand-orange text-[#1A1208] disabled:opacity-50"
-                      >
-                        {checkoutBusy === table ? '…' : allPaid ? 'Clôturer' : 'Encaisser'}
-                      </button>
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )
         )}
@@ -812,7 +1077,7 @@ export default function PosApp() {
                     <p className="text-sm font-bold text-[#F3ECDD]">{kindLabel(o)}</p>
                     <p className="text-xs text-[#9A9490]">
                       {o.createdAt?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} ·{' '}
-                      {o.status === 'cancelled' ? 'Annulé' : o.paid ? 'Payé' : 'Non payé'}
+                      {o.status === 'cancelled' ? 'Annulé' : o.paid ? `Payé (${o.paymentMethod === 'cash' ? 'cash' : o.paymentMethod === 'card' ? 'carte' : '—'})` : 'Non payé'}
                     </p>
                   </div>
                   <span className="text-brand-orange font-black">{formatMAD(o.total)}</span>
@@ -823,11 +1088,27 @@ export default function PosApp() {
         )}
       </main>
 
-      {showNewOrder && (
-        <NewOrderPanel
-          initialTable={newOrderTable}
-          onClose={() => setShowNewOrder(false)}
-          onSubmit={submitNewOrder}
+      {showNewOrder && <NewOrderPanel onClose={() => setShowNewOrder(false)} onSubmit={submitNewOrder} />}
+
+      {selectedTable && (
+        <TablePanel
+          table={selectedTable}
+          orders={tablesMap.get(selectedTable) || []}
+          onClose={() => setSelectedTable(null)}
+          onAddItems={(items, total) => addItemsToTable(selectedTable, items, total)}
+          onCheckout={() =>
+            setPayingTarget({ kind: 'table', table: selectedTable, orders: tablesMap.get(selectedTable) || [] })
+          }
+          onAdvanceOrder={advance}
+          onCancelOrder={cancel}
+        />
+      )}
+
+      {payingTarget && (
+        <PaymentMethodModal
+          label={payingTarget.kind === 'table' ? `Table ${payingTarget.table}` : kindLabel(payingTarget.order)}
+          onChoose={choosePayment}
+          onCancel={() => setPayingTarget(null)}
         />
       )}
     </div>
