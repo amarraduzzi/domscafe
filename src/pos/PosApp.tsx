@@ -125,12 +125,6 @@ function elapsedLabel(mins: number): string {
   return mins === 0 ? "à l'instant" : `il y a ${mins} min`;
 }
 
-function startOfToday(): number {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
 // Short two-tone beep via the Web Audio API — no asset file to ship, no
 // autoplay-policy issue since it only ever fires after the PIN unlock click.
 function playChime() {
@@ -703,13 +697,70 @@ function TablePanel({
 
 // ---------------------------------------------------------------------------
 
-type Tab = 'tables' | 'live' | 'kitchen' | 'history';
+type Tab = 'tables' | 'live' | 'kitchen' | 'history' | 'reports';
 type PayTarget = { kind: 'table'; table: string; orders: OrderDoc[] } | { kind: 'order'; order: OrderDoc };
+type ReportRange = 'today' | 'yesterday' | 'week' | 'month' | 'all';
+
+const RANGE_LABEL: Record<ReportRange, string> = {
+  today: "Aujourd'hui",
+  yesterday: 'Hier',
+  week: '7 jours',
+  month: '30 jours',
+  all: 'Tout',
+};
+
+function rangeStart(range: ReportRange): number {
+  const d = new Date();
+  if (range === 'all') return 0;
+  if (range === 'today') {
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  if (range === 'yesterday') {
+    d.setDate(d.getDate() - 1);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  if (range === 'week') {
+    d.setDate(d.getDate() - 6);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  // month
+  d.setDate(d.getDate() - 29);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function rangeEnd(range: ReportRange): number {
+  if (range !== 'yesterday') return Date.now();
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+
+function downloadCSV(filename: string, rows: (string | number)[][]) {
+  const csv = rows
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export default function PosApp() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(PIN_SESSION_KEY) === '1');
   const [orders, setOrders] = useState<OrderDoc[]>([]);
   const [tab, setTab] = useState<Tab>('tables');
+  const [reportRange, setReportRange] = useState<ReportRange>('today');
+  const [historySearch, setHistorySearch] = useState('');
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [payingTarget, setPayingTarget] = useState<PayTarget | null>(null);
@@ -868,12 +919,88 @@ export default function PosApp() {
     return map;
   }, [activeOrders]);
   const occupiedTableCount = tablesMap.size;
+  // Everything in the selected range, whatever its status -- this is the
+  // single source both the Historique tab and the Rapports tab read from,
+  // so "look up an old order" and "what did we make that day" always agree
+  // with each other instead of drifting apart with their own filters.
+  const rangeOrders = useMemo(() => {
+    const start = rangeStart(reportRange);
+    const end = rangeEnd(reportRange);
+    return orders.filter((o) => {
+      const t = o.createdAt?.toMillis() || 0;
+      return t >= start && t <= end;
+    });
+  }, [orders, reportRange]);
+
   const historyOrders = useMemo(() => {
-    const today = startOfToday();
-    return orders
-      .filter((o) => (o.status === 'served' || o.status === 'cancelled') && (o.createdAt?.toMillis() || 0) >= today)
-      .slice(0, 60);
-  }, [orders]);
+    const q = historySearch.trim().toLowerCase();
+    return rangeOrders
+      .filter((o) => (o.status === 'served' || o.status === 'cancelled'))
+      .filter((o) => {
+        if (!q) return true;
+        return (
+          kindLabel(o).toLowerCase().includes(q) ||
+          (o.tableNumber || '').toLowerCase().includes(q) ||
+          (o.customerName || '').toLowerCase().includes(q) ||
+          (o.glovoRef || '').toLowerCase().includes(q) ||
+          o.items.some((it) => it.name.toLowerCase().includes(q))
+        );
+      })
+      .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+  }, [rangeOrders, historySearch]);
+
+  // Dagomzet & co: revenue, payment split, order-type split and best-sellers
+  // for whichever range is selected -- this is what makes past days
+  // retrievable instead of only ever seeing "today".
+  const reportStats = useMemo(() => {
+    const valid = rangeOrders.filter((o) => o.status !== 'cancelled');
+    const paid = valid.filter((o) => o.paid);
+    const revenue = paid.reduce((s, o) => s + o.total, 0);
+    const cash = paid.filter((o) => o.paymentMethod === 'cash').reduce((s, o) => s + o.total, 0);
+    const card = paid.filter((o) => o.paymentMethod === 'card').reduce((s, o) => s + o.total, 0);
+    const unspecified = revenue - cash - card;
+    const cancelledCount = rangeOrders.length - valid.length;
+    const unpaidCount = valid.filter((o) => !o.paid).length;
+
+    const byType: Record<OrderKind, { count: number; revenue: number }> = {
+      dine_in: { count: 0, revenue: 0 },
+      takeaway: { count: 0, revenue: 0 },
+      delivery: { count: 0, revenue: 0 },
+      glovo: { count: 0, revenue: 0 },
+    };
+    valid.forEach((o) => {
+      const k = kindOf(o);
+      byType[k].count++;
+      byType[k].revenue += o.total;
+    });
+
+    const itemMap = new Map<string, { qty: number; revenue: number }>();
+    valid.forEach((o) =>
+      o.items.forEach((it) => {
+        const cur = itemMap.get(it.name) || { qty: 0, revenue: 0 };
+        cur.qty += it.quantity;
+        cur.revenue += it.lineTotal;
+        itemMap.set(it.name, cur);
+      })
+    );
+    const topItems = Array.from(itemMap.entries())
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 10);
+
+    return {
+      revenue,
+      cash,
+      card,
+      unspecified,
+      orderCount: valid.length,
+      avg: paid.length ? revenue / paid.length : 0,
+      unpaidCount,
+      cancelledCount,
+      byType,
+      topItems,
+    };
+  }, [rangeOrders]);
 
   // Kitchen view: everything still to prepare (new/preparing), grouped by
   // station instead of by table/order, so the kitchen sees a prep list
@@ -954,7 +1081,7 @@ export default function PosApp() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(['tables', 'live', 'kitchen', 'history'] as Tab[]).map((t) => (
+          {(['tables', 'live', 'kitchen', 'history', 'reports'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -968,7 +1095,9 @@ export default function PosApp() {
                 ? `Commandes (${liveOrders.length})`
                 : t === 'kitchen'
                 ? `Cuisine (${kitchenOrderCount})`
-                : 'Historique'}
+                : t === 'history'
+                ? 'Historique'
+                : 'Rapports'}
             </button>
           ))}
           <button
@@ -1008,6 +1137,40 @@ export default function PosApp() {
                 );
               })}
             </div>
+
+            {/* A table number outside 1-25 can still happen -- a customer
+                typing something odd into the site's free-text table field,
+                an old QR code, a typo. Without this, such an order would be
+                counted in the "Tables" badge but literally unreachable from
+                the grid above, stuck active forever. */}
+            {Array.from(tablesMap.keys()).filter((n) => !TABLE_NUMBERS.includes(n)).length > 0 && (
+              <div className="mt-6 max-w-3xl">
+                <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-2">Autres tables</p>
+                <div className="flex flex-wrap gap-3">
+                  {Array.from(tablesMap.keys())
+                    .filter((n) => !TABLE_NUMBERS.includes(n))
+                    .map((n) => {
+                      const tOrders = tablesMap.get(n) || [];
+                      const total = tOrders.reduce((s, o) => s + o.total, 0);
+                      const allPaid = tOrders.every((o) => o.paid);
+                      return (
+                        <button
+                          key={n}
+                          onClick={() => setSelectedTable(n)}
+                          className={`px-4 py-3 rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all ${
+                            allPaid
+                              ? 'bg-[#8FBF8A]/25 border-[#8FBF8A]/60 text-[#F3ECDD]'
+                              : 'bg-brand-orange border-brand-orange text-[#1A1208]'
+                          }`}
+                        >
+                          <span className="font-display font-black text-lg leading-none">Table {n}</span>
+                          <span className="text-[10px] font-bold">{formatMAD(total)}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1067,24 +1230,153 @@ export default function PosApp() {
         )}
 
         {tab === 'history' && (
-          historyOrders.length === 0 ? (
-            <p className="text-[#7A736C] text-center py-20">Rien aujourd'hui pour l'instant.</p>
-          ) : (
-            <div className="max-w-2xl mx-auto space-y-2">
-              {historyOrders.map((o) => (
-                <div key={o.id} className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-lg px-4 py-2.5 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-[#F3ECDD]">{kindLabel(o)}</p>
-                    <p className="text-xs text-[#9A9490]">
-                      {o.createdAt?.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} ·{' '}
-                      {o.status === 'cancelled' ? 'Annulé' : o.paid ? `Payé (${o.paymentMethod === 'cash' ? 'cash' : o.paymentMethod === 'card' ? 'carte' : '—'})` : 'Non payé'}
-                    </p>
-                  </div>
-                  <span className="text-brand-orange font-black">{formatMAD(o.total)}</span>
-                </div>
+          <div className="max-w-2xl mx-auto">
+            <div className="flex gap-2 flex-wrap mb-3">
+              {(['today', 'yesterday', 'week', 'month', 'all'] as ReportRange[]).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setReportRange(r)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${
+                    reportRange === r ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
+                  }`}
+                >
+                  {RANGE_LABEL[r]}
+                </button>
               ))}
             </div>
-          )
+            <input
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              placeholder="Rechercher : table, client, Glovo, article…"
+              className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2 mb-4 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
+            />
+            {historyOrders.length === 0 ? (
+              <p className="text-[#7A736C] text-center py-20">Aucune commande sur cette période.</p>
+            ) : (
+              <div className="space-y-2">
+                {historyOrders.map((o) => (
+                  <div key={o.id} className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-lg px-4 py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-[#F3ECDD]">{kindLabel(o)}</p>
+                      <p className="text-xs text-[#9A9490] truncate">
+                        {o.items.map((it) => `${it.quantity}× ${it.name}`).join(', ')}
+                      </p>
+                      <p className="text-xs text-[#9A9490]">
+                        {o.createdAt?.toDate().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ·{' '}
+                        {o.status === 'cancelled' ? 'Annulé' : o.paid ? `Payé (${o.paymentMethod === 'cash' ? 'cash' : o.paymentMethod === 'card' ? 'carte' : '—'})` : 'Non payé'}
+                      </p>
+                    </div>
+                    <span className="text-brand-orange font-black shrink-0">{formatMAD(o.total)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'reports' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+              <div className="flex gap-2 flex-wrap">
+                {(['today', 'yesterday', 'week', 'month', 'all'] as ReportRange[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setReportRange(r)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${
+                      reportRange === r ? 'bg-brand-orange text-[#1A1208] border-brand-orange' : 'text-[#9A9490] border-[#F3ECDD]/20'
+                    }`}
+                  >
+                    {RANGE_LABEL[r]}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() =>
+                  downloadCSV(`domscafe-rapport-${reportRange}.csv`, [
+                    ['Date', 'Type', 'Statut', 'Payé', 'Mode', 'Total (MAD)', 'Articles'],
+                    ...rangeOrders.map((o) => [
+                      o.createdAt?.toDate().toLocaleString('fr-FR') || '',
+                      kindLabel(o),
+                      o.status || 'new',
+                      o.paid ? 'oui' : 'non',
+                      o.paymentMethod || '',
+                      o.total,
+                      o.items.map((it) => `${it.quantity}x ${it.name}`).join(' | '),
+                    ]),
+                  ])
+                }
+                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40"
+              >
+                ⬇ Exporter en CSV
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+                <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Chiffre d'affaires</p>
+                <p className="font-display font-black text-2xl text-brand-orange">{formatMAD(reportStats.revenue)}</p>
+              </div>
+              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+                <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Commandes</p>
+                <p className="font-display font-black text-2xl text-[#F3ECDD]">{reportStats.orderCount}</p>
+              </div>
+              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+                <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Panier moyen</p>
+                <p className="font-display font-black text-2xl text-[#F3ECDD]">{formatMAD(reportStats.avg)}</p>
+              </div>
+              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+                <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Non payées / annulées</p>
+                <p className="font-display font-black text-2xl text-[#F3ECDD]">
+                  {reportStats.unpaidCount} <span className="text-[#7A736C] text-base">/ {reportStats.cancelledCount}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Mode de paiement</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-[#9A9490]">💵 Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.cash)}</span></div>
+                  <div className="flex justify-between"><span className="text-[#9A9490]">💳 Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.card)}</span></div>
+                  {reportStats.unspecified > 0 && (
+                    <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.unspecified)}</span></div>
+                  )}
+                </div>
+                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3 mt-5">Par type de commande</h3>
+                <div className="space-y-2 text-sm">
+                  {(['dine_in', 'takeaway', 'delivery', 'glovo'] as OrderKind[]).map((k) => (
+                    <div key={k} className="flex justify-between">
+                      <span className="text-[#9A9490]">
+                        {k === 'dine_in' ? 'Sur place' : k === 'takeaway' ? 'À emporter' : k === 'delivery' ? 'Livraison' : 'Glovo'} ({reportStats.byType[k].count})
+                      </span>
+                      <span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.byType[k].revenue)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-brand-dark-card border border-[#F3ECDD]/10 rounded-xl p-4">
+                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Produits les plus vendus</h3>
+                {reportStats.topItems.length === 0 ? (
+                  <p className="text-[#7A736C] text-sm">Aucune vente sur cette période.</p>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    {reportStats.topItems.map((it, i) => (
+                      <div key={it.name} className="flex justify-between items-center">
+                        <span className="text-[#E3DCCB] truncate pe-2">
+                          <span className="text-[#7A736C] font-bold me-1.5">{i + 1}.</span>
+                          {it.name}
+                        </span>
+                        <span className="text-[#9A9490] shrink-0">
+                          <span className="font-bold text-brand-orange">{it.qty}×</span> · {formatMAD(it.revenue)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </main>
 

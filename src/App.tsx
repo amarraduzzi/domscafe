@@ -207,6 +207,8 @@ export default function App() {
   const [tableNumber, setTableNumber] = useState<string>('');
   const [firstName, setFirstName] = useState<string>('');
   const [isOrderPlaced, setIsOrderPlaced] = useState<boolean>(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
+  const [orderError, setOrderError] = useState<boolean>(false);
   const [isCheckoutConfirmOpen, setIsCheckoutConfirmOpen] = useState<boolean>(false);
   const [isClearCartConfirmOpen, setIsClearCartConfirmOpen] = useState<boolean>(false);
   const [lastAddedFoodCategory, setLastAddedFoodCategory] = useState<string | null>(null);
@@ -455,48 +457,6 @@ export default function App() {
     return `${amount} ${currency}`;
   };
 
-  // Generate WhatsApp compiled API string
-  const getWhatsAppLink = () => {
-    const waNumber = "212611053649"; // Format without plus/zeros for direct link
-    
-    const lines: string[] = [];
-    lines.push("NOUVELLE COMMANDE");
-    lines.push("----------------------------------------");
-    
-    cart.forEach(item => {
-      const nameFr = item.menuItem.name.fr;
-      const priceStr = (item.menuItem.price * item.quantity).toString();
-      lines.push(`${item.quantity}x ${nameFr} : ${priceStr} MAD`);
-    });
-    
-    lines.push("----------------------------------------");
-    lines.push(`Sous-total : ${subtotal} MAD`);
-    
-    if (orderType === 'delivery') {
-      lines.push(`Livraison : ${deliveryFee} MAD`);
-    }
-    
-    lines.push(`TOTAL : ${total} MAD`);
-    lines.push("----------------------------------------");
-    
-    if (orderType === 'dine_in') {
-      if (tableNumber && firstName) {
-        lines.push(`Sur place, Table ${tableNumber} (${firstName})`);
-      } else if (tableNumber) {
-        lines.push(`Sur place, Table ${tableNumber}`);
-      } else if (firstName) {
-        lines.push(`Sur place, ${firstName}`);
-      } else {
-        lines.push(`Sur place`);
-      }
-    } else {
-      lines.push(`Livraison: ${firstName || 'Client'}, ${address || 'Non spécifiée'}`);
-    }
-    
-    const text = lines.join("\n");
-    return `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`;
-  };
-
   // Normalized search query — trimmed/lowercased once so every consumer
   // below shares the same notion of "is a search active".
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -738,7 +698,7 @@ export default function App() {
           row below too. The `occasions` const stays — it still backs the
           "lunch" section title lookup further down. */}
 
-      {/* Interactive Menu & WhatsApp Cart */}
+      {/* Interactive Menu & Cart */}
       <section id="menu" className="pt-8 pb-12 relative">
         <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
           
@@ -1813,11 +1773,15 @@ export default function App() {
 
                 {/* Action Buttons */}
                 <div className="shrink-0 space-y-2">
-                  <button 
+                  {orderError && (
+                    <p className="text-red-400 text-xs text-center mb-1">{t.checkout_error_msg}</p>
+                  )}
+                  <button
+                    disabled={isSubmittingOrder}
                     onClick={async () => {
                       (document.activeElement as HTMLElement)?.blur();
-                      setIsCheckoutConfirmOpen(false);
-                      setIsOrderPlaced(true);
+                      setOrderError(false);
+                      setIsSubmittingOrder(true);
 
                       // Read tableNumber from URL query parameter "table" (e.g. ?table=7 -> "7"). If missing, use "?".
                       const urlParams = new URLSearchParams(window.location.search);
@@ -1826,9 +1790,9 @@ export default function App() {
 
                       const orderItems = cart.map(item => {
                         const unitPrice = Number(
-                          item.menuItem?.price ?? 
-                          (item as any).price ?? 
-                          (item as any).unitPrice ?? 
+                          item.menuItem?.price ??
+                          (item as any).price ??
+                          (item as any).unitPrice ??
                           (item as any).pricePerItem
                         ) || 0;
                         const quantity = Number(item.quantity) || 1;
@@ -1844,33 +1808,38 @@ export default function App() {
                       });
                       const orderTotal = orderItems.reduce((acc, item) => acc + item.lineTotal, 0);
 
-                      const waUrl = getWhatsAppLink();
-                      const waWindow = window.open('about:blank', '_blank');
-
+                      // The order now reaches the restaurant exclusively through
+                      // this Firestore write -- there is no WhatsApp fallback
+                      // anymore, so a failure here must be shown to the customer
+                      // instead of silently claiming success. A hard timeout
+                      // guards against a slow/flaky connection leaving the
+                      // customer staring at a spinner forever with no way to
+                      // retry -- 12s is generous for a normal write but still
+                      // bounded.
                       try {
                         await Promise.race([
                           createFirestoreOrder(finalTableNumber, orderItems, orderTotal),
-                          new Promise((resolve) => setTimeout(resolve, 1500))
+                          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
                         ]);
+                        setIsCheckoutConfirmOpen(false);
+                        setIsOrderPlaced(true);
                       } catch (err) {
                         console.warn("Firestore order write failed:", err);
-                      }
-
-                      if (waWindow) {
-                        waWindow.location.href = waUrl;
-                      } else {
-                        window.location.href = waUrl;
+                        setOrderError(true);
+                      } finally {
+                        setIsSubmittingOrder(false);
                       }
                     }}
-                    className="w-full bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] py-3.5 rounded-xl font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                    className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-60 disabled:cursor-not-allowed text-[#1A1208] py-3.5 rounded-xl font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                   >
-                    <Phone className="w-4 h-4 fill-black shrink-0" />
-                    <span>{t.checkout_modal_confirm_btn}</span>
+                    <Send className="w-4 h-4 shrink-0" />
+                    <span>{isSubmittingOrder ? '…' : orderError ? t.checkout_retry_btn : t.checkout_modal_confirm_btn}</span>
                   </button>
 
-                  <button 
+                  <button
                     onClick={() => setIsCheckoutConfirmOpen(false)}
-                    className="w-full bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 border border-[#F3ECDD]/10 text-[#C7BFB0] py-3 rounded-xl font-medium text-xs text-center transition-all cursor-pointer"
+                    disabled={isSubmittingOrder}
+                    className="w-full bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 border border-[#F3ECDD]/10 text-[#C7BFB0] py-3 rounded-xl font-medium text-xs text-center transition-all cursor-pointer disabled:opacity-50"
                   >
                     {t.checkout_modal_cancel_btn}
                   </button>

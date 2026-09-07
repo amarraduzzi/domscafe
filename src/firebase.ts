@@ -203,40 +203,49 @@ export const createFirestoreOrder = async (
   totalAmount?: number,
   restaurantId: string = "doms-cafe"
 ): Promise<void> => {
-  try {
-    const sanitizedItems = items.map(item => {
-      const unitPrice = Number(
-        item.unitPrice ?? 
-        item.price ?? 
-        item.pricePerItem ?? 
-        item.menuItem?.price
-      ) || 0;
-      const quantity = Number(item.quantity) || 1;
-      const lineTotal = Number(item.lineTotal) || (unitPrice * quantity);
-      return {
-        name: item.name || item.menuItem?.name?.fr || item.menuItem?.name?.en || 'Article',
-        quantity,
-        note: item.note || '',
-        unitPrice,
-        lineTotal
-      };
-    });
+  // Every order now reaches the restaurant exclusively through this
+  // Firestore write -- the customer site no longer has a WhatsApp fallback,
+  // so a failure here must surface to the caller (App.tsx shows an error and
+  // lets the customer retry) instead of being swallowed silently, which
+  // would previously look like a successful order that never arrived.
+  const sanitizedItems = items.map(item => {
+    const unitPrice = Number(
+      item.unitPrice ??
+      item.price ??
+      item.pricePerItem ??
+      item.menuItem?.price
+    ) || 0;
+    const quantity = Number(item.quantity) || 1;
+    const lineTotal = Number(item.lineTotal) || (unitPrice * quantity);
+    return {
+      name: item.name || item.menuItem?.name?.fr || item.menuItem?.name?.en || 'Article',
+      quantity,
+      note: item.note || '',
+      unitPrice,
+      lineTotal,
+      // Without this, every order placed from the customer site landed in
+      // the POS kitchen view's "Kitchen" bucket regardless of what it
+      // actually was, since the field was computed by the caller but
+      // dropped here before it reached Firestore.
+      station: item.station || 'Kitchen',
+    };
+  });
 
-    const calculatedTotal = sanitizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
-    const orderTotal = (typeof totalAmount === 'number' && totalAmount > 0) ? totalAmount : calculatedTotal;
+  const calculatedTotal = sanitizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const orderTotal = (typeof totalAmount === 'number' && totalAmount > 0) ? totalAmount : calculatedTotal;
 
-    const ordersRef = collection(db, "orders");
-    await addDoc(ordersRef, {
-      restaurantId,
-      tableNumber: tableNumber || "?",
-      items: sanitizedItems,
-      total: orderTotal,
-      createdAt: serverTimestamp(),
-      status: "new"
-    });
-  } catch (error) {
-    console.warn("Firestore order creation failed:", error);
-  }
+  const ordersRef = collection(db, "orders");
+  await addDoc(ordersRef, {
+    restaurantId,
+    tableNumber: tableNumber || "?",
+    items: sanitizedItems,
+    total: orderTotal,
+    createdAt: serverTimestamp(),
+    status: "new",
+    source: "site",
+    orderType: (tableNumber && tableNumber !== "?") ? "dine_in" : "delivery",
+    paid: false,
+  });
 };
 
 // Helper to save or update a single menu item to Firestore
