@@ -100,6 +100,18 @@ const CATEGORY_GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Desserts', ids: ['desserts'] },
 ];
 
+// One muted accent per group -- used for the active-category rail marker and
+// the thin color strip on each item card, so a card is visually traceable
+// back to its group at a glance instead of everything being the same
+// brand-orange regardless of category.
+const GROUP_COLOR: Record<string, string> = {
+  'Petit-déj': '#D9A45C',
+  Plats: '#C9A15A',
+  Boissons: '#7FB3B0',
+  Desserts: '#C98A9E',
+  Autres: '#9A9490',
+};
+
 const SOURCE_STYLE: Record<OrderSource, { label: string; className: string }> = {
   site: { label: 'Site', className: 'bg-brand-orange/15 text-brand-orange border-brand-orange/40' },
   manual: { label: 'Comptoir', className: 'bg-blue-500/15 text-blue-300 border-blue-500/40' },
@@ -375,13 +387,30 @@ function MenuGrid({
     return rows;
   }, [categories, categoryById]);
 
+  // Which group a category belongs to, for the item card's color strip --
+  // built off groupedRows so it always matches what the rail actually shows.
+  const groupLabelByCategoryId = useMemo(() => {
+    const map = new Map<string, string>();
+    groupedRows.forEach((row) => row.cats.forEach((c) => map.set(c.id, row.label)));
+    return map;
+  }, [groupedRows]);
+
+  const availableItems = useMemo(() => staticMenuItems.filter((it) => it.available !== false), []);
+  // Item counts per category, off the full menu (not the current search) --
+  // a stable reference number next to each category in the rail, not one
+  // that jumps around as staff type into the search box.
+  const countByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    availableItems.forEach((it) => map.set(it.category, (map.get(it.category) || 0) + 1));
+    return map;
+  }, [availableItems]);
+
   const items = useMemo(() => {
-    const available = staticMenuItems.filter((it) => it.available !== false);
     const bySearch = search.trim()
-      ? available.filter((it) => (it.name.fr + ' ' + it.name.en).toLowerCase().includes(search.toLowerCase()))
-      : available;
+      ? availableItems.filter((it) => (it.name.fr + ' ' + it.name.en).toLowerCase().includes(search.toLowerCase()))
+      : availableItems;
     return activeCategory === 'all' ? bySearch : bySearch.filter((it) => it.category === activeCategory);
-  }, [search, activeCategory]);
+  }, [availableItems, search, activeCategory]);
 
   const total = draft.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
 
@@ -392,8 +421,55 @@ function MenuGrid({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto flex">
-      <div className="flex-1 p-5 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto flex min-h-0">
+      {/* Category rail -- vertical, grouped, one line each. Replaces the old
+          horizontal wrapping chip rows, which knocked into an awkward
+          multi-line block on the narrower table/new-order panels (a real
+          tablet in portrait is exactly this width). A fixed-width column
+          never wraps, scrolls on its own when the list runs long, and reads
+          as a proper POS category rail (Toast/Square/Lightspeed all do
+          this) instead of a chip cloud. */}
+      <div className="w-52 shrink-0 border-e border-[#F3ECDD]/10 bg-black/20 overflow-y-auto py-4 px-2 space-y-4">
+        <button
+          onClick={() => setActiveCategory('all')}
+          className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold border-l-4 border-transparent transition-all ${
+            activeCategory === 'all'
+              ? 'bg-brand-orange/15 text-brand-orange'
+              : 'text-[#9A9490] hover:text-[#F3ECDD] hover:bg-white/5'
+          }`}
+          style={activeCategory === 'all' ? { borderColor: '#C9A15A' } : undefined}
+        >
+          <span>🍽️</span> Tout
+        </button>
+        {groupedRows.map((row) => {
+          const color = GROUP_COLOR[row.label] || '#C9A15A';
+          return (
+            <div key={row.label}>
+              <p className="text-[10px] uppercase tracking-wider text-[#7A736C] font-bold px-3 mb-1">{row.label}</p>
+              <div className="space-y-0.5">
+                {row.cats.map((c) => {
+                  const active = activeCategory === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setActiveCategory(c.id)}
+                      style={active ? { borderColor: color, color, backgroundColor: `${color}22` } : undefined}
+                      className="w-full flex items-start justify-between gap-1.5 px-3 py-2 rounded-lg text-[13px] font-bold leading-snug border-l-4 border-transparent text-[#9A9490] hover:text-[#F3ECDD] hover:bg-white/5 transition-all"
+                    >
+                      <span className="flex items-start gap-1.5 min-w-0">
+                        <span className="shrink-0">{c.emoji}</span> <span>{c.name.fr}</span>
+                      </span>
+                      <span className="text-[10px] text-[#7A736C] font-bold shrink-0 mt-0.5">{countByCategory.get(c.id) || 0}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex-1 p-5 overflow-y-auto min-w-0">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -401,62 +477,29 @@ function MenuGrid({
           className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 mb-4 text-base text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange focus:shadow-[0_0_0_3px_rgba(201,161,90,0.2)] transition-shadow"
         />
 
-        <div className="mb-5 space-y-2">
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => setActiveCategory('all')}
-              className={`px-3.5 py-1.5 rounded-full text-sm font-bold border transition-all ${
-                activeCategory === 'all'
-                  ? 'bg-brand-orange text-[#1A1208] border-brand-orange shadow-md shadow-brand-orange/20'
-                  : 'text-[#9A9490] border-[#F3ECDD]/15 hover:border-[#F3ECDD]/35 hover:text-[#F3ECDD]'
-              }`}
-            >
-              🍽️ Tout
-            </button>
-          </div>
-          {groupedRows.map((row) => (
-            <div key={row.label} className="flex items-center gap-2.5 flex-wrap">
-              <span className="text-[10px] uppercase tracking-wider text-[#7A736C] font-bold w-[76px] shrink-0">
-                {row.label}
-              </span>
-              <div className="flex gap-2 flex-wrap">
-                {row.cats.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setActiveCategory(c.id)}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-bold border transition-all ${
-                      activeCategory === c.id
-                        ? 'bg-brand-orange text-[#1A1208] border-brand-orange shadow-md shadow-brand-orange/20'
-                        : 'text-[#9A9490] border-[#F3ECDD]/15 hover:border-[#F3ECDD]/35 hover:text-[#F3ECDD]'
-                    }`}
-                  >
-                    {c.emoji} {c.name.fr}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-          {items.map((it) => (
-            <button
-              key={it.id}
-              onClick={() => handleAdd(it.id, it.name.fr, it.price, it.station)}
-              className={`text-start pos-surface border rounded-xl p-3.5 transition-all active:scale-[0.96] ${
-                justAdded === it.id
-                  ? 'border-brand-orange ring-2 ring-brand-orange/60 animate-pop'
-                  : 'border-[#F3ECDD]/10 hover:border-brand-orange/50 hover:-translate-y-0.5'
-              }`}
-            >
-              <p className="text-base font-bold text-[#F3ECDD] leading-tight">{it.name.fr}</p>
-              <p className="text-base text-brand-orange font-display font-black mt-1">{formatMAD(it.price)}</p>
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-2.5">
+          {items.map((it) => {
+            const color = GROUP_COLOR[groupLabelByCategoryId.get(it.category) || ''] || '#C9A15A';
+            return (
+              <button
+                key={it.id}
+                onClick={() => handleAdd(it.id, it.name.fr, it.price, it.station)}
+                className={`relative overflow-hidden text-start pos-surface border rounded-xl p-3.5 pt-4 transition-all active:scale-[0.96] ${
+                  justAdded === it.id
+                    ? 'border-brand-orange ring-2 ring-brand-orange/60 animate-pop'
+                    : 'border-[#F3ECDD]/10 hover:border-brand-orange/50 hover:-translate-y-0.5'
+                }`}
+              >
+                <span className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: color }} />
+                <p className="text-base font-bold text-[#F3ECDD] leading-tight">{it.name.fr}</p>
+                <p className="text-base text-brand-orange font-display font-black mt-1">{formatMAD(it.price)}</p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="w-72 border-s border-[#F3ECDD]/10 p-5 flex flex-col shrink-0 bg-black/10">
+      <div className="w-64 border-s border-[#F3ECDD]/10 p-5 flex flex-col shrink-0 pos-surface-raised">
         <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-3">Panier</p>
         <div className="flex-1 overflow-y-auto space-y-2">
           {draft.length === 0 && <p className="text-[#7A736C] text-sm">Aucun article.</p>}
@@ -570,7 +613,7 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-stretch justify-end animate-fade-in">
-      <div className="w-full max-w-2xl bg-brand-dark border-l border-[#F3ECDD]/10 shadow-2xl shadow-black/60 flex flex-col h-full animate-slide-in">
+      <div className="w-full max-w-4xl bg-brand-dark border-l border-[#F3ECDD]/10 shadow-2xl shadow-black/60 flex flex-col h-full animate-slide-in">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#F3ECDD]/10 shrink-0 pos-surface">
           <h2 className="font-display font-black text-xl text-[#F3ECDD]">Nouvelle commande</h2>
           <button onClick={onClose} className="text-[#9A9490] hover:text-[#F3ECDD] w-8 h-8 rounded-full hover:bg-white/5 flex items-center justify-center text-2xl leading-none transition-colors">
@@ -678,7 +721,7 @@ function TablePanel({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-stretch justify-end animate-fade-in">
-      <div className="w-full max-w-2xl bg-brand-dark border-l border-[#F3ECDD]/10 shadow-2xl shadow-black/60 flex flex-col h-full animate-slide-in">
+      <div className="w-full max-w-4xl bg-brand-dark border-l border-[#F3ECDD]/10 shadow-2xl shadow-black/60 flex flex-col h-full animate-slide-in">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#F3ECDD]/10 shrink-0 pos-surface">
           <h2 className="font-display font-black text-xl text-[#F3ECDD]">Table {table}</h2>
           <button onClick={onClose} className="text-[#9A9490] hover:text-[#F3ECDD] w-8 h-8 rounded-full hover:bg-white/5 flex items-center justify-center text-2xl leading-none transition-colors">
