@@ -521,31 +521,55 @@ export default function PosApp() {
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [flash, setFlash] = useState(false);
   const [now, setNow] = useState(Date.now());
+  // null = still connecting, string = a listener/write error to show instead
+  // of silently rendering an empty "no orders" screen (that silence is what
+  // made a genuine Firestore permission problem look like "nothing came
+  // in" instead of a visible, diagnosable error).
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
   const knownIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     if (!unlocked) return;
     const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, (snap) => {
-      const list: OrderDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setConnected(true);
+        setConnectionError(null);
+        const list: OrderDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
 
-      // First snapshot after mount just seeds the "seen" set — no chime for
-      // orders that already existed before this screen was opened.
-      if (knownIds.current === null) {
-        knownIds.current = new Set(list.map((o) => o.id));
-      } else {
-        const isNewArrival = list.some(
-          (o) => !knownIds.current!.has(o.id) && (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo'
-        );
-        knownIds.current = new Set(list.map((o) => o.id));
-        if (isNewArrival) {
-          playChime();
-          setFlash(true);
-          setTimeout(() => setFlash(false), 1800);
+        // First snapshot after mount just seeds the "seen" set — no chime for
+        // orders that already existed before this screen was opened.
+        if (knownIds.current === null) {
+          knownIds.current = new Set(list.map((o) => o.id));
+        } else {
+          const isNewArrival = list.some(
+            (o) => !knownIds.current!.has(o.id) && (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo'
+          );
+          knownIds.current = new Set(list.map((o) => o.id));
+          if (isNewArrival) {
+            playChime();
+            setFlash(true);
+            setTimeout(() => setFlash(false), 1800);
+          }
         }
+        setOrders(list);
+      },
+      (err) => {
+        // Firestore surfaces a permission-denied error here (never a silent
+        // empty snapshot) when the "orders" collection's security rules
+        // don't allow reads for this client — see the on-screen message for
+        // exactly what to check in the Firebase console.
+        console.error('Orders listener failed:', err);
+        setConnected(false);
+        setConnectionError(
+          err?.code === 'permission-denied'
+            ? "Accès refusé par les règles Firestore sur la collection « orders » (lecture non autorisée pour ce client). Autorise la lecture (read/list) sur « orders » dans les règles Firestore du projet, comme c'est déjà le cas pour l'écriture."
+            : `Connexion à Firestore impossible (${err?.code || err?.message || 'erreur inconnue'}). Réessaie ou vérifie la connexion internet de cet écran.`
+        );
       }
-      setOrders(list);
-    });
+    );
     return () => unsub();
   }, [unlocked]);
 
@@ -554,19 +578,45 @@ export default function PosApp() {
     return () => clearInterval(id);
   }, []);
 
+  const reportWriteError = (err: unknown) => {
+    console.error('Orders write failed:', err);
+    const code = (err as any)?.code;
+    setConnectionError(
+      code === 'permission-denied'
+        ? "Accès refusé par les règles Firestore sur la collection « orders » (écriture non autorisée pour ce client)."
+        : `Action impossible (${code || 'erreur inconnue'}). Réessaie.`
+    );
+  };
+
   const advance = async (order: OrderDoc) => {
     const next: Record<OrderStatus, OrderStatus> = { new: 'preparing', preparing: 'ready', ready: 'served', served: 'served', cancelled: 'cancelled' };
-    await updateDoc(doc(db, 'orders', order.id), { status: next[order.status || 'new'] });
+    try {
+      await updateDoc(doc(db, 'orders', order.id), { status: next[order.status || 'new'] });
+    } catch (err) {
+      reportWriteError(err);
+    }
   };
   const togglePaid = async (order: OrderDoc) => {
-    await updateDoc(doc(db, 'orders', order.id), { paid: !order.paid });
+    try {
+      await updateDoc(doc(db, 'orders', order.id), { paid: !order.paid });
+    } catch (err) {
+      reportWriteError(err);
+    }
   };
   const cancel = async (order: OrderDoc) => {
     if (!window.confirm(`Annuler la commande (${kindLabel(order)}) ?`)) return;
-    await updateDoc(doc(db, 'orders', order.id), { status: 'cancelled' });
+    try {
+      await updateDoc(doc(db, 'orders', order.id), { status: 'cancelled' });
+    } catch (err) {
+      reportWriteError(err);
+    }
   };
   const submitNewOrder = async (payload: any) => {
-    await addDoc(collection(db, 'orders'), payload);
+    try {
+      await addDoc(collection(db, 'orders'), payload);
+    } catch (err) {
+      reportWriteError(err);
+    }
   };
 
   const activeOrders = useMemo(
@@ -602,6 +652,18 @@ export default function PosApp() {
         <div className="fixed top-0 left-0 right-0 z-[60] bg-brand-orange text-[#1A1208] text-center py-2 font-display font-black animate-pulse">
           Nouvelle commande !
         </div>
+      )}
+
+      {connectionError && (
+        <div className="bg-red-500/15 border-b border-red-500/40 text-red-300 text-sm px-5 py-3 flex items-center justify-between gap-3">
+          <span>⚠ {connectionError}</span>
+          <button onClick={() => window.location.reload()} className="shrink-0 text-xs font-bold underline">
+            Recharger
+          </button>
+        </div>
+      )}
+      {!connectionError && !connected && (
+        <div className="bg-[#F3ECDD]/10 text-[#9A9490] text-sm px-5 py-2 text-center">Connexion à Firestore…</div>
       )}
 
       <header className="sticky top-0 z-40 bg-brand-dark/95 backdrop-blur border-b border-[#F3ECDD]/10 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
