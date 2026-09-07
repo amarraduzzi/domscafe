@@ -177,6 +177,121 @@ function formatMAD(n: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// Bon printen -- dit scherm draait gewoon in een browser op een Windows pc,
+// dus geen aparte printer-SDK: het bouwt een klein reçu als eigen HTML-
+// document in een onzichtbare iframe en roept daarop print() aan. Dat opent
+// het gewone Windows printdialoogvenster, waar de kassamedewerker de
+// bonprinter kiest (of gewoon op "Afdrukken" drukt als die al standaard
+// staat) -- exact zoals elk ander "afdrukken vanuit de browser" moment.
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+interface ReceiptLine {
+  name: string;
+  quantity: number;
+  lineTotal: number;
+}
+
+function buildReceiptHTML(opts: {
+  metaLines: string[];
+  items: ReceiptLine[];
+  total: number;
+  paidLine?: string;
+}): string {
+  const itemRows = opts.items
+    .map(
+      (it) =>
+        `<div class="row"><span>${it.quantity}× ${escapeHtml(it.name)}</span><span>${formatMAD(it.lineTotal)}</span></div>`
+    )
+    .join('');
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Reçu</title>
+<style>
+  @page { margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; width: 74mm; margin: 0 auto; padding: 4px 0; }
+  h1 { font-size: 16px; text-align: center; margin: 0 0 2px; letter-spacing: 0.5px; }
+  .meta { text-align: center; font-size: 11px; margin-bottom: 8px; line-height: 1.5; }
+  .rule { border-top: 1px dashed #000; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 1.5px 0; }
+  .total { font-weight: bold; font-size: 15px; margin-top: 2px; }
+  .foot { text-align: center; margin-top: 12px; font-size: 11px; }
+</style>
+</head>
+<body>
+  <h1>DOM'S CAFÉ</h1>
+  <div class="meta">${opts.metaLines.map(escapeHtml).join('<br/>')}</div>
+  <div class="rule"></div>
+  ${itemRows}
+  <div class="rule"></div>
+  <div class="row total"><span>TOTAL</span><span>${formatMAD(opts.total)}</span></div>
+  ${opts.paidLine ? `<div class="row"><span>Statut</span><span>${escapeHtml(opts.paidLine)}</span></div>` : ''}
+  <div class="foot">Merci de votre visite !</div>
+</body>
+</html>`;
+}
+
+function printReceipt(html: string) {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow?.document;
+  if (!doc) {
+    document.body.removeChild(iframe);
+    return;
+  }
+  doc.open();
+  doc.write(html);
+  doc.close();
+  // A short delay lets the iframe actually render the written document
+  // before print() grabs its content -- calling print() immediately after
+  // doc.close() sometimes fires on a still-blank document.
+  setTimeout(() => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
+  }, 200);
+}
+
+function printOrderReceipt(order: OrderDoc) {
+  const meta = [kindLabel(order)];
+  if (order.createdAt) {
+    meta.push(order.createdAt.toDate().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
+  }
+  printReceipt(
+    buildReceiptHTML({
+      metaLines: meta,
+      items: order.items,
+      total: order.total,
+      paidLine: order.paid ? `Payé${order.paymentMethod ? ` (${order.paymentMethod === 'cash' ? 'cash' : 'carte'})` : ''}` : 'Non payé',
+    })
+  );
+}
+
+function printTableReceipt(table: string, orders: OrderDoc[]) {
+  const items = orders.flatMap((o) => o.items);
+  const total = orders.reduce((s, o) => s + o.total, 0);
+  const allPaid = orders.length > 0 && orders.every((o) => o.paid);
+  printReceipt(
+    buildReceiptHTML({
+      metaLines: [`Table ${table}`, new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
+      items,
+      total,
+      paidLine: allPaid ? 'Payé' : 'Non payé',
+    })
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 function PinGate({ onUnlock }: { onUnlock: () => void }) {
   const [value, setValue] = useState('');
@@ -296,13 +411,22 @@ function OrderCard({
             <span className={`text-xs font-bold ${elapsedStyle(mins)}`}>{elapsedLabel(mins)}</span>
           </div>
         </div>
-        <button
-          onClick={() => onCancel(order)}
-          title="Annuler la commande"
-          className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-xs shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => printOrderReceipt(order)}
+            title="Imprimer le reçu"
+            className="text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5 text-sm w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+          >
+            🖨️
+          </button>
+          <button
+            onClick={() => onCancel(order)}
+            title="Annuler la commande"
+            className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-xs w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div className="border-t border-[#F3ECDD]/10 pt-2 space-y-1">
@@ -765,12 +889,21 @@ function TablePanel({
             })}
             <div className="flex items-center justify-between pt-2 border-t border-[#F3ECDD]/10">
               <span className="font-display font-black text-brand-orange text-2xl">{formatMAD(billTotal)}</span>
-              <button
-                onClick={onCheckout}
-                className="text-sm font-black px-5 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.97] text-[#1A1208] shadow-lg shadow-brand-orange/20 transition-all"
-              >
-                {allPaid ? 'Clôturer la table' : 'Encaisser'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => printTableReceipt(table, orders)}
+                  title="Imprimer le reçu"
+                  className="text-sm font-bold px-3.5 py-2.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+                >
+                  🖨️ Imprimer
+                </button>
+                <button
+                  onClick={onCheckout}
+                  className="text-sm font-black px-5 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.97] text-[#1A1208] shadow-lg shadow-brand-orange/20 transition-all"
+                >
+                  {allPaid ? 'Clôturer la table' : 'Encaisser'}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1383,7 +1516,16 @@ export default function PosApp() {
                         {o.status === 'cancelled' ? 'Annulé' : o.paid ? `Payé (${o.paymentMethod === 'cash' ? 'cash' : o.paymentMethod === 'card' ? 'carte' : '—'})` : 'Non payé'}
                       </p>
                     </div>
-                    <span className="text-brand-orange font-black shrink-0">{formatMAD(o.total)}</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-brand-orange font-black">{formatMAD(o.total)}</span>
+                      <button
+                        onClick={() => printOrderReceipt(o)}
+                        title="Réimprimer le reçu"
+                        className="text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5 text-sm w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                      >
+                        🖨️
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
