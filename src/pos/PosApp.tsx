@@ -59,7 +59,7 @@ interface Employee {
 }
 const EMPLOYEES: Employee[] = [
   { name: 'Amar', pin: '4271' },
-  { name: 'Employé 2', pin: '1234' },
+  { name: 'Ahmed', pin: '1234' },
 ];
 const EMPLOYEE_SESSION_KEY = 'domscafe_pos_employee';
 // Manager-PIN -- séparé des codes employé ci-dessus : ceux-là ouvrent l'écran
@@ -606,15 +606,26 @@ async function openCashDrawer(): Promise<{ ok: true } | { ok: false; message: st
 }
 
 // ---------------------------------------------------------------------------
-// Ticket cuisine -- imprimante physiquement séparée dans la cuisine (pas
-// celle du comptoir), branchée en USB sur le pc/tablette qui affiche cet
-// écran là-bas. Même approche WebUSB que le tiroir-caisse ci-dessus, mais
-// c'est un appareil différent : la permission WebUSB est par navigateur,
-// donc "Connecter l'imprimante cuisine" doit être cliqué UNE FOIS sur cet
-// appareil-là, pas sur le pc du comptoir. Un flag localStorage
-// (KITCHEN_PRINTER_FLAG) évite qu'un navigateur qui a par ailleurs déjà
-// accès à un autre appareil USB (le tiroir, sur le pc du comptoir) ne se
-// croie à tort "imprimante cuisine prête".
+// Tickets Bar/Cuisine -- deux imprimantes distinctes, physiquement à la bar
+// et en cuisine, mais toutes les deux en USB sur LE MÊME pc (confirmé avec
+// Amar : 3 imprimantes en tout, une par poste -- comptoir/bar/cuisine --
+// toutes en USB, bar+cuisine sur un seul pc entre les deux stations). Même
+// approche WebUSB que le tiroir-caisse, mais avec DEUX permissions
+// distinctes sur ce même navigateur au lieu d'une seule : "Connecter" pour
+// Bar et pour Cuisine sont deux boutons séparés, chacun mémorisant à quel
+// appareil USB il correspond (STATION_PRINTER_KEY) pour le retrouver au
+// prochain chargement de la page sans redemander la permission.
+//
+// Limite réelle à connaître : si les deux imprimantes sont exactement le
+// même modèle ET qu'il n'expose pas de numéro de série via USB (fréquent
+// sur les imprimantes à reçus bon marché), le navigateur ne peut pas les
+// distinguer de façon fiable après un rechargement de page -- elles
+// resteront bien connectées à DEUX appareils différents (jamais les deux
+// tickets sur une seule imprimante), mais laquelle est "Bar" et laquelle
+// est "Cuisine" peut s'inverser après un redémarrage du navigateur. D'où le
+// bouton "Test" à côté de chaque imprimante une fois connectée : à utiliser
+// après chaque redémarrage du pc/navigateur pour vérifier que le bon ticket
+// part au bon endroit, et reconnecter si besoin.
 //
 // Encodage volontairement simplifié : accents retirés (stripAccents) avant
 // envoi. Une imprimante ESC/POS a besoin qu'on lui dise quelle page de code
@@ -622,7 +633,16 @@ async function openCashDrawer(): Promise<{ ok: true } | { ok: false; message: st
 // selon le modèle -- plutôt que de deviner et risquer des caractères
 // bizarres sur le ticket, le texte part en ASCII simple, toujours lisible
 // quel que soit le modèle exact.
-const KITCHEN_PRINTER_FLAG = 'domscafe_kitchen_printer_connected';
+const STATION_PRINTERS = ['Bar', 'Kitchen'] as const;
+type StationPrinter = (typeof STATION_PRINTERS)[number];
+
+function stationPrinterKey(station: string): string {
+  return `domscafe_station_printer_${station}`;
+}
+
+function stationPrinterLabel(station: string): string {
+  return station === 'Bar' ? 'Bar' : 'Cuisine';
+}
 
 function stripAccents(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -678,12 +698,45 @@ function buildKitchenTicketBytes(opts: {
   return new Uint8Array(bytes);
 }
 
-async function sendToKitchenPrinter(bytes: Uint8Array): Promise<{ ok: true } | { ok: false; message: string }> {
+// Retrouve, parmi les appareils USB déjà autorisés sur ce navigateur, lequel
+// correspond à quelle station -- via l'empreinte (vendorId/productId/
+// serialNumber) mémorisée au moment du "Connecter". `claimed` empêche que
+// deux stations sans numéro de série et du même modèle ne pointent par
+// erreur vers le MÊME appareil physique : chaque device ne peut être
+// attribué qu'une fois par résolution, même si l'ordre exact peut varier
+// après un redémarrage (voir la note au-dessus).
+async function resolveStationPrinters(): Promise<Map<string, any>> {
+  const usb: any = (navigator as any).usb;
+  const result = new Map<string, any>();
+  if (!usb) return result;
+  const devices: any[] = await usb.getDevices();
+  const claimed = new Set<any>();
+  for (const station of STATION_PRINTERS) {
+    const raw = localStorage.getItem(stationPrinterKey(station));
+    if (!raw) continue;
+    let fp: { vendorId: number; productId: number; serialNumber: string | null };
+    try {
+      fp = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    const candidates = devices.filter((d) => d.vendorId === fp.vendorId && d.productId === fp.productId && !claimed.has(d));
+    const match = (fp.serialNumber ? candidates.find((d) => d.serialNumber === fp.serialNumber) : undefined) || candidates[0];
+    if (match) {
+      result.set(station, match);
+      claimed.add(match);
+    }
+  }
+  return result;
+}
+
+async function sendToStationPrinter(station: string, bytes: Uint8Array): Promise<{ ok: true } | { ok: false; message: string }> {
   const usb: any = (navigator as any).usb;
   if (!usb) return { ok: false, message: 'WebUSB non supporté par ce navigateur (Chrome ou Edge requis).' };
   try {
-    const device = (await usb.getDevices())[0];
-    if (!device) return { ok: false, message: 'Aucune imprimante cuisine connectée sur cet appareil.' };
+    const printers = await resolveStationPrinters();
+    const device = printers.get(station);
+    if (!device) return { ok: false, message: `Aucune imprimante ${stationPrinterLabel(station)} connectée sur cet appareil.` };
     await device.open();
     if (device.configuration === null) await device.selectConfiguration(1);
     let ifaceNumber: number | null = null;
@@ -708,16 +761,19 @@ async function sendToKitchenPrinter(bytes: Uint8Array): Promise<{ ok: true } | {
     await device.close();
     return { ok: true };
   } catch (err: any) {
-    return { ok: false, message: err?.message || "Échec de l'impression du ticket cuisine." };
+    return { ok: false, message: err?.message || `Échec de l'impression sur l'imprimante ${stationPrinterLabel(station)}.` };
   }
 }
 
-async function connectKitchenPrinter(): Promise<{ ok: true } | { ok: false; message: string }> {
+async function connectStationPrinter(station: string): Promise<{ ok: true } | { ok: false; message: string }> {
   const usb: any = (navigator as any).usb;
   if (!usb) return { ok: false, message: 'WebUSB non supporté par ce navigateur (Chrome ou Edge requis).' };
   try {
-    await usb.requestDevice({ filters: [] });
-    localStorage.setItem(KITCHEN_PRINTER_FLAG, 'true');
+    const device = await usb.requestDevice({ filters: [] });
+    localStorage.setItem(
+      stationPrinterKey(station),
+      JSON.stringify({ vendorId: device.vendorId, productId: device.productId, serialNumber: device.serialNumber || null })
+    );
     return { ok: true };
   } catch (err: any) {
     return { ok: false, message: err?.message || 'Connexion annulée.' };
@@ -725,9 +781,10 @@ async function connectKitchenPrinter(): Promise<{ ok: true } | { ok: false; mess
 }
 
 // N'imprime que les items passés (l'appelant se charge de ne passer que
-// ceux pas encore envoyés), un ticket séparé par station -- si une commande
-// a 2 cafés (Bar) et une pizza (Kitchen), le bar et la cuisine reçoivent
-// chacun leur propre petit ticket au lieu d'un seul mélangé.
+// ceux pas encore envoyés), un ticket séparé par station envoyé à
+// l'imprimante de CETTE station -- si une commande a 2 cafés (Bar) et une
+// pizza (Kitchen), le ticket bar part sur l'imprimante bar et le ticket
+// cuisine sur l'imprimante cuisine.
 async function printKitchenTicketForOrder(order: OrderDoc, newItems: OrderItem[]): Promise<void> {
   const byStation = new Map<string, OrderItem[]>();
   newItems.forEach((it) => {
@@ -740,7 +797,7 @@ async function printKitchenTicketForOrder(order: OrderDoc, newItems: OrderItem[]
     : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   for (const [station, its] of byStation) {
     const bytes = buildKitchenTicketBytes({ station, label: kindLabel(order), time, items: its, note: order.note });
-    const res = await sendToKitchenPrinter(bytes);
+    const res = await sendToStationPrinter(station, bytes);
     if (res.ok === false) throw new Error(res.message);
   }
 }
@@ -2233,30 +2290,51 @@ export default function PosApp() {
     }
   };
 
-  // Imprimante cuisine -- voir la note au-dessus de printKitchenTicketForOrder.
-  // "Prête" seulement si CET appareil a lui-même déjà cliqué "Connecter"
-  // (flag localStorage), pas juste parce qu'il a une permission WebUSB
-  // pour un autre appareil (le tiroir-caisse, sur le pc du comptoir).
-  const [kitchenPrinterReady, setKitchenPrinterReady] = useState(false);
-  const [kitchenPrinterMsg, setKitchenPrinterMsg] = useState<string | null>(null);
+  // Imprimantes bar/cuisine -- voir la note au-dessus de printKitchenTicketForOrder.
+  // "Prête" seulement si CET appareil a lui-même déjà connecté cette station
+  // (fingerprint en localStorage), pas juste parce qu'il a une permission
+  // WebUSB pour un autre appareil (le tiroir-caisse, sur le pc du comptoir).
+  const [stationPrintersReady, setStationPrintersReady] = useState<Record<string, boolean>>({});
+  const [stationPrinterMsg, setStationPrinterMsg] = useState<string | null>(null);
   const kitchenPrintInFlight = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (!unlocked) return;
-    if (localStorage.getItem(KITCHEN_PRINTER_FLAG) !== 'true') return;
+
+  const refreshStationPrintersReady = async () => {
     const usb: any = (navigator as any).usb;
     if (!usb) return;
-    usb.getDevices().then((devices: any[]) => setKitchenPrinterReady(devices.length > 0));
+    const printers = await resolveStationPrinters();
+    const next: Record<string, boolean> = {};
+    STATION_PRINTERS.forEach((st) => {
+      next[st] = printers.has(st);
+    });
+    setStationPrintersReady(next);
+  };
+
+  useEffect(() => {
+    if (!unlocked) return;
+    refreshStationPrintersReady();
   }, [unlocked]);
 
-  const handleConnectKitchenPrinter = async () => {
-    const res = await connectKitchenPrinter();
+  const handleConnectStationPrinter = async (station: string) => {
+    const res = await connectStationPrinter(station);
     if (res.ok === false) {
-      setKitchenPrinterMsg(res.message);
+      setStationPrinterMsg(res.message);
     } else {
-      setKitchenPrinterReady(true);
-      setKitchenPrinterMsg('Imprimante cuisine connectée.');
+      setStationPrinterMsg(`Imprimante ${stationPrinterLabel(station)} connectée.`);
     }
-    window.setTimeout(() => setKitchenPrinterMsg(null), 4000);
+    await refreshStationPrintersReady();
+    window.setTimeout(() => setStationPrinterMsg(null), 4000);
+  };
+
+  const handleTestStationPrinter = async (station: string) => {
+    const bytes = buildKitchenTicketBytes({
+      station,
+      label: 'TEST',
+      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      items: [{ name: `Ticket de test ${stationPrinterLabel(station)}`, quantity: 1 }],
+    });
+    const res = await sendToStationPrinter(station, bytes);
+    setStationPrinterMsg(res.ok === false ? res.message : `Test envoyé à l'imprimante ${stationPrinterLabel(station)}.`);
+    window.setTimeout(() => setStationPrinterMsg(null), 4000);
   };
 
   // Auto-print -- se déclenche à chaque changement de `orders` (donc à
@@ -2264,8 +2342,9 @@ export default function PosApp() {
   // couverts par kitchenPrintedCount, et kitchenPrintInFlight évite qu'un
   // second snapshot arrivant pendant qu'un ticket est encore en train de
   // s'imprimer ne déclenche une impression en double du même lot.
+  const anyStationPrinterReady = Object.values(stationPrintersReady).some(Boolean);
   useEffect(() => {
-    if (!unlocked || !kitchenPrinterReady) return;
+    if (!unlocked || !anyStationPrinterReady) return;
     orders.forEach((o) => {
       if (o.status === 'cancelled') return;
       const printedCount = o.kitchenPrintedCount || 0;
@@ -2280,7 +2359,7 @@ export default function PosApp() {
           kitchenPrintInFlight.current.delete(o.id);
         });
     });
-  }, [orders, kitchenPrinterReady, unlocked]);
+  }, [orders, anyStationPrinterReady, unlocked]);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -2845,19 +2924,32 @@ export default function PosApp() {
 
         {tab === 'kitchen' && (
           <div>
-            <div className="flex items-center justify-end gap-2 mb-4">
-              {kitchenPrinterMsg && <span className="text-xs text-[#9A9490]">{kitchenPrinterMsg}</span>}
-              <button
-                onClick={handleConnectKitchenPrinter}
-                title="À cliquer une seule fois, sur l'appareil branché à l'imprimante cuisine -- pas sur le pc du comptoir"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                  kitchenPrinterReady
-                    ? 'border-[#8FBF8A]/40 text-[#8FBF8A]'
-                    : 'border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40'
-                }`}
-              >
-                🖨️ {kitchenPrinterReady ? 'Imprimante cuisine connectée' : 'Connecter l’imprimante cuisine'}
-              </button>
+            <div className="flex items-center justify-end gap-2 mb-4 flex-wrap">
+              {stationPrinterMsg && <span className="text-xs text-[#9A9490]">{stationPrinterMsg}</span>}
+              {STATION_PRINTERS.map((station) => (
+                <div key={station} className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleConnectStationPrinter(station)}
+                    title={`À cliquer une seule fois, sur l'appareil branché à l'imprimante ${stationPrinterLabel(station)}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      stationPrintersReady[station]
+                        ? 'border-[#8FBF8A]/40 text-[#8FBF8A]'
+                        : 'border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40'
+                    }`}
+                  >
+                    🖨️ {stationPrintersReady[station] ? `Imprimante ${stationPrinterLabel(station)} connectée` : `Connecter l'imprimante ${stationPrinterLabel(station)}`}
+                  </button>
+                  {stationPrintersReady[station] && (
+                    <button
+                      onClick={() => handleTestStationPrinter(station)}
+                      title={`Imprimer un ticket de test sur l'imprimante ${stationPrinterLabel(station)}`}
+                      className="px-2 py-1.5 rounded-lg text-xs font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+                    >
+                      Test
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
             {kitchenByStation.length === 0 ? (
               <p className="text-[#7A736C] text-center py-20">Rien à préparer.</p>
