@@ -146,6 +146,24 @@ interface MenuOverride {
   isCustom?: boolean;
 }
 
+// Un slide de l'écran TV (collection Firestore "tvSlides"), géré depuis
+// l'onglet "TV" ci-dessous et affiché en boucle sur tv.html -- écran promo
+// séparé, à ouvrir en plein écran sur la Smart TV de la salle (pas besoin de
+// boîtier supplémentaire, juste le navigateur déjà intégré à la TV).
+// Volontairement texte/prix seulement pour l'instant (pas encore de photos :
+// ça demanderait un système d'upload d'images séparé, à ajouter plus tard si
+// besoin) -- largement suffisant pour démarrer pendant que le menu change
+// encore. `order` détermine l'ordre d'affichage (plus petit = plus tôt) ;
+// `active` permet de préparer un slide sans encore le mettre en rotation.
+interface TvSlide {
+  id: string;
+  title: string;
+  subtitle?: string;
+  price?: number;
+  order: number;
+  active: boolean;
+}
+
 // Un doc par jour civil clôturé (Rapport Z), clé = dateStr() ("YYYY-MM-DD").
 // Écrit une seule fois par jour via closeToday() ; sa seule présence signale
 // "journée clôturée" et fige les chiffres au moment de la clôture.
@@ -1258,6 +1276,87 @@ function MenuItemEditModal({
   );
 }
 
+function TvSlideEditModal({
+  slide,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  slide: TvSlide | null;
+  onSave: (patch: { title: string; subtitle?: string; price?: number; active: boolean }) => void;
+  onDelete?: () => void;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(slide?.title || '');
+  const [subtitle, setSubtitle] = useState(slide?.subtitle || '');
+  const [price, setPrice] = useState(slide?.price !== undefined ? String(slide.price) : '');
+  const [active, setActive] = useState(slide?.active !== false);
+
+  const priceTrim = price.trim();
+  const priceNum = priceTrim ? parseFloat(priceTrim.replace(',', '.')) : undefined;
+  const valid = title.trim().length > 0 && (priceNum === undefined || isFinite(priceNum));
+
+  const submit = () => {
+    if (!valid) return;
+    onSave({ title: title.trim(), subtitle: subtitle.trim() || undefined, price: priceNum, active });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop">
+        <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-4 text-center">
+          {slide ? 'Modifier le slide' : 'Nouveau slide'}
+        </h3>
+        <div className="space-y-3 mb-5">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Titre (ex. Menu du midi)"
+            className={MENU_INPUT_CLASS}
+            autoFocus
+          />
+          <input
+            value={subtitle}
+            onChange={(e) => setSubtitle(e.target.value)}
+            placeholder="Sous-titre (optionnel)"
+            className={MENU_INPUT_CLASS}
+          />
+          <input
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            inputMode="decimal"
+            placeholder="Prix affiché (optionnel, MAD)"
+            className={MENU_INPUT_CLASS}
+          />
+          <button
+            onClick={() => setActive((a) => !a)}
+            className={`w-full px-3 py-2.5 rounded-lg text-sm font-bold border transition-all ${
+              active ? 'border-[#8FBF8A]/40 text-[#8FBF8A]' : 'border-red-500/40 text-red-400'
+            }`}
+          >
+            {active ? '✓ En rotation sur la TV' : '✗ En pause (masqué)'}
+          </button>
+        </div>
+        <button
+          onClick={submit}
+          disabled={!valid}
+          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all mb-2"
+        >
+          Enregistrer
+        </button>
+        {onDelete && (
+          <button onClick={onDelete} className="w-full text-red-400/80 hover:text-red-400 text-sm font-bold py-2 mb-1 transition-colors">
+            🗑️ Supprimer
+          </button>
+        )}
+        <button onClick={onClose} className="w-full text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 type PaymentChoice = { method: 'cash' | 'card' } | { method: 'mixed'; cash: number; card: number };
@@ -2053,7 +2152,7 @@ function TablePanel({
 
 // ---------------------------------------------------------------------------
 
-type Tab = 'tables' | 'live' | 'kitchen' | 'history' | 'reports' | 'menu';
+type Tab = 'tables' | 'live' | 'kitchen' | 'history' | 'reports' | 'menu' | 'tv';
 type PayTarget = { kind: 'table'; table: string; orders: OrderDoc[] } | { kind: 'order'; order: OrderDoc };
 type ReportRange = 'today' | 'yesterday' | 'week' | 'month' | 'custom' | 'all';
 
@@ -2175,6 +2274,8 @@ export default function PosApp() {
   const [menuCategoryFilter, setMenuCategoryFilter] = useState('all');
   const [editingMenuItem, setEditingMenuItem] = useState<MenuItem | null>(null);
   const [creatingMenuItem, setCreatingMenuItem] = useState(false);
+  const [editingTvSlide, setEditingTvSlide] = useState<TvSlide | null>(null);
+  const [creatingTvSlide, setCreatingTvSlide] = useState(false);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [payingTarget, setPayingTarget] = useState<PayTarget | null>(null);
@@ -2285,6 +2386,65 @@ export default function PosApp() {
   const deleteMenuOverride = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'menuOverrides', id));
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+
+  // TV -- écran promo (tv.html), voir la note sur l'interface TvSlide.
+  // Même schéma d'accès que le Menu (code manager, "déverrouillé" une fois
+  // par session tant que l'écran reste ouvert).
+  const [tvSlides, setTvSlides] = useState<TvSlide[]>([]);
+  const [tvUnlocked, setTvUnlocked] = useState(false);
+  useEffect(() => {
+    if (!unlocked) return;
+    const unsub = onSnapshot(collection(db, 'tvSlides'), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TvSlide, 'id'>) }));
+      list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      setTvSlides(list);
+    });
+    return () => unsub();
+  }, [unlocked]);
+
+  const unlockTv = async () => {
+    const ok = await requestManagerAuth();
+    if (ok) setTvUnlocked(true);
+  };
+  const createTvSlide = async (data: { title: string; subtitle?: string; price?: number; active: boolean }) => {
+    try {
+      const maxOrder = tvSlides.reduce((m, s) => Math.max(m, s.order ?? 0), 0);
+      await addDoc(collection(db, 'tvSlides'), { ...data, order: maxOrder + 1 });
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  const saveTvSlide = async (id: string, patch: Partial<Omit<TvSlide, 'id'>>) => {
+    try {
+      await setDoc(doc(db, 'tvSlides', id), patch, { merge: true });
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  const deleteTvSlide = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'tvSlides', id));
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  // Échange l'`order` avec le voisin -- suffisant pour réordonner une liste
+  // courte de slides sans avoir besoin de drag-and-drop.
+  const moveTvSlide = async (id: string, direction: -1 | 1) => {
+    const idx = tvSlides.findIndex((s) => s.id === id);
+    const neighborIdx = idx + direction;
+    if (idx === -1 || neighborIdx < 0 || neighborIdx >= tvSlides.length) return;
+    const a = tvSlides[idx];
+    const b = tvSlides[neighborIdx];
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'tvSlides', a.id), { order: b.order }, { merge: true });
+      batch.set(doc(db, 'tvSlides', b.id), { order: a.order }, { merge: true });
+      await batch.commit();
     } catch (err) {
       reportWriteError(err);
     }
@@ -2789,10 +2949,22 @@ export default function PosApp() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap p-1 rounded-full pos-surface border border-[#F3ECDD]/10">
-            {(['tables', 'live', 'kitchen', 'history', 'reports', 'menu'] as Tab[]).map((t) => {
+            {(['tables', 'live', 'kitchen', 'history', 'reports', 'menu', 'tv'] as Tab[]).map((t) => {
               const needsAttention = t === 'kitchen' && kitchenOrderCount > 0;
               const icon =
-                t === 'tables' ? '🪑' : t === 'live' ? '🧾' : t === 'kitchen' ? '🍳' : t === 'history' ? '📜' : t === 'reports' ? '📊' : '📋';
+                t === 'tables'
+                  ? '🪑'
+                  : t === 'live'
+                  ? '🧾'
+                  : t === 'kitchen'
+                  ? '🍳'
+                  : t === 'history'
+                  ? '📜'
+                  : t === 'reports'
+                  ? '📊'
+                  : t === 'tv'
+                  ? '📺'
+                  : '📋';
               return (
                 <button
                   key={t}
@@ -2817,6 +2989,8 @@ export default function PosApp() {
                     ? 'Historique'
                     : t === 'reports'
                     ? 'Rapports'
+                    : t === 'tv'
+                    ? 'TV'
                     : 'Menu'}
                 </button>
               );
@@ -3363,6 +3537,87 @@ export default function PosApp() {
             )}
           </div>
         )}
+
+        {tab === 'tv' && (
+          <div className="max-w-2xl mx-auto">
+            {!tvUnlocked ? (
+              <div className="text-center py-24">
+                <p className="text-2xl mb-2">🔒</p>
+                <p className="text-[#9A9490] mb-4">Le code manager est nécessaire pour ouvrir l'écran TV.</p>
+                <button onClick={unlockTv} className="px-5 py-2.5 rounded-xl bg-brand-orange text-[#1A1208] font-display font-black">
+                  Déverrouiller
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="pos-surface border border-brand-orange/25 rounded-xl p-3 mb-4 text-xs text-[#9A9490] leading-relaxed">
+                  📺 Ces slides tournent en boucle sur <span className="font-bold text-[#F3ECDD]">/tv.html</span>, à ouvrir en plein
+                  écran dans le navigateur de la Smart TV. Les changements ici apparaissent automatiquement sur l'écran, pas besoin
+                  de le rafraîchir manuellement. Pas encore de photos pour l'instant, texte et prix seulement.
+                </div>
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <p className="text-sm text-[#9A9490]">{tvSlides.length} slide{tvSlides.length !== 1 ? 's' : ''}</p>
+                  <button
+                    onClick={() => setCreatingTvSlide(true)}
+                    className="px-3.5 py-2 rounded-lg text-sm font-bold border border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 transition-all"
+                  >
+                    + Nouveau slide
+                  </button>
+                </div>
+                {tvSlides.length === 0 ? (
+                  <p className="text-[#7A736C] text-center py-16">Aucun slide pour l'instant -- l'écran TV affiche le logo par défaut.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {tvSlides.map((s, i) => (
+                      <div
+                        key={s.id}
+                        className={`flex items-center justify-between gap-3 pos-surface border rounded-lg px-3.5 py-2.5 ${
+                          s.active === false ? 'border-red-500/30 opacity-60' : 'border-[#F3ECDD]/10'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#F3ECDD] truncate">
+                            {s.title}
+                            {s.active === false && <span className="ms-2 text-[10px] text-red-400 font-black uppercase align-middle">Pause</span>}
+                          </p>
+                          {(s.subtitle || s.price !== undefined) && (
+                            <p className="text-xs text-[#9A9490] truncate">
+                              {s.subtitle}
+                              {s.subtitle && s.price !== undefined ? ' · ' : ''}
+                              {s.price !== undefined ? formatMAD(s.price) : ''}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => moveTvSlide(s.id, -1)}
+                            disabled={i === 0}
+                            className="text-xs font-bold w-7 h-7 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-30 transition-all"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => moveTvSlide(s.id, 1)}
+                            disabled={i === tvSlides.length - 1}
+                            className="text-xs font-bold w-7 h-7 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-30 transition-all"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            onClick={() => setEditingTvSlide(s)}
+                            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+                          >
+                            ✏️ Modifier
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </main>
 
       {showNewOrder && (
@@ -3451,6 +3706,32 @@ export default function PosApp() {
             setCreatingMenuItem(false);
           }}
           onClose={() => setCreatingMenuItem(false)}
+        />
+      )}
+
+      {editingTvSlide && (
+        <TvSlideEditModal
+          slide={editingTvSlide}
+          onSave={(patch) => {
+            saveTvSlide(editingTvSlide.id, patch);
+            setEditingTvSlide(null);
+          }}
+          onDelete={() => {
+            deleteTvSlide(editingTvSlide.id);
+            setEditingTvSlide(null);
+          }}
+          onClose={() => setEditingTvSlide(null)}
+        />
+      )}
+
+      {creatingTvSlide && (
+        <TvSlideEditModal
+          slide={null}
+          onSave={(patch) => {
+            createTvSlide(patch);
+            setCreatingTvSlide(false);
+          }}
+          onClose={() => setCreatingTvSlide(false)}
         />
       )}
 

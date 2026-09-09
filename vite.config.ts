@@ -12,14 +12,16 @@ export default defineConfig(() => {
       },
     },
     build: {
-      // Multi-page build: the customer ordering site (index.html) plus the
-      // staff order/POS screen (pos.html), served from the same Cloudflare
-      // Pages deployment at domscafe.pages.dev/pos.html so it ships with the
-      // same push, same Firebase project, same domain, no separate hosting.
+      // Multi-page build: the customer ordering site (index.html), the
+      // staff order/POS screen (pos.html), and the TV promo screen
+      // (tv.html), all served from the same Cloudflare Pages deployment
+      // (domscafe.pages.dev/pos.html, /tv.html) so it ships with the same
+      // push, same Firebase project, same domain, no separate hosting.
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, 'index.html'),
           pos: path.resolve(__dirname, 'pos.html'),
+          tv: path.resolve(__dirname, 'tv.html'),
         },
       },
     },
