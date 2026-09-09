@@ -14,7 +14,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { menuItems as staticMenuItems } from '../data';
+import { menuItems as staticMenuItems, type MenuItem } from '../data';
 import { initialCategories } from '../firebase';
 
 // ---------------------------------------------------------------------------
@@ -124,6 +124,26 @@ interface OrderDoc {
   // `total`) -- this field only exists so the receipt and order card can
   // show that a discount was applied, and how much.
   discount?: number;
+  // Combien d'éléments de `items` (en partant du début) ont déjà été
+  // envoyés à l'imprimante cuisine -- permet de n'imprimer que les articles
+  // ajoutés depuis le dernier ticket au lieu de réimprimer toute
+  // l'addition à chaque ajout sur une table déjà en cours.
+  kitchenPrintedCount?: number;
+}
+
+// Un override par article, clé = l'id de l'article dans data.ts pour un
+// article existant, ou un id Firestore auto-généré pour un article créé
+// entièrement depuis l'écran "Menu" (isCustom: true). Volontairement
+// minimal (prix/nom/catégorie/station/actif) -- les fiches complètes
+// (3 langues, description, photo, variantes) restent gérées dans data.ts,
+// voir la note dans l'onglet Menu.
+interface MenuOverride {
+  name?: string;
+  price?: number;
+  category?: string;
+  station?: string;
+  active?: boolean;
+  isCustom?: boolean;
 }
 
 // Un doc par jour civil clôturé (Rapport Z), clé = dateStr() ("YYYY-MM-DD").
@@ -196,6 +216,46 @@ function kindLabel(order: OrderDoc): string {
   if (kind === 'delivery') return order.customerName ? `Livraison — ${order.customerName}` : 'Livraison';
   if (kind === 'glovo') return order.glovoRef ? `Glovo — ${order.glovoRef}` : 'Glovo';
   return order.customerName ? `À emporter — ${order.customerName}` : 'À emporter';
+}
+
+// Fusionne le menu de base (data.ts, complet : 3 langues, description,
+// photo, variantes -- toujours la source pour le site client) avec les
+// overrides Firestore (menuOverrides) que l'onglet Menu écrit : prix, nom
+// (une seule langue, uniquement pour l'écran caisse), catégorie, station et
+// actif/épuisé. Un article "isCustom" n'existe que dans Firestore (ajouté
+// depuis l'écran Menu) et est ajouté à la fin. Le nom overridé remplace les
+// 3 langues à l'identique -- volontairement : ça ne touche que ce que le
+// personnel voit ici, jamais le site client (voir la note dans l'onglet
+// Menu).
+function buildMenu(overrides: Map<string, MenuOverride>): MenuItem[] {
+  const merged = staticMenuItems.map((it) => {
+    const o = overrides.get(it.id);
+    if (!o) return it;
+    return {
+      ...it,
+      name: o.name ? { fr: o.name, en: o.name, ar: o.name } : it.name,
+      price: o.price ?? it.price,
+      category: o.category ?? it.category,
+      station: o.station ?? it.station,
+      available: o.active === false ? false : it.available,
+    };
+  });
+  const customs: MenuItem[] = [];
+  overrides.forEach((o, id) => {
+    if (!o.isCustom) return;
+    const name = o.name || '(sans nom)';
+    customs.push({
+      id,
+      name: { fr: name, en: name, ar: name },
+      category: o.category || 'Autres',
+      price: o.price || 0,
+      station: o.station || 'Kitchen',
+      available: o.active !== false,
+      description: { fr: '', en: '', ar: '' },
+      image: '',
+    });
+  });
+  return [...merged, ...customs];
 }
 
 // Chiffre d'affaires, ventilé cash / carte / Glovo, pour un lot de commandes
@@ -506,6 +566,146 @@ async function openCashDrawer(): Promise<{ ok: true } | { ok: false; message: st
     return { ok: true };
   } catch (err: any) {
     return { ok: false, message: err?.message || "Échec de l'ouverture du tiroir." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ticket cuisine -- imprimante physiquement séparée dans la cuisine (pas
+// celle du comptoir), branchée en USB sur le pc/tablette qui affiche cet
+// écran là-bas. Même approche WebUSB que le tiroir-caisse ci-dessus, mais
+// c'est un appareil différent : la permission WebUSB est par navigateur,
+// donc "Connecter l'imprimante cuisine" doit être cliqué UNE FOIS sur cet
+// appareil-là, pas sur le pc du comptoir. Un flag localStorage
+// (KITCHEN_PRINTER_FLAG) évite qu'un navigateur qui a par ailleurs déjà
+// accès à un autre appareil USB (le tiroir, sur le pc du comptoir) ne se
+// croie à tort "imprimante cuisine prête".
+//
+// Encodage volontairement simplifié : accents retirés (stripAccents) avant
+// envoi. Une imprimante ESC/POS a besoin qu'on lui dise quelle page de code
+// utiliser pour afficher les caractères accentués correctement, et ça varie
+// selon le modèle -- plutôt que de deviner et risquer des caractères
+// bizarres sur le ticket, le texte part en ASCII simple, toujours lisible
+// quel que soit le modèle exact.
+const KITCHEN_PRINTER_FLAG = 'domscafe_kitchen_printer_connected';
+
+function stripAccents(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function textToBytes(s: string): number[] {
+  return Array.from(stripAccents(s)).map((ch) => {
+    const code = ch.charCodeAt(0);
+    return code < 256 ? code : 0x3f; // '?' de secours pour le reste (emojis, arabe, ...)
+  });
+}
+
+function buildKitchenTicketBytes(opts: {
+  station: string;
+  label: string;
+  time: string;
+  items: { quantity: number; name: string }[];
+  note?: string;
+}): Uint8Array {
+  const ESC = 0x1b;
+  const GS = 0x1d;
+  const bytes: number[] = [];
+  const raw = (arr: number[]) => bytes.push(...arr);
+  const line = (s: string = '') => {
+    raw(textToBytes(s));
+    bytes.push(0x0a);
+  };
+  raw([ESC, 0x40]); // init
+  raw([ESC, 0x61, 0x01]); // centré
+  raw([GS, 0x21, 0x11]); // double hauteur/largeur
+  line(opts.station === 'Bar' ? 'BAR' : 'CUISINE');
+  raw([GS, 0x21, 0x00]); // taille normale
+  line('================================');
+  raw([ESC, 0x61, 0x00]); // aligné à gauche
+  raw([ESC, 0x45, 0x01]); // gras on
+  line(opts.label);
+  raw([ESC, 0x45, 0x00]); // gras off
+  line(opts.time);
+  line('--------------------------------');
+  raw([GS, 0x21, 0x11]);
+  opts.items.forEach((it) => line(`${it.quantity}x ${it.name}`));
+  raw([GS, 0x21, 0x00]);
+  if (opts.note) {
+    line('--------------------------------');
+    raw([ESC, 0x45, 0x01]);
+    line(`NOTE: ${opts.note}`);
+    raw([ESC, 0x45, 0x00]);
+  }
+  line('================================');
+  line();
+  line();
+  raw([GS, 0x56, 0x00]); // coupe complète
+  return new Uint8Array(bytes);
+}
+
+async function sendToKitchenPrinter(bytes: Uint8Array): Promise<{ ok: true } | { ok: false; message: string }> {
+  const usb: any = (navigator as any).usb;
+  if (!usb) return { ok: false, message: 'WebUSB non supporté par ce navigateur (Chrome ou Edge requis).' };
+  try {
+    const device = (await usb.getDevices())[0];
+    if (!device) return { ok: false, message: 'Aucune imprimante cuisine connectée sur cet appareil.' };
+    await device.open();
+    if (device.configuration === null) await device.selectConfiguration(1);
+    let ifaceNumber: number | null = null;
+    let epOut: number | null = null;
+    outer: for (const conf of device.configurations) {
+      for (const iface of conf.interfaces) {
+        for (const alt of iface.alternates) {
+          const out = alt.endpoints.find((e: any) => e.direction === 'out');
+          if (out) {
+            ifaceNumber = iface.interfaceNumber;
+            epOut = out.endpointNumber;
+            break outer;
+          }
+        }
+      }
+    }
+    if (ifaceNumber === null || epOut === null) {
+      return { ok: false, message: 'Interface USB compatible introuvable sur cet appareil.' };
+    }
+    await device.claimInterface(ifaceNumber);
+    await device.transferOut(epOut, bytes);
+    await device.close();
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, message: err?.message || "Échec de l'impression du ticket cuisine." };
+  }
+}
+
+async function connectKitchenPrinter(): Promise<{ ok: true } | { ok: false; message: string }> {
+  const usb: any = (navigator as any).usb;
+  if (!usb) return { ok: false, message: 'WebUSB non supporté par ce navigateur (Chrome ou Edge requis).' };
+  try {
+    await usb.requestDevice({ filters: [] });
+    localStorage.setItem(KITCHEN_PRINTER_FLAG, 'true');
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, message: err?.message || 'Connexion annulée.' };
+  }
+}
+
+// N'imprime que les items passés (l'appelant se charge de ne passer que
+// ceux pas encore envoyés), un ticket séparé par station -- si une commande
+// a 2 cafés (Bar) et une pizza (Kitchen), le bar et la cuisine reçoivent
+// chacun leur propre petit ticket au lieu d'un seul mélangé.
+async function printKitchenTicketForOrder(order: OrderDoc, newItems: OrderItem[]): Promise<void> {
+  const byStation = new Map<string, OrderItem[]>();
+  newItems.forEach((it) => {
+    const st = it.station || 'Kitchen';
+    if (!byStation.has(st)) byStation.set(st, []);
+    byStation.get(st)!.push(it);
+  });
+  const time = order.createdAt
+    ? order.createdAt.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  for (const [station, its] of byStation) {
+    const bytes = buildKitchenTicketBytes({ station, label: kindLabel(order), time, items: its, note: order.note });
+    const res = await sendToKitchenPrinter(bytes);
+    if (res.ok === false) throw new Error(res.message);
   }
 }
 
@@ -865,6 +1065,98 @@ function ZReportModal({
 }
 
 // ---------------------------------------------------------------------------
+// Menu -- édition/ajout limité au prix, nom (une langue), catégorie, station
+// et actif/épuisé (voir buildMenu() plus haut pour ce que ça touche
+// vraiment). `item` null = création d'un nouvel article ; `onDelete` absent
+// = pas de bouton (rien à réinitialiser/supprimer pour cet article).
+
+const MENU_INPUT_CLASS =
+  'w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange';
+
+function MenuItemEditModal({
+  item,
+  isCustom,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  item: MenuItem | null;
+  isCustom: boolean;
+  onSave: (patch: { name: string; price: number; category: string; station: string; active: boolean }) => void;
+  onDelete?: () => void;
+  onClose: () => void;
+}) {
+  const categories = useMemo(() => initialCategories.filter((c) => c.id !== 'all'), []);
+  const [name, setName] = useState(item?.name.fr || '');
+  const [price, setPrice] = useState(item ? String(item.price) : '');
+  const [category, setCategory] = useState(item?.category || categories[0]?.id || '');
+  const [station, setStation] = useState(item?.station || 'Kitchen');
+  const [active, setActive] = useState(item?.available !== false);
+
+  const priceNum = parseFloat(price.replace(',', '.'));
+  const valid = name.trim().length > 0 && isFinite(priceNum) && priceNum >= 0 && !!category;
+
+  const submit = () => {
+    if (!valid) return;
+    onSave({ name: name.trim(), price: priceNum, category, station, active });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop">
+        <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-4 text-center">
+          {item ? "Modifier l'article" : 'Nouvel article'}
+        </h3>
+        <div className="space-y-3 mb-5">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom" className={MENU_INPUT_CLASS} autoFocus />
+          <input
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            inputMode="decimal"
+            placeholder="Prix (MAD)"
+            className={MENU_INPUT_CLASS}
+          />
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className={MENU_INPUT_CLASS}>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name.fr}
+              </option>
+            ))}
+          </select>
+          <select value={station} onChange={(e) => setStation(e.target.value)} className={MENU_INPUT_CLASS}>
+            <option value="Kitchen">Cuisine</option>
+            <option value="Bar">Bar</option>
+          </select>
+          <button
+            onClick={() => setActive((a) => !a)}
+            className={`w-full px-3 py-2.5 rounded-lg text-sm font-bold border transition-all ${
+              active ? 'border-[#8FBF8A]/40 text-[#8FBF8A]' : 'border-red-500/40 text-red-400'
+            }`}
+          >
+            {active ? '✓ Actif' : '✗ Épuisé / masqué'}
+          </button>
+        </div>
+        <button
+          onClick={submit}
+          disabled={!valid}
+          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all mb-2"
+        >
+          Enregistrer
+        </button>
+        {onDelete && (
+          <button onClick={onDelete} className="w-full text-red-400/80 hover:text-red-400 text-sm font-bold py-2 mb-1 transition-colors">
+            {isCustom ? '🗑️ Supprimer' : '↺ Réinitialiser (valeurs du code)'}
+          </button>
+        )}
+        <button onClick={onClose} className="w-full text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 type PaymentChoice = { method: 'cash' | 'card' } | { method: 'mixed'; cash: number; card: number };
 
@@ -1119,10 +1411,12 @@ interface DraftLine {
 // targets throughout (point 3 of the requested improvements) — this runs on
 // a tablet behind the counter, not a mouse-driven desktop.
 function MenuGrid({
+  menuItems,
   draft,
   onAdd,
   onChangeQty,
 }: {
+  menuItems: MenuItem[];
   draft: DraftLine[];
   onAdd: (name: string, unitPrice: number, station?: string) => void;
   onChangeQty: (idx: number, delta: number) => void;
@@ -1157,7 +1451,7 @@ function MenuGrid({
     return map;
   }, [groupedRows]);
 
-  const availableItems = useMemo(() => staticMenuItems.filter((it) => it.available !== false), []);
+  const availableItems = useMemo(() => menuItems.filter((it) => it.available !== false), [menuItems]);
   // Item counts per category, off the full menu (not the current search) --
   // a stable reference number next to each category in the rail, not one
   // that jumps around as staff type into the search box.
@@ -1358,7 +1652,15 @@ function useDraft() {
 // exclusively through the Tables tab (TablePanel below), so this panel only
 // ever handles the three order kinds that don't have a table number.
 
-function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (payload: any) => Promise<void> }) {
+function NewOrderPanel({
+  menuItems,
+  onClose,
+  onSubmit,
+}: {
+  menuItems: MenuItem[];
+  onClose: () => void;
+  onSubmit: (payload: any) => Promise<void>;
+}) {
   const [kind, setKind] = useState<Exclude<OrderKind, 'dine_in'>>('takeaway');
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
@@ -1461,7 +1763,7 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
           />
         </div>
 
-        <MenuGrid draft={draft} onAdd={addItem} onChangeQty={changeQty} />
+        <MenuGrid menuItems={menuItems} draft={draft} onAdd={addItem} onChangeQty={changeQty} />
 
         <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0 pos-surface">
           <button
@@ -1484,6 +1786,7 @@ function NewOrderPanel({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
 // out. This is the only way a dine-in order is created or grown.
 
 function TablePanel({
+  menuItems,
   table,
   orders,
   onClose,
@@ -1496,6 +1799,7 @@ function TablePanel({
   onRemoveItem,
   onApplyDiscount,
 }: {
+  menuItems: MenuItem[];
   table: string;
   orders: OrderDoc[];
   onClose: () => void;
@@ -1629,7 +1933,7 @@ function TablePanel({
           <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold">Ajouter des articles</p>
         </div>
 
-        <MenuGrid draft={draft} onAdd={addItem} onChangeQty={changeQty} />
+        <MenuGrid menuItems={menuItems} draft={draft} onAdd={addItem} onChangeQty={changeQty} />
 
         <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0 pos-surface">
           <button
@@ -1647,7 +1951,7 @@ function TablePanel({
 
 // ---------------------------------------------------------------------------
 
-type Tab = 'tables' | 'live' | 'kitchen' | 'history' | 'reports';
+type Tab = 'tables' | 'live' | 'kitchen' | 'history' | 'reports' | 'menu';
 type PayTarget = { kind: 'table'; table: string; orders: OrderDoc[] } | { kind: 'order'; order: OrderDoc };
 type ReportRange = 'today' | 'yesterday' | 'week' | 'month' | 'custom' | 'all';
 
@@ -1765,6 +2069,10 @@ export default function PosApp() {
   const [customStart, setCustomStart] = useState(dateStr());
   const [customEnd, setCustomEnd] = useState(dateStr());
   const [historySearch, setHistorySearch] = useState('');
+  const [menuSearch, setMenuSearch] = useState('');
+  const [menuCategoryFilter, setMenuCategoryFilter] = useState('all');
+  const [editingMenuItem, setEditingMenuItem] = useState<MenuItem | null>(null);
+  const [creatingMenuItem, setCreatingMenuItem] = useState(false);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [payingTarget, setPayingTarget] = useState<PayTarget | null>(null);
@@ -1831,6 +2139,103 @@ export default function PosApp() {
       reportWriteError(err);
     }
   };
+
+  // Menu -- data.ts reste la source complète (3 langues, description,
+  // photo, variantes) pour le site client ; menuOverrides ne contient que
+  // ce que l'onglet Menu modifie ici (prix/nom/catégorie/station/actif),
+  // fusionné par buildMenu() ci-dessus. Modifier un prix ici ne touche donc
+  // PAS le site de commande client -- voir la note affichée dans l'onglet.
+  const [menuOverrides, setMenuOverrides] = useState<Map<string, MenuOverride>>(new Map());
+  const [menuUnlocked, setMenuUnlocked] = useState(false);
+  useEffect(() => {
+    if (!unlocked) return;
+    const unsub = onSnapshot(collection(db, 'menuOverrides'), (snap) => {
+      const map = new Map<string, MenuOverride>();
+      snap.docs.forEach((d) => map.set(d.id, d.data() as MenuOverride));
+      setMenuOverrides(map);
+    });
+    return () => unsub();
+  }, [unlocked]);
+  const menuItems = useMemo(() => buildMenu(menuOverrides), [menuOverrides]);
+
+  const unlockMenu = async () => {
+    const ok = await requestManagerAuth();
+    if (ok) setMenuUnlocked(true);
+  };
+  const saveMenuOverride = async (id: string, patch: Partial<MenuOverride>) => {
+    try {
+      await setDoc(doc(db, 'menuOverrides', id), patch, { merge: true });
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  const createMenuItem = async (data: { name: string; price: number; category: string; station: string; active: boolean }) => {
+    try {
+      await addDoc(collection(db, 'menuOverrides'), { ...data, isCustom: true });
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  // Pour un article de base (data.ts) ça supprime juste l'override et
+  // restaure les valeurs du code ("Réinitialiser") ; pour un article
+  // isCustom (n'existe qu'ici) ça le fait disparaître pour de bon
+  // ("Supprimer") -- même opération Firestore, l'écran choisit le libellé.
+  const deleteMenuOverride = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'menuOverrides', id));
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+
+  // Imprimante cuisine -- voir la note au-dessus de printKitchenTicketForOrder.
+  // "Prête" seulement si CET appareil a lui-même déjà cliqué "Connecter"
+  // (flag localStorage), pas juste parce qu'il a une permission WebUSB
+  // pour un autre appareil (le tiroir-caisse, sur le pc du comptoir).
+  const [kitchenPrinterReady, setKitchenPrinterReady] = useState(false);
+  const [kitchenPrinterMsg, setKitchenPrinterMsg] = useState<string | null>(null);
+  const kitchenPrintInFlight = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!unlocked) return;
+    if (localStorage.getItem(KITCHEN_PRINTER_FLAG) !== 'true') return;
+    const usb: any = (navigator as any).usb;
+    if (!usb) return;
+    usb.getDevices().then((devices: any[]) => setKitchenPrinterReady(devices.length > 0));
+  }, [unlocked]);
+
+  const handleConnectKitchenPrinter = async () => {
+    const res = await connectKitchenPrinter();
+    if (res.ok === false) {
+      setKitchenPrinterMsg(res.message);
+    } else {
+      setKitchenPrinterReady(true);
+      setKitchenPrinterMsg('Imprimante cuisine connectée.');
+    }
+    window.setTimeout(() => setKitchenPrinterMsg(null), 4000);
+  };
+
+  // Auto-print -- se déclenche à chaque changement de `orders` (donc à
+  // chaque snapshot Firestore), mais ne réimprime que les items pas encore
+  // couverts par kitchenPrintedCount, et kitchenPrintInFlight évite qu'un
+  // second snapshot arrivant pendant qu'un ticket est encore en train de
+  // s'imprimer ne déclenche une impression en double du même lot.
+  useEffect(() => {
+    if (!unlocked || !kitchenPrinterReady) return;
+    orders.forEach((o) => {
+      if (o.status === 'cancelled') return;
+      const printedCount = o.kitchenPrintedCount || 0;
+      if (o.items.length <= printedCount) return;
+      if (kitchenPrintInFlight.current.has(o.id)) return;
+      kitchenPrintInFlight.current.add(o.id);
+      const newItems = o.items.slice(printedCount);
+      printKitchenTicketForOrder(o, newItems)
+        .then(() => updateDoc(doc(db, 'orders', o.id), { kitchenPrintedCount: o.items.length }))
+        .catch((err) => console.warn('Ticket cuisine : échec impression', err))
+        .finally(() => {
+          kitchenPrintInFlight.current.delete(o.id);
+        });
+    });
+  }, [orders, kitchenPrinterReady, unlocked]);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -2260,10 +2665,10 @@ export default function PosApp() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap p-1 rounded-full pos-surface border border-[#F3ECDD]/10">
-            {(['tables', 'live', 'kitchen', 'history', 'reports'] as Tab[]).map((t) => {
+            {(['tables', 'live', 'kitchen', 'history', 'reports', 'menu'] as Tab[]).map((t) => {
               const needsAttention = t === 'kitchen' && kitchenOrderCount > 0;
               const icon =
-                t === 'tables' ? '🪑' : t === 'live' ? '🧾' : t === 'kitchen' ? '🍳' : t === 'history' ? '📜' : '📊';
+                t === 'tables' ? '🪑' : t === 'live' ? '🧾' : t === 'kitchen' ? '🍳' : t === 'history' ? '📜' : t === 'reports' ? '📊' : '📋';
               return (
                 <button
                   key={t}
@@ -2286,7 +2691,9 @@ export default function PosApp() {
                     ? `Cuisine (${kitchenOrderCount})`
                     : t === 'history'
                     ? 'Historique'
-                    : 'Rapports'}
+                    : t === 'reports'
+                    ? 'Rapports'
+                    : 'Menu'}
                 </button>
               );
             })}
@@ -2392,10 +2799,25 @@ export default function PosApp() {
         )}
 
         {tab === 'kitchen' && (
-          kitchenByStation.length === 0 ? (
-            <p className="text-[#7A736C] text-center py-20">Rien à préparer.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <div className="flex items-center justify-end gap-2 mb-4">
+              {kitchenPrinterMsg && <span className="text-xs text-[#9A9490]">{kitchenPrinterMsg}</span>}
+              <button
+                onClick={handleConnectKitchenPrinter}
+                title="À cliquer une seule fois, sur l'appareil branché à l'imprimante cuisine -- pas sur le pc du comptoir"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                  kitchenPrinterReady
+                    ? 'border-[#8FBF8A]/40 text-[#8FBF8A]'
+                    : 'border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40'
+                }`}
+              >
+                🖨️ {kitchenPrinterReady ? 'Imprimante cuisine connectée' : 'Connecter l’imprimante cuisine'}
+              </button>
+            </div>
+            {kitchenByStation.length === 0 ? (
+              <p className="text-[#7A736C] text-center py-20">Rien à préparer.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {kitchenByStation.map(([station, stOrders]) => (
                 <div key={station} className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                   <h3 className="font-display font-black text-lg text-brand-orange mb-3">
@@ -2436,7 +2858,8 @@ export default function PosApp() {
                 </div>
               ))}
             </div>
-          )
+            )}
+          </div>
         )}
 
         {tab === 'history' && (
@@ -2711,12 +3134,107 @@ export default function PosApp() {
             </div>
           </div>
         )}
+
+        {tab === 'menu' && (
+          <div className="max-w-4xl mx-auto">
+            {!menuUnlocked ? (
+              <div className="text-center py-24">
+                <p className="text-2xl mb-2">🔒</p>
+                <p className="text-[#9A9490] mb-4">Le code manager est nécessaire pour ouvrir le menu.</p>
+                <button
+                  onClick={unlockMenu}
+                  className="px-5 py-2.5 rounded-xl bg-brand-orange text-[#1A1208] font-display font-black"
+                >
+                  Déverrouiller
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="pos-surface border border-brand-orange/25 rounded-xl p-3 mb-4 text-xs text-[#9A9490] leading-relaxed">
+                  ⚠️ Les changements ici (prix, nom, catégorie, station, actif) ne s'appliquent qu'à cet écran caisse.
+                  Le site de commande client garde les fiches complètes (3 langues, description, photo) du code tant
+                  qu'il n'est pas mis à jour séparément.
+                </div>
+                <div className="flex items-center gap-2 flex-wrap mb-4">
+                  <input
+                    value={menuSearch}
+                    onChange={(e) => setMenuSearch(e.target.value)}
+                    placeholder="Rechercher un article…"
+                    className="flex-1 min-w-[180px] bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
+                  />
+                  <select
+                    value={menuCategoryFilter}
+                    onChange={(e) => setMenuCategoryFilter(e.target.value)}
+                    className="bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2 text-[#F3ECDD]"
+                  >
+                    <option value="all">Toutes catégories</option>
+                    {initialCategories
+                      .filter((c) => c.id !== 'all')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name.fr}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    onClick={() => setCreatingMenuItem(true)}
+                    className="px-3.5 py-2 rounded-lg text-sm font-bold border border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 transition-all"
+                  >
+                    + Nouvel article
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {menuItems
+                    .filter((it) => menuCategoryFilter === 'all' || it.category === menuCategoryFilter)
+                    .filter((it) => !menuSearch.trim() || it.name.fr.toLowerCase().includes(menuSearch.trim().toLowerCase()))
+                    .map((it) => {
+                      const override = menuOverrides.get(it.id);
+                      const catLabel = initialCategories.find((c) => c.id === it.category)?.name.fr || it.category;
+                      return (
+                        <div
+                          key={it.id}
+                          className={`flex items-center justify-between gap-3 pos-surface border rounded-lg px-3.5 py-2.5 ${
+                            it.available === false ? 'border-red-500/30 opacity-60' : 'border-[#F3ECDD]/10'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-[#F3ECDD] truncate">
+                              {it.name.fr}
+                              {it.available === false && (
+                                <span className="ms-2 text-[10px] text-red-400 font-black uppercase align-middle">Épuisé</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-[#9A9490]">
+                              {catLabel} · {it.station === 'Bar' ? 'Bar' : 'Cuisine'}
+                              {override?.isCustom ? ' · ajouté ici' : override ? ' · modifié' : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-brand-orange font-black">{formatMAD(it.price)}</span>
+                            <button
+                              onClick={() => setEditingMenuItem(it)}
+                              className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+                            >
+                              ✏️ Modifier
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </main>
 
-      {showNewOrder && <NewOrderPanel onClose={() => setShowNewOrder(false)} onSubmit={submitNewOrder} />}
+      {showNewOrder && (
+        <NewOrderPanel menuItems={menuItems} onClose={() => setShowNewOrder(false)} onSubmit={submitNewOrder} />
+      )}
 
       {selectedTable && (
         <TablePanel
+          menuItems={menuItems}
           table={selectedTable}
           orders={tablesMap.get(selectedTable) || []}
           onClose={() => setSelectedTable(null)}
@@ -2765,6 +3283,38 @@ export default function PosApp() {
 
       {showZReport && (
         <ZReportModal stats={todayStats} closure={todayClosure} onClose={() => setShowZReport(false)} onConfirmClose={closeToday} />
+      )}
+
+      {editingMenuItem && (
+        <MenuItemEditModal
+          item={editingMenuItem}
+          isCustom={!!menuOverrides.get(editingMenuItem.id)?.isCustom}
+          onSave={(patch) => {
+            saveMenuOverride(editingMenuItem.id, patch);
+            setEditingMenuItem(null);
+          }}
+          onDelete={
+            menuOverrides.has(editingMenuItem.id)
+              ? () => {
+                  deleteMenuOverride(editingMenuItem.id);
+                  setEditingMenuItem(null);
+                }
+              : undefined
+          }
+          onClose={() => setEditingMenuItem(null)}
+        />
+      )}
+
+      {creatingMenuItem && (
+        <MenuItemEditModal
+          item={null}
+          isCustom={true}
+          onSave={(patch) => {
+            createMenuItem(patch);
+            setCreatingMenuItem(false);
+          }}
+          onClose={() => setCreatingMenuItem(false)}
+        />
       )}
 
       <p className="fixed bottom-1.5 right-3 text-[9px] text-[#4a423a] pointer-events-none select-none tracking-wide z-30">
