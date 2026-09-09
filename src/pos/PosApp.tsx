@@ -9,6 +9,7 @@ import {
   writeBatch,
   doc,
   addDoc,
+  setDoc,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
@@ -38,29 +39,48 @@ import { initialCategories } from '../firebase';
 // bankverbinding nodig, gewoon een verzamelpunt"). "Encaisser" / "Marquer
 // payé" only record cash-vs-carte for the team's own bookkeeping.
 //
-// Access: this URL has no real login, only a 4-digit PIN gate (like the
-// billiards cancel-PIN elsewhere on this site) so it isn't wide open to
-// anyone who finds the link. It is a UI deterrent, not security — Firestore
-// itself is reachable by anyone with the public web API key, same as the
-// rest of this project. Change POS_PIN below whenever staff turnover makes
-// sense.
+// Access: this URL has no real login, only a PIN gate (like the billiards
+// cancel-PIN elsewhere on this site) so it isn't wide open to anyone who
+// finds the link. It is a UI deterrent, not security — Firestore itself is
+// reachable by anyone with the public web API key, same as the rest of this
+// project.
+//
+// Chaque employé a son propre code (EMPLOYEES ci-dessous) au lieu d'un seul
+// code partagé : qui se connecte devient l'identité attachée aux commandes
+// comptoir qu'il crée et au déverrouillage après le verrouillage automatique
+// d'inactivité (voir IDLE_LOCK_MS plus bas) -- ce qui alimente le "omzet per
+// medewerker" du rapport Ventes. Ajoute/retire des employés ou change leur
+// code ici quand le personnel change.
 // ---------------------------------------------------------------------------
 
-const POS_PIN = '4271';
-const PIN_SESSION_KEY = 'domscafe_pos_unlocked';
-// Manager-PIN -- séparé du POS_PIN ci-dessus : celui-là ouvre l'écran pour
-// n'importe quel employé, celui-ci protège des actions sensibles une fois
-// dedans (annuler une commande déjà envoyée en cuisine, retirer un article
-// d'une commande en cours, appliquer une remise). Change-le indépendamment
-// du POS_PIN quand le turnover du personnel le justifie.
+interface Employee {
+  name: string;
+  pin: string;
+}
+const EMPLOYEES: Employee[] = [
+  { name: 'Amar', pin: '4271' },
+  { name: 'Employé 2', pin: '1234' },
+];
+const EMPLOYEE_SESSION_KEY = 'domscafe_pos_employee';
+// Manager-PIN -- séparé des codes employé ci-dessus : ceux-là ouvrent l'écran
+// et identifient qui travaille, celui-ci protège des actions sensibles une
+// fois dedans (annuler une commande déjà envoyée en cuisine, retirer un
+// article d'une commande en cours, appliquer une remise, clôturer le rapport
+// Z). Change-le indépendamment des codes employé quand le turnover du
+// personnel le justifie.
 const MANAGER_PIN = '7734';
+// Verrouillage automatique après ce délai d'inactivité -- "sessie-timeout" :
+// le code d'un employé (n'importe lequel de la liste, pas forcément celui
+// qui était connecté) redéverrouille l'écran sans perdre l'état de la page
+// (commandes, onglet ouvert...).
+const IDLE_LOCK_MS = 5 * 60 * 1000;
 const TABLE_COUNT = 25;
 const TABLE_NUMBERS = Array.from({ length: TABLE_COUNT }, (_, i) => String(i + 1));
 
 type OrderStatus = 'new' | 'preparing' | 'ready' | 'served' | 'cancelled';
 type OrderSource = 'site' | 'manual' | 'glovo';
 type OrderKind = 'dine_in' | 'takeaway' | 'delivery' | 'glovo';
-type PaymentMethod = 'cash' | 'card';
+type PaymentMethod = 'cash' | 'card' | 'mixed';
 
 interface OrderItem {
   name: string;
@@ -83,6 +103,14 @@ interface OrderDoc {
   orderType?: OrderKind;
   paid?: boolean;
   paymentMethod?: PaymentMethod;
+  // Rempli uniquement pour un paiement partagé (paymentMethod === 'mixed') --
+  // les deux montants doivent totaliser `total` au moment du paiement.
+  paymentSplit?: { cash: number; card: number };
+  // Employé qui a créé la commande depuis ce comptoir (Tables /
+  // Emporter-Livraison-Glovo) -- absent pour les commandes "source: site"
+  // puisque c'est le client qui les passe lui-même. Alimente le rapport
+  // "omzet per medewerker".
+  employeeName?: string;
   customerName?: string;
   address?: string;
   glovoRef?: string;
@@ -96,6 +124,21 @@ interface OrderDoc {
   // `total`) -- this field only exists so the receipt and order card can
   // show that a discount was applied, and how much.
   discount?: number;
+}
+
+// Un doc par jour civil clôturé (Rapport Z), clé = dateStr() ("YYYY-MM-DD").
+// Écrit une seule fois par jour via closeToday() ; sa seule présence signale
+// "journée clôturée" et fige les chiffres au moment de la clôture.
+interface DailyClosure {
+  date: string;
+  revenue: number;
+  cash: number;
+  card: number;
+  glovo: number;
+  unspecified: number;
+  orderCount: number;
+  closedAt: number;
+  closedByEmployee: string;
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -155,6 +198,107 @@ function kindLabel(order: OrderDoc): string {
   return order.customerName ? `À emporter — ${order.customerName}` : 'À emporter';
 }
 
+// Chiffre d'affaires, ventilé cash / carte / Glovo, pour un lot de commandes
+// donné -- utilisé aussi bien pour le Rapport (période choisie) que pour les
+// Rapports X/Z (toujours la journée civile en cours, quelle que soit la
+// période sélectionnée dans l'onglet Rapports). Les commandes Glovo vont
+// dans leur propre colonne quel que soit leur `paymentMethod` (Glovo paie le
+// resto par facture, pas en cash/carte au comptoir) ; un paiement partagé
+// (mixed) répartit son montant entre cash et carte via `paymentSplit`.
+function computeStats(rangeOrders: OrderDoc[]) {
+  const valid = rangeOrders.filter((o) => o.status !== 'cancelled');
+  const paid = valid.filter((o) => o.paid);
+  const revenue = paid.reduce((s, o) => s + o.total, 0);
+
+  let cash = 0;
+  let card = 0;
+  let glovo = 0;
+  let unspecified = 0;
+  paid.forEach((o) => {
+    if (kindOf(o) === 'glovo') {
+      glovo += o.total;
+    } else if (o.paymentMethod === 'cash') {
+      cash += o.total;
+    } else if (o.paymentMethod === 'card') {
+      card += o.total;
+    } else if (o.paymentMethod === 'mixed' && o.paymentSplit) {
+      cash += o.paymentSplit.cash;
+      card += o.paymentSplit.card;
+    } else {
+      unspecified += o.total;
+    }
+  });
+
+  const cancelledCount = rangeOrders.length - valid.length;
+  const unpaidCount = valid.filter((o) => !o.paid).length;
+
+  const byType: Record<OrderKind, { count: number; revenue: number }> = {
+    dine_in: { count: 0, revenue: 0 },
+    takeaway: { count: 0, revenue: 0 },
+    delivery: { count: 0, revenue: 0 },
+    glovo: { count: 0, revenue: 0 },
+  };
+  valid.forEach((o) => {
+    const k = kindOf(o);
+    byType[k].count++;
+    byType[k].revenue += o.total;
+  });
+
+  const itemMap = new Map<string, { qty: number; revenue: number }>();
+  valid.forEach((o) =>
+    o.items.forEach((it) => {
+      const cur = itemMap.get(it.name) || { qty: 0, revenue: 0 };
+      cur.qty += it.quantity;
+      cur.revenue += it.lineTotal;
+      itemMap.set(it.name, cur);
+    })
+  );
+  const topItems = Array.from(itemMap.entries())
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, 10);
+
+  // Omzet per medewerker -- "Site" regroupe les commandes du site client
+  // (jamais de caissier associé), "Inconnu" les vieilles commandes d'avant
+  // l'ajout du login par employé.
+  const employeeMap = new Map<string, { count: number; revenue: number }>();
+  paid.forEach((o) => {
+    const key = o.employeeName || (o.source === 'site' ? 'Site (en ligne)' : 'Inconnu');
+    const cur = employeeMap.get(key) || { count: 0, revenue: 0 };
+    cur.count++;
+    cur.revenue += o.total;
+    employeeMap.set(key, cur);
+  });
+  const byEmployee = Array.from(employeeMap.entries())
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Omzet per uur van de dag (0-23), toutes dates confondues dans la
+  // période -- sert à repérer les heures de pointe.
+  const hourly = Array.from({ length: 24 }, () => 0);
+  paid.forEach((o) => {
+    const t = o.createdAt?.toMillis();
+    if (!t) return;
+    hourly[new Date(t).getHours()] += o.total;
+  });
+
+  return {
+    revenue,
+    cash,
+    card,
+    glovo,
+    unspecified,
+    orderCount: valid.length,
+    avg: paid.length ? revenue / paid.length : 0,
+    unpaidCount,
+    cancelledCount,
+    byType,
+    topItems,
+    byEmployee,
+    hourly,
+  };
+}
+
 function minutesSince(ts?: Timestamp): number {
   if (!ts) return 0;
   return Math.max(0, Math.floor((Date.now() - ts.toMillis()) / 60000));
@@ -195,6 +339,18 @@ function playChime() {
 
 function formatMAD(n: number): string {
   return `${n.toFixed(0)} MAD`;
+}
+
+// Libellé du mode de paiement -- gère aussi "mixed" (paiement partagé
+// cash+carte), utilisé partout où le mode de paiement d'une commande est
+// affiché (carte commande, historique, reçu).
+function paymentMethodLabel(order: OrderDoc): string {
+  if (order.paymentMethod === 'cash') return 'cash';
+  if (order.paymentMethod === 'card') return 'carte';
+  if (order.paymentMethod === 'mixed' && order.paymentSplit) {
+    return `cash ${formatMAD(order.paymentSplit.cash)} / carte ${formatMAD(order.paymentSplit.card)}`;
+  }
+  return '—';
 }
 
 // ---------------------------------------------------------------------------
@@ -363,7 +519,7 @@ function printOrderReceipt(order: OrderDoc) {
       metaLines: meta,
       items: order.items,
       total: order.total,
-      paidLine: order.paid ? `Payé${order.paymentMethod ? ` (${order.paymentMethod === 'cash' ? 'cash' : 'carte'})` : ''}` : 'Non payé',
+      paidLine: order.paid ? `Payé${order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}` : 'Non payé',
       note: order.note,
     })
   );
@@ -387,14 +543,15 @@ function printTableReceipt(table: string, orders: OrderDoc[]) {
 
 // ---------------------------------------------------------------------------
 
-function PinGate({ onUnlock }: { onUnlock: () => void }) {
+function EmployeeLoginGate({ onLogin }: { onLogin: (employee: Employee) => void }) {
   const [value, setValue] = useState('');
   const [error, setError] = useState(false);
 
   const submit = () => {
-    if (value === POS_PIN) {
-      sessionStorage.setItem(PIN_SESSION_KEY, '1');
-      onUnlock();
+    const match = EMPLOYEES.find((e) => e.pin === value);
+    if (match) {
+      sessionStorage.setItem(EMPLOYEE_SESSION_KEY, JSON.stringify(match));
+      onLogin(match);
     } else {
       setError(true);
       setValue('');
@@ -429,6 +586,58 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
         </button>
       </div>
       <p className="text-[#5a5148] text-[10px] mt-6 tracking-wide">Développé par Amplify Growth Studio</p>
+    </div>
+  );
+}
+
+// Écran de verrouillage après inactivité (IDLE_LOCK_MS) -- overlay par-dessus
+// l'écran actuel (contrairement à EmployeeLoginGate qui remplace tout au
+// premier login) : l'état de la page (onglet ouvert, commandes...) reste
+// intact pendant le verrouillage, seul l'écran est masqué derrière.
+function IdleLockOverlay({ currentEmployee, onUnlock }: { currentEmployee: Employee | null; onUnlock: (employee: Employee) => void }) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState(false);
+
+  const submit = () => {
+    const match = EMPLOYEES.find((e) => e.pin === value);
+    if (match) {
+      sessionStorage.setItem(EMPLOYEE_SESSION_KEY, JSON.stringify(match));
+      onUnlock(match);
+    } else {
+      setError(true);
+      setValue('');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[90] flex flex-col items-center justify-center px-6 animate-fade-in">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-8 text-center animate-pop">
+        <p className="text-4xl mb-2">🔒</p>
+        <h1 className="font-display font-black text-2xl text-[#F3ECDD] mb-1 tracking-wide">Écran verrouillé</h1>
+        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-6">
+          {currentEmployee ? `Inactivité — code de ${currentEmployee.name} ou d'un collègue` : 'Code personnel pour continuer'}
+        </p>
+        <input
+          type="password"
+          inputMode="numeric"
+          autoFocus
+          value={value}
+          onChange={(e) => {
+            setError(false);
+            setValue(e.target.value.replace(/\D/g, ''));
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          className="w-full text-center tracking-[0.5em] text-2xl bg-black/30 border border-[#F3ECDD]/20 rounded-xl py-3 text-[#F3ECDD] focus:outline-none focus:border-brand-orange focus:shadow-[0_0_0_3px_rgba(201,161,90,0.25)] transition-all mb-3"
+          placeholder="••••"
+        />
+        {error && <p className="text-red-400 text-xs mb-3 animate-pop">Code incorrect.</p>}
+        <button
+          onClick={submit}
+          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all"
+        >
+          Déverrouiller
+        </button>
+      </div>
     </div>
   );
 }
@@ -488,35 +697,258 @@ function ManagerPinModal({ onResult }: { onResult: (ok: boolean) => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Rapports X et Z -- toujours basés sur la journée civile en cours (00h00 ->
+// maintenant), pas sur une session de caisse ouverte/fermée : le "kassa
+// tellen" (comptage du tiroir à l'ouverture/fermeture) reste hors scope pour
+// l'instant. Le rapport X est un instantané qui ne modifie rien et peut être
+// consulté à tout moment ; le rapport Z clôture la journée dans
+// dailyClosures/{date} après confirmation (code manager) et fige les
+// chiffres à cet instant.
+
+function buildReportReceiptHTML(opts: { title: string; lines: [string, string][]; footer?: string }): string {
+  const rows = opts.lines
+    .map(([label, value]) => `<div class="row"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`)
+    .join('');
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(opts.title)}</title>
+<style>
+  @page { margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; width: 74mm; margin: 0 auto; padding: 4px 0; }
+  h1 { font-size: 15px; text-align: center; margin: 0 0 2px; letter-spacing: 0.5px; }
+  .meta { text-align: center; font-size: 11px; margin-bottom: 8px; line-height: 1.5; }
+  .rule { border-top: 1px dashed #000; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 1.5px 0; }
+  .foot { text-align: center; margin-top: 12px; font-size: 11px; }
+</style>
+</head>
+<body>
+  <h1>DOM'S CAFÉ</h1>
+  <div class="meta">${escapeHtml(opts.title)}<br/>${escapeHtml(new Date().toLocaleString('fr-FR'))}</div>
+  <div class="rule"></div>
+  ${rows}
+  ${opts.footer ? `<div class="rule"></div><div class="foot">${escapeHtml(opts.footer)}</div>` : ''}
+</body>
+</html>`;
+}
+
+function XReportModal({ stats, onClose }: { stats: ReturnType<typeof computeStats>; onClose: () => void }) {
+  const print = () =>
+    printReceipt(
+      buildReportReceiptHTML({
+        title: 'RAPPORT X (en cours)',
+        lines: [
+          ['Chiffre d’affaires', formatMAD(stats.revenue)],
+          ['Cash', formatMAD(stats.cash)],
+          ['Carte', formatMAD(stats.card)],
+          ['Glovo', formatMAD(stats.glovo)],
+          ...(stats.unspecified > 0 ? ([['Non précisé', formatMAD(stats.unspecified)]] as [string, string][]) : []),
+          ['Commandes', String(stats.orderCount)],
+          ['Panier moyen', formatMAD(stats.avg)],
+        ],
+        footer: 'Aperçu -- ne clôture rien.',
+      })
+    );
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop">
+        <p className="text-2xl mb-1 text-center">📊</p>
+        <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1 text-center">Rapport X</h3>
+        <p className="text-[#9A9490] text-xs mb-5 text-center">
+          Aperçu de la journée en cours depuis 00h00 -- consultable à tout moment, ne réinitialise rien.
+        </p>
+        <div className="space-y-1.5 text-sm mb-5">
+          <div className="flex justify-between"><span className="text-[#9A9490]">Chiffre d'affaires</span><span className="font-bold text-brand-orange">{formatMAD(stats.revenue)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490]">💵 Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.cash)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490]">💳 Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.card)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490]">🛵 Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.glovo)}</span></div>
+          {stats.unspecified > 0 && (
+            <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.unspecified)}</span></div>
+          )}
+          <div className="flex justify-between pt-1.5 border-t border-[#F3ECDD]/10"><span className="text-[#9A9490]">Commandes</span><span className="font-bold text-[#F3ECDD]">{stats.orderCount}</span></div>
+        </div>
+        <button
+          onClick={print}
+          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all mb-2"
+        >
+          🖨️ Imprimer
+        </button>
+        <button onClick={onClose} className="w-full text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
+          Fermer
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ZReportModal({
+  stats,
+  closure,
+  onClose,
+  onConfirmClose,
+}: {
+  stats: ReturnType<typeof computeStats>;
+  closure: DailyClosure | null;
+  onClose: () => void;
+  onConfirmClose: () => void;
+}) {
+  const display = closure
+    ? { revenue: closure.revenue, cash: closure.cash, card: closure.card, glovo: closure.glovo, unspecified: closure.unspecified, orderCount: closure.orderCount }
+    : stats;
+
+  const print = () =>
+    printReceipt(
+      buildReportReceiptHTML({
+        title: closure ? 'RAPPORT Z (clôturé)' : 'RAPPORT Z',
+        lines: [
+          ['Chiffre d’affaires', formatMAD(display.revenue)],
+          ['Cash', formatMAD(display.cash)],
+          ['Carte', formatMAD(display.card)],
+          ['Glovo', formatMAD(display.glovo)],
+          ...(display.unspecified > 0 ? ([['Non précisé', formatMAD(display.unspecified)]] as [string, string][]) : []),
+          ['Commandes', String(display.orderCount)],
+        ],
+        footer: closure
+          ? `Clôturé le ${new Date(closure.closedAt).toLocaleString('fr-FR')} par ${closure.closedByEmployee}`
+          : undefined,
+      })
+    );
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop">
+        <p className="text-2xl mb-1 text-center">🔒</p>
+        <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1 text-center">Rapport Z -- clôture du jour</h3>
+        {closure ? (
+          <p className="text-[#8FBF8A] text-xs mb-5 text-center font-bold">
+            Journée déjà clôturée le {new Date(closure.closedAt).toLocaleString('fr-FR')} par {closure.closedByEmployee}.
+          </p>
+        ) : (
+          <p className="text-[#9A9490] text-xs mb-5 text-center">
+            Clôture la journée en cours et fige les chiffres ci-dessous. Nécessite le code manager. Cette action ne peut pas être annulée.
+          </p>
+        )}
+        <div className="space-y-1.5 text-sm mb-5">
+          <div className="flex justify-between"><span className="text-[#9A9490]">Chiffre d'affaires</span><span className="font-bold text-brand-orange">{formatMAD(display.revenue)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490]">💵 Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.cash)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490]">💳 Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.card)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490]">🛵 Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.glovo)}</span></div>
+          {display.unspecified > 0 && (
+            <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.unspecified)}</span></div>
+          )}
+          <div className="flex justify-between pt-1.5 border-t border-[#F3ECDD]/10"><span className="text-[#9A9490]">Commandes</span><span className="font-bold text-[#F3ECDD]">{display.orderCount}</span></div>
+        </div>
+        <button
+          onClick={print}
+          className="w-full bg-[#3a332b] hover:bg-[#463e34] active:scale-[0.98] text-[#F3ECDD] font-display font-black py-3 rounded-xl transition-all mb-2"
+        >
+          🖨️ Imprimer
+        </button>
+        {!closure && (
+          <button
+            onClick={onConfirmClose}
+            className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all mb-2"
+          >
+            Confirmer la clôture
+          </button>
+        )}
+        <button onClick={onClose} className="w-full text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
+          Fermer
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+type PaymentChoice = { method: 'cash' | 'card' } | { method: 'mixed'; cash: number; card: number };
 
 function PaymentMethodModal({
   label,
+  total,
   onChoose,
   onCancel,
 }: {
   label: string;
-  onChoose: (m: PaymentMethod) => void;
+  total: number;
+  onChoose: (payment: PaymentChoice) => void;
   onCancel: () => void;
 }) {
+  // "Paiement partagé" -- masqué par défaut derrière un lien, pour ne pas
+  // alourdir le cas courant (un seul mode, un seul tap). Une fois ouvert,
+  // le champ carte se déduit automatiquement du champ cash (et vice versa)
+  // pour toujours totaliser `total` sans calcul mental côté caissier.
+  const [splitting, setSplitting] = useState(false);
+  const [cashPart, setCashPart] = useState(total);
+
+  const cardPart = Math.max(0, Math.round((total - cashPart) * 100) / 100);
+  const splitValid = cashPart >= 0 && cashPart <= total;
+
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center px-4 animate-fade-in">
       <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 text-center animate-pop">
         <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1">{label}</h3>
-        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-5">Mode de paiement ?</p>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <button
-            onClick={() => onChoose('cash')}
-            className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all"
-          >
-            💵 Cash
-          </button>
-          <button
-            onClick={() => onChoose('card')}
-            className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all"
-          >
-            💳 Carte
-          </button>
-        </div>
+        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Mode de paiement ?</p>
+        <p className="font-display font-black text-2xl text-brand-orange mb-5">{formatMAD(total)}</p>
+
+        {!splitting ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <button
+                onClick={() => onChoose({ method: 'cash' })}
+                className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all"
+              >
+                💵 Cash
+              </button>
+              <button
+                onClick={() => onChoose({ method: 'card' })}
+                className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all"
+              >
+                💳 Carte
+              </button>
+            </div>
+            <button
+              onClick={() => setSplitting(true)}
+              className="text-[#9A9490] text-xs font-bold hover:text-[#F3ECDD] underline underline-offset-2 transition-colors mb-4"
+            >
+              Paiement partagé (cash + carte)
+            </button>
+          </>
+        ) : (
+          <div className="mb-4 text-start">
+            <label className="block text-[10px] font-bold text-[#7A736C] mb-1 uppercase tracking-wider">Cash (MAD)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={total}
+              step="0.01"
+              value={cashPart}
+              onChange={(e) => setCashPart(Math.max(0, Math.min(total, parseFloat(e.target.value) || 0)))}
+              className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 mb-3 text-base text-[#F3ECDD] focus:outline-none focus:border-brand-orange transition-shadow"
+            />
+            <label className="block text-[10px] font-bold text-[#7A736C] mb-1 uppercase tracking-wider">Carte (MAD) — calculé automatiquement</label>
+            <div className="w-full bg-black/20 border border-[#F3ECDD]/10 rounded-lg px-3 py-2.5 mb-4 text-base text-[#9A9490]">
+              {formatMAD(cardPart)}
+            </div>
+            <button
+              onClick={() => splitValid && onChoose({ method: 'mixed', cash: cashPart, card: cardPart })}
+              disabled={!splitValid}
+              className="w-full py-3.5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black shadow-lg shadow-brand-orange/20 transition-all mb-2"
+            >
+              Confirmer le paiement partagé
+            </button>
+            <button onClick={() => setSplitting(false)} className="text-[#9A9490] text-xs font-bold hover:text-[#F3ECDD] underline underline-offset-2 transition-colors mb-2">
+              Retour
+            </button>
+          </div>
+        )}
+
         <button onClick={onCancel} className="text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
           Annuler
         </button>
@@ -657,7 +1089,7 @@ function OrderCard({
               : 'bg-transparent text-[#9A9490] border-[#F3ECDD]/20 hover:border-[#F3ECDD]/40'
           }`}
         >
-          {order.paid ? `✓ Payé${order.paymentMethod ? ` (${order.paymentMethod === 'cash' ? 'cash' : 'carte'})` : ''}` : 'Marquer payé'}
+          {order.paid ? `✓ Payé${order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}` : 'Marquer payé'}
         </button>
       </div>
 
@@ -1217,17 +1649,28 @@ function TablePanel({
 
 type Tab = 'tables' | 'live' | 'kitchen' | 'history' | 'reports';
 type PayTarget = { kind: 'table'; table: string; orders: OrderDoc[] } | { kind: 'order'; order: OrderDoc };
-type ReportRange = 'today' | 'yesterday' | 'week' | 'month' | 'all';
+type ReportRange = 'today' | 'yesterday' | 'week' | 'month' | 'custom' | 'all';
 
 const RANGE_LABEL: Record<ReportRange, string> = {
   today: "Aujourd'hui",
   yesterday: 'Hier',
   week: '7 jours',
   month: '30 jours',
+  custom: 'Personnalisé',
   all: 'Tout',
 };
 
-function rangeStart(range: ReportRange): number {
+// "YYYY-MM-DD" en heure locale -- ce que rend <input type="date"> et ce dont
+// dailyClosures se sert comme clé de document (une clôture par jour civil).
+function dateStr(d: Date | number = Date.now()): string {
+  const dt = typeof d === 'number' ? new Date(d) : d;
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function rangeStart(range: ReportRange, customStart?: string): number {
   const d = new Date();
   if (range === 'all') return 0;
   if (range === 'today') {
@@ -1244,18 +1687,30 @@ function rangeStart(range: ReportRange): number {
     d.setHours(0, 0, 0, 0);
     return d.getTime();
   }
+  if (range === 'custom') {
+    if (!customStart) return 0;
+    const [y, m, day] = customStart.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, day || 1, 0, 0, 0, 0).getTime();
+  }
   // month
   d.setDate(d.getDate() - 29);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
 }
 
-function rangeEnd(range: ReportRange): number {
-  if (range !== 'yesterday') return Date.now();
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
+function rangeEnd(range: ReportRange, customEnd?: string): number {
+  if (range === 'yesterday') {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+  }
+  if (range === 'custom') {
+    if (!customEnd) return Date.now();
+    const [y, m, day] = customEnd.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, day || 1, 23, 59, 59, 999).getTime();
+  }
+  return Date.now();
 }
 
 function downloadCSV(filename: string, rows: (string | number)[][]) {
@@ -1273,11 +1728,42 @@ function downloadCSV(filename: string, rows: (string | number)[][]) {
   URL.revokeObjectURL(url);
 }
 
+function readStoredEmployee(): Employee | null {
+  try {
+    const raw = sessionStorage.getItem(EMPLOYEE_SESSION_KEY);
+    return raw ? (JSON.parse(raw) as Employee) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PosApp() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(PIN_SESSION_KEY) === '1');
+  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(() => readStoredEmployee());
+  const unlocked = currentEmployee !== null;
+  // Verrouillage d'inactivité -- séparé de `unlocked` : verrouiller ne
+  // déconnecte pas l'employé ni ne réinitialise la page, ça masque juste
+  // l'écran derrière IdleLockOverlay jusqu'à ce qu'un code valide soit tapé.
+  const [locked, setLocked] = useState(false);
+  const idleTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (!unlocked) return;
+    const resetIdleTimer = () => {
+      if (idleTimer.current) window.clearTimeout(idleTimer.current);
+      idleTimer.current = window.setTimeout(() => setLocked(true), IDLE_LOCK_MS);
+    };
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel'];
+    events.forEach((e) => window.addEventListener(e, resetIdleTimer));
+    resetIdleTimer();
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, resetIdleTimer));
+      if (idleTimer.current) window.clearTimeout(idleTimer.current);
+    };
+  }, [unlocked]);
   const [orders, setOrders] = useState<OrderDoc[]>([]);
   const [tab, setTab] = useState<Tab>('tables');
   const [reportRange, setReportRange] = useState<ReportRange>('today');
+  const [customStart, setCustomStart] = useState(dateStr());
+  const [customEnd, setCustomEnd] = useState(dateStr());
   const [historySearch, setHistorySearch] = useState('');
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
@@ -1307,6 +1793,44 @@ export default function PosApp() {
   const [managerAuthRequest, setManagerAuthRequest] = useState<{ resolve: (ok: boolean) => void } | null>(null);
   const requestManagerAuth = (): Promise<boolean> => new Promise((resolve) => setManagerAuthRequest({ resolve }));
   const knownIds = useRef<Set<string> | null>(null);
+
+  // Rapports X/Z -- pas de session de caisse (kassa tellen reste hors
+  // scope pour l'instant) : le Rapport Z clôture la journée civile en
+  // cours dans dailyClosures/{YYYY-MM-DD}, un doc par jour. Ce listener
+  // suit le doc du jour courant pour savoir si la journée est déjà
+  // clôturée (et afficher les chiffres figés au lieu de les recalculer).
+  const [todayClosure, setTodayClosure] = useState<DailyClosure | null>(null);
+  const [showXReport, setShowXReport] = useState(false);
+  const [showZReport, setShowZReport] = useState(false);
+  useEffect(() => {
+    if (!unlocked) return;
+    const unsub = onSnapshot(doc(db, 'dailyClosures', dateStr()), (snap) => {
+      setTodayClosure(snap.exists() ? (snap.data() as DailyClosure) : null);
+    });
+    return () => unsub();
+  }, [unlocked]);
+
+  const closeToday = async () => {
+    const ok = await requestManagerAuth();
+    if (!ok) return;
+    const stats = todayStats;
+    const payload: DailyClosure = {
+      date: dateStr(),
+      revenue: stats.revenue,
+      cash: stats.cash,
+      card: stats.card,
+      glovo: stats.glovo,
+      unspecified: stats.unspecified,
+      orderCount: stats.orderCount,
+      closedAt: Date.now(),
+      closedByEmployee: currentEmployee?.name || 'Inconnu',
+    };
+    try {
+      await setDoc(doc(db, 'dailyClosures', payload.date), payload);
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
 
   useEffect(() => {
     if (!unlocked) return;
@@ -1488,7 +2012,10 @@ export default function PosApp() {
   };
   const submitNewOrder = async (payload: any) => {
     try {
-      await addDoc(collection(db, 'orders'), payload);
+      await addDoc(collection(db, 'orders'), {
+        ...payload,
+        ...(currentEmployee ? { employeeName: currentEmployee.name } : {}),
+      });
     } catch (err) {
       reportWriteError(err);
     }
@@ -1503,12 +2030,13 @@ export default function PosApp() {
     }
   };
 
-  const choosePayment = (method: PaymentMethod) => {
+  const choosePayment = (payment: PaymentChoice) => {
     if (!payingTarget) return;
-    // Ouverture automatique du tiroir sur un paiement cash -- silencieuse en
-    // cas d'échec (pas d'alerte qui interrompt l'encaissement) : le bouton
-    // manuel ci-dessus reste la façon de diagnostiquer un souci matériel.
-    if (method === 'cash') {
+    // Ouverture automatique du tiroir si du cash entre en jeu (paiement cash
+    // complet ou partagé) -- silencieuse en cas d'échec (pas d'alerte qui
+    // interrompt l'encaissement) : le bouton manuel ci-dessus reste la façon
+    // de diagnostiquer un souci matériel.
+    if (payment.method === 'cash' || (payment.method === 'mixed' && payment.cash > 0)) {
       openCashDrawer().then((res) => {
         if (res.ok === false) console.warn('Ouverture auto du tiroir : ', res.message);
       });
@@ -1522,14 +2050,24 @@ export default function PosApp() {
     // werkend" POS can't do.
     const target = payingTarget;
     setPayingTarget(null);
+    const paymentFields = (orderTotal: number): Partial<OrderDoc> => {
+      if (payment.method !== 'mixed') return { paymentMethod: payment.method };
+      // Table avec plusieurs commandes -- répartit le split proportionnellement
+      // au poids de chaque commande dans l'addition totale, pour que le
+      // rapport cash/carte reste exact même si l'addition vient de plusieurs
+      // commandes fusionnées.
+      const billTotal = target.kind === 'table' ? target.orders.reduce((s, o) => s + o.total, 0) : orderTotal;
+      const cashShare = billTotal > 0 ? Math.round((payment.cash * orderTotal) / billTotal * 100) / 100 : 0;
+      return { paymentMethod: 'mixed', paymentSplit: { cash: cashShare, card: Math.max(0, Math.round((orderTotal - cashShare) * 100) / 100) } };
+    };
     const write =
       target.kind === 'table'
         ? Promise.all(
             target.orders.map((o) =>
-              updateDoc(doc(db, 'orders', o.id), { paid: true, status: 'served', paymentMethod: method })
+              updateDoc(doc(db, 'orders', o.id), { paid: true, status: 'served', ...paymentFields(o.total) })
             )
           )
-        : updateDoc(doc(db, 'orders', target.order.id), { paid: true, paymentMethod: method });
+        : updateDoc(doc(db, 'orders', target.order.id), { paid: true, ...paymentFields(target.order.total) });
     write.catch((err) => reportWriteError(err));
     if (target.kind === 'table' && selectedTable === target.table) {
       setSelectedTable(null);
@@ -1564,13 +2102,13 @@ export default function PosApp() {
   // so "look up an old order" and "what did we make that day" always agree
   // with each other instead of drifting apart with their own filters.
   const rangeOrders = useMemo(() => {
-    const start = rangeStart(reportRange);
-    const end = rangeEnd(reportRange);
+    const start = rangeStart(reportRange, customStart);
+    const end = rangeEnd(reportRange, customEnd);
     return orders.filter((o) => {
       const t = o.createdAt?.toMillis() || 0;
       return t >= start && t <= end;
     });
-  }, [orders, reportRange]);
+  }, [orders, reportRange, customStart, customEnd]);
 
   const historyOrders = useMemo(() => {
     const q = historySearch.trim().toLowerCase();
@@ -1592,55 +2130,21 @@ export default function PosApp() {
   // Dagomzet & co: revenue, payment split, order-type split and best-sellers
   // for whichever range is selected -- this is what makes past days
   // retrievable instead of only ever seeing "today".
-  const reportStats = useMemo(() => {
-    const valid = rangeOrders.filter((o) => o.status !== 'cancelled');
-    const paid = valid.filter((o) => o.paid);
-    const revenue = paid.reduce((s, o) => s + o.total, 0);
-    const cash = paid.filter((o) => o.paymentMethod === 'cash').reduce((s, o) => s + o.total, 0);
-    const card = paid.filter((o) => o.paymentMethod === 'card').reduce((s, o) => s + o.total, 0);
-    const unspecified = revenue - cash - card;
-    const cancelledCount = rangeOrders.length - valid.length;
-    const unpaidCount = valid.filter((o) => !o.paid).length;
+  const reportStats = useMemo(() => computeStats(rangeOrders), [rangeOrders]);
 
-    const byType: Record<OrderKind, { count: number; revenue: number }> = {
-      dine_in: { count: 0, revenue: 0 },
-      takeaway: { count: 0, revenue: 0 },
-      delivery: { count: 0, revenue: 0 },
-      glovo: { count: 0, revenue: 0 },
-    };
-    valid.forEach((o) => {
-      const k = kindOf(o);
-      byType[k].count++;
-      byType[k].revenue += o.total;
+  // Toujours la journée civile en cours, indépendamment de la période
+  // sélectionnée dans l'onglet Rapports -- c'est la base des Rapports X et Z
+  // ("l'omzet sinds de laatste kassa-opening" devient, sans compteur de
+  // caisse, "l'omzet depuis 00h00 aujourd'hui").
+  const todayOrders = useMemo(() => {
+    const start = rangeStart('today');
+    const end = rangeEnd('today');
+    return orders.filter((o) => {
+      const t = o.createdAt?.toMillis() || 0;
+      return t >= start && t <= end;
     });
-
-    const itemMap = new Map<string, { qty: number; revenue: number }>();
-    valid.forEach((o) =>
-      o.items.forEach((it) => {
-        const cur = itemMap.get(it.name) || { qty: 0, revenue: 0 };
-        cur.qty += it.quantity;
-        cur.revenue += it.lineTotal;
-        itemMap.set(it.name, cur);
-      })
-    );
-    const topItems = Array.from(itemMap.entries())
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 10);
-
-    return {
-      revenue,
-      cash,
-      card,
-      unspecified,
-      orderCount: valid.length,
-      avg: paid.length ? revenue / paid.length : 0,
-      unpaidCount,
-      cancelledCount,
-      byType,
-      topItems,
-    };
-  }, [rangeOrders]);
+  }, [orders]);
+  const todayStats = useMemo(() => computeStats(todayOrders), [todayOrders]);
 
   // Kitchen view: everything still to prepare (new/preparing), grouped by
   // station instead of by table/order, so the kitchen sees a prep list
@@ -1683,6 +2187,7 @@ export default function PosApp() {
           orderType: 'dine_in' as OrderKind,
           paid: false,
           createdAt: serverTimestamp(),
+          ...(currentEmployee ? { employeeName: currentEmployee.name } : {}),
         });
       }
     } catch (err) {
@@ -1690,7 +2195,7 @@ export default function PosApp() {
     }
   };
 
-  if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />;
+  if (!unlocked) return <EmployeeLoginGate onLogin={(e) => setCurrentEmployee(e)} />;
 
   return (
     <div className="min-h-screen bg-brand-dark text-[#F3ECDD]">
@@ -1719,7 +2224,7 @@ export default function PosApp() {
             <h1 className="font-display font-black text-xl leading-tight tracking-wide">DOM'S CAFÉ</h1>
             <p className="text-[#9A9490] text-xs flex items-center gap-1.5">
               <span className={`inline-block w-1.5 h-1.5 rounded-full ${connected ? 'bg-[#8FBF8A] animate-pulse-dot' : 'bg-[#7A736C]'}`} />
-              Écran commandes ·{' '}
+              {currentEmployee ? `${currentEmployee.name} ·` : 'Écran commandes ·'}{' '}
               {new Date(now).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
@@ -1937,8 +2442,8 @@ export default function PosApp() {
         {tab === 'history' && (
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-              <div className="flex gap-2 flex-wrap">
-                {(['today', 'yesterday', 'week', 'month', 'all'] as ReportRange[]).map((r) => (
+              <div className="flex gap-2 flex-wrap items-center">
+                {(['today', 'yesterday', 'week', 'month', 'custom', 'all'] as ReportRange[]).map((r) => (
                   <button
                     key={r}
                     onClick={() => setReportRange(r)}
@@ -1949,6 +2454,23 @@ export default function PosApp() {
                     {RANGE_LABEL[r]}
                   </button>
                 ))}
+                {reportRange === 'custom' && (
+                  <span className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      className="bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-2 py-1.5 text-sm text-[#F3ECDD] focus:outline-none focus:border-brand-orange"
+                    />
+                    <span className="text-[#7A736C] text-xs">→</span>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-2 py-1.5 text-sm text-[#F3ECDD] focus:outline-none focus:border-brand-orange"
+                    />
+                  </span>
+                )}
               </div>
               <button
                 onClick={wipeAllHistory}
@@ -1977,7 +2499,7 @@ export default function PosApp() {
                       </p>
                       <p className="text-xs text-[#9A9490]">
                         {o.createdAt?.toDate().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ·{' '}
-                        {o.status === 'cancelled' ? 'Annulé' : o.paid ? `Payé (${o.paymentMethod === 'cash' ? 'cash' : o.paymentMethod === 'card' ? 'carte' : '—'})` : 'Non payé'}
+                        {o.status === 'cancelled' ? 'Annulé' : o.paid ? `Payé (${paymentMethodLabel(o)})` : 'Non payé'}
                       </p>
                       {o.note && <p className="text-xs text-brand-orange font-medium mt-0.5">📝 {o.note}</p>}
                     </div>
@@ -2007,9 +2529,9 @@ export default function PosApp() {
 
         {tab === 'reports' && (
           <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-              <div className="flex gap-2 flex-wrap">
-                {(['today', 'yesterday', 'week', 'month', 'all'] as ReportRange[]).map((r) => (
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+              <div className="flex gap-2 flex-wrap items-center">
+                {(['today', 'yesterday', 'week', 'month', 'custom', 'all'] as ReportRange[]).map((r) => (
                   <button
                     key={r}
                     onClick={() => setReportRange(r)}
@@ -2020,17 +2542,35 @@ export default function PosApp() {
                     {RANGE_LABEL[r]}
                   </button>
                 ))}
+                {reportRange === 'custom' && (
+                  <span className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      className="bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-2 py-1.5 text-sm text-[#F3ECDD] focus:outline-none focus:border-brand-orange"
+                    />
+                    <span className="text-[#7A736C] text-xs">→</span>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-2 py-1.5 text-sm text-[#F3ECDD] focus:outline-none focus:border-brand-orange"
+                    />
+                  </span>
+                )}
               </div>
               <button
                 onClick={() =>
                   downloadCSV(`domscafe-rapport-${reportRange}.csv`, [
-                    ['Date', 'Type', 'Statut', 'Payé', 'Mode', 'Total (MAD)', 'Articles'],
+                    ['Date', 'Type', 'Statut', 'Payé', 'Mode', 'Employé', 'Total (MAD)', 'Articles'],
                     ...rangeOrders.map((o) => [
                       o.createdAt?.toDate().toLocaleString('fr-FR') || '',
                       kindLabel(o),
                       o.status || 'new',
                       o.paid ? 'oui' : 'non',
-                      o.paymentMethod || '',
+                      o.paid ? paymentMethodLabel(o) : '',
+                      o.employeeName || '',
                       o.total,
                       o.items.map((it) => `${it.quantity}x ${it.name}`).join(' | '),
                     ]),
@@ -2039,6 +2579,23 @@ export default function PosApp() {
                 className="px-3 py-1.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40"
               >
                 ⬇ Exporter en CSV
+              </button>
+            </div>
+
+            <div className="flex gap-2 flex-wrap mb-5">
+              <button
+                onClick={() => setShowXReport(true)}
+                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#F3ECDD] hover:border-brand-orange/60 transition-all"
+              >
+                📊 Rapport X
+              </button>
+              <button
+                onClick={() => setShowZReport(true)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+                  todayClosure ? 'border-[#8FBF8A]/40 text-[#8FBF8A]' : 'border-[#F3ECDD]/20 text-[#F3ECDD] hover:border-brand-orange/60'
+                }`}
+              >
+                🔒 Rapport Z{todayClosure ? ' (clôturé)' : ''}
               </button>
             </div>
 
@@ -2069,6 +2626,7 @@ export default function PosApp() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-[#9A9490]">💵 Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.cash)}</span></div>
                   <div className="flex justify-between"><span className="text-[#9A9490]">💳 Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.card)}</span></div>
+                  <div className="flex justify-between"><span className="text-[#9A9490]">🛵 Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.glovo)}</span></div>
                   {reportStats.unspecified > 0 && (
                     <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.unspecified)}</span></div>
                   )}
@@ -2107,6 +2665,50 @@ export default function PosApp() {
                 )}
               </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
+                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Chiffre d'affaires par employé</h3>
+                {reportStats.byEmployee.length === 0 ? (
+                  <p className="text-[#7A736C] text-sm">Aucune vente sur cette période.</p>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    {reportStats.byEmployee.map((e) => (
+                      <div key={e.name} className="flex justify-between items-center">
+                        <span className="text-[#E3DCCB]">{e.name} <span className="text-[#7A736C]">({e.count})</span></span>
+                        <span className="font-bold text-brand-orange">{formatMAD(e.revenue)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
+                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Chiffre d'affaires par heure</h3>
+                {reportStats.revenue === 0 ? (
+                  <p className="text-[#7A736C] text-sm">Aucune vente sur cette période.</p>
+                ) : (
+                  <div className="flex items-end gap-0.5 h-32">
+                    {reportStats.hourly.map((v, h) => {
+                      const max = Math.max(...reportStats.hourly, 1);
+                      return (
+                        <div key={h} className="flex-1 flex flex-col items-center justify-end h-full group relative" title={`${h}h : ${formatMAD(v)}`}>
+                          <div
+                            className={`w-full rounded-sm ${v > 0 ? 'bg-brand-orange' : 'bg-[#F3ECDD]/5'}`}
+                            style={{ height: `${v > 0 ? Math.max(4, (v / max) * 100) : 2}%` }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="flex justify-between text-[9px] text-[#7A736C] mt-1">
+                  <span>0h</span>
+                  <span>12h</span>
+                  <span>23h</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
@@ -2134,6 +2736,7 @@ export default function PosApp() {
       {payingTarget && (
         <PaymentMethodModal
           label={payingTarget.kind === 'table' ? `Table ${payingTarget.table}` : kindLabel(payingTarget.order)}
+          total={payingTarget.kind === 'table' ? payingTarget.orders.reduce((s, o) => s + o.total, 0) : payingTarget.order.total}
           onChoose={choosePayment}
           onCancel={() => setPayingTarget(null)}
         />
@@ -2146,6 +2749,22 @@ export default function PosApp() {
             setManagerAuthRequest(null);
           }}
         />
+      )}
+
+      {locked && (
+        <IdleLockOverlay
+          currentEmployee={currentEmployee}
+          onUnlock={(e) => {
+            setCurrentEmployee(e);
+            setLocked(false);
+          }}
+        />
+      )}
+
+      {showXReport && <XReportModal stats={todayStats} onClose={() => setShowXReport(false)} />}
+
+      {showZReport && (
+        <ZReportModal stats={todayStats} closure={todayClosure} onClose={() => setShowZReport(false)} onConfirmClose={closeToday} />
       )}
 
       <p className="fixed bottom-1.5 right-3 text-[9px] text-[#4a423a] pointer-events-none select-none tracking-wide z-30">
