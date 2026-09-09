@@ -401,6 +401,14 @@ function formatMAD(n: number): string {
   return `${n.toFixed(0)} MAD`;
 }
 
+// Format spécifique au reçu papier (virgule décimale + "DH", ex. "16,00 DH")
+// -- reproduit le format de l'ancienne caisse de Dom's, pour que le nouveau
+// reçu ait la même lecture pour l'équipe. Le reste de l'écran garde
+// formatMAD ("16 MAD") partout ailleurs.
+function formatReceiptPrice(n: number): string {
+  return `${n.toFixed(2).replace('.', ',')} DH`;
+}
+
 // Libellé du mode de paiement -- gère aussi "mixed" (paiement partagé
 // cash+carte), utilisé partout où le mode de paiement d'une commande est
 // affiché (carte commande, historique, reçu).
@@ -430,8 +438,20 @@ interface ReceiptLine {
   lineTotal: number;
 }
 
+// Coordonnées fixes de l'établissement, imprimées sur chaque reçu --
+// notamment l'ICE (identifiant fiscal marocain), qui doit être exact.
+// Change ici si l'adresse/numéro/ICE changent un jour.
+const RECEIPT_BUSINESS = {
+  name: "DOM'S",
+  addressLines: ['RUE JABAL AYACHI NR 26', '10090 RABAT'],
+  phone: '0537680631',
+  ice: '002504644000005',
+};
+
 function buildReceiptHTML(opts: {
-  metaLines: string[];
+  label: string;
+  employeeName?: string;
+  dateLine: string;
   items: ReceiptLine[];
   total: number;
   paidLine?: string;
@@ -440,7 +460,7 @@ function buildReceiptHTML(opts: {
   const itemRows = opts.items
     .map(
       (it) =>
-        `<div class="row"><span>${it.quantity}× ${escapeHtml(it.name)}</span><span>${formatMAD(it.lineTotal)}</span></div>`
+        `<div class="row"><span>${it.quantity} ${escapeHtml(it.name.toUpperCase())}</span><span>${formatReceiptPrice(it.lineTotal)}</span></div>`
     )
     .join('');
   return `<!doctype html>
@@ -451,26 +471,42 @@ function buildReceiptHTML(opts: {
 <style>
   @page { margin: 4mm; }
   * { box-sizing: border-box; }
-  body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; width: 74mm; margin: 0 auto; padding: 4px 0; }
-  h1 { font-size: 16px; text-align: center; margin: 0 0 2px; letter-spacing: 0.5px; }
-  .meta { text-align: center; font-size: 11px; margin-bottom: 8px; line-height: 1.5; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: bold; color: #000; width: 74mm; margin: 0 auto; padding: 4px 0; }
+  h1 { font-size: 24px; text-align: center; margin: 0 0 4px; letter-spacing: 1px; }
+  .addr { text-align: center; font-size: 12px; margin-bottom: 6px; line-height: 1.6; }
   .rule { border-top: 1px dashed #000; margin: 6px 0; }
-  .row { display: flex; justify-content: space-between; gap: 10px; padding: 1.5px 0; }
-  .total { font-weight: bold; font-size: 15px; margin-top: 2px; }
-  .note { border: 1px dashed #000; padding: 4px 6px; margin: 6px 0; font-weight: bold; }
-  .foot { text-align: center; margin-top: 12px; font-size: 11px; }
+  .label { font-size: 15px; }
+  .server { font-size: 12px; margin-top: 2px; }
+  .doctype { text-align: center; font-size: 12px; text-transform: uppercase; margin: 6px 0; }
+  .cols { display: flex; justify-content: space-between; font-size: 12px; border-bottom: 1px solid #000; padding-bottom: 3px; margin-bottom: 3px; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; font-size: 13px; }
+  .total-row { display: flex; justify-content: space-between; font-size: 18px; margin-top: 2px; }
+  .note { border: 1px dashed #000; padding: 4px 6px; margin: 6px 0; }
+  .date { text-align: center; font-size: 12px; margin-top: 8px; }
+  .foot { text-align: center; margin-top: 8px; font-size: 12px; }
 </style>
 </head>
 <body>
-  <h1>DOM'S CAFÉ</h1>
-  <div class="meta">${opts.metaLines.map(escapeHtml).join('<br/>')}</div>
+  <h1>${escapeHtml(RECEIPT_BUSINESS.name)}</h1>
+  <div class="addr">
+    ${RECEIPT_BUSINESS.addressLines.map(escapeHtml).join('<br/>')}<br/>
+    TEL ${escapeHtml(RECEIPT_BUSINESS.phone)}<br/>
+    ICE:${escapeHtml(RECEIPT_BUSINESS.ice)}
+  </div>
   <div class="rule"></div>
+  <div class="label">${escapeHtml(opts.label)}</div>
+  ${opts.employeeName ? `<div class="server">Servi par: ${escapeHtml(opts.employeeName.toUpperCase())}</div>` : ''}
+  <div class="rule"></div>
+  <div class="doctype">Document provisoire</div>
+  <div class="cols"><span>Qté Article</span><span>Prix total</span></div>
   ${itemRows}
   ${opts.note ? `<div class="note">📝 ${escapeHtml(opts.note)}</div>` : ''}
   <div class="rule"></div>
-  <div class="row total"><span>TOTAL</span><span>${formatMAD(opts.total)}</span></div>
+  <div class="total-row"><span>TOTAL</span><span>${formatReceiptPrice(opts.total)}</span></div>
   ${opts.paidLine ? `<div class="row"><span>Statut</span><span>${escapeHtml(opts.paidLine)}</span></div>` : ''}
-  <div class="foot">Merci de votre visite !</div>
+  <div class="rule"></div>
+  <div class="date">${escapeHtml(opts.dateLine)}</div>
+  <div class="foot">Merci de votre visite, à bientôt...</div>
 </body>
 </html>`;
 }
@@ -709,14 +745,17 @@ async function printKitchenTicketForOrder(order: OrderDoc, newItems: OrderItem[]
   }
 }
 
+function receiptDateLine(ms?: number): string {
+  const d = ms ? new Date(ms) : new Date();
+  return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 function printOrderReceipt(order: OrderDoc) {
-  const meta = [kindLabel(order)];
-  if (order.createdAt) {
-    meta.push(order.createdAt.toDate().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
-  }
   printReceipt(
     buildReceiptHTML({
-      metaLines: meta,
+      label: kindLabel(order),
+      employeeName: order.employeeName,
+      dateLine: receiptDateLine(order.createdAt?.toMillis()),
       items: order.items,
       total: order.total,
       paidLine: order.paid ? `Payé${order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}` : 'Non payé',
@@ -730,9 +769,15 @@ function printTableReceipt(table: string, orders: OrderDoc[]) {
   const total = orders.reduce((s, o) => s + o.total, 0);
   const allPaid = orders.length > 0 && orders.every((o) => o.paid);
   const notes = orders.map((o) => o.note).filter((n): n is string => !!n);
+  // Une table peut accumuler plusieurs commandes (ajouts successifs) avec
+  // des employés différents -- affiche le dernier employé à y avoir touché
+  // plutôt qu'un mélange, faute de mieux sans notion de "serveur de table".
+  const employeeName = orders.length > 0 ? orders[orders.length - 1].employeeName : undefined;
   printReceipt(
     buildReceiptHTML({
-      metaLines: [`Table ${table}`, new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
+      label: `Table ${table}`,
+      employeeName,
+      dateLine: receiptDateLine(),
       items,
       total,
       paidLine: allPaid ? 'Payé' : 'Non payé',
