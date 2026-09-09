@@ -828,7 +828,8 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Café noir", en: "Black Coffee", ar: "قهوة سوداء" },
     description: { fr: "Café noir riche et serré", en: "Rich bold black coffee", ar: "قهوة سوداء غنية ومركزة" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-cafe-americain',
@@ -836,7 +837,8 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Café américain", en: "Americano Coffee", ar: "قهوة أمريكية" },
     description: { fr: "Espresso allongé d'eau chaude", en: "Espresso diluted with hot water", ar: "إسبريسو مخفف بالماء الساخن" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-cafe-lait',
@@ -844,7 +846,8 @@ export const menuItems: MenuItem[] = [
     price: 18,
     name: { fr: "Café au lait", en: "Coffee with Milk", ar: "قهوة بالحليب" },
     description: { fr: "Café servi avec du lait chaud", en: "Classic coffee with steamed milk", ar: "قهوة كلاسيكية مع حليب ساخن" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-chocolat',
@@ -852,7 +855,8 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Chocolat chaud", en: "Hot Chocolate", ar: "شوكولاتة ساخنة" },
     description: { fr: "Chocolat au lait chaud crémeux", en: "Creamy cocoa with hot milk", ar: "شوكولاتة بالحليب الساخن الكريمي" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-nespresso',
@@ -860,7 +864,8 @@ export const menuItems: MenuItem[] = [
     price: 19,
     name: { fr: "Nespresso", en: "Nespresso", ar: "نسبريسو" },
     description: { fr: "Expresso Premium Nespresso", en: "Premium Nespresso espresso", ar: "إسبريسو ممتازة من نسبريسو" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-double-expresso',
@@ -868,7 +873,8 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Double expresso", en: "Double Espresso", ar: "إسبريسو مضاعف" },
     description: { fr: "Double dose d'expresso intense", en: "Double shot of rich espresso", ar: "جرعة مضاعفة من الإسبريسو" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-cappuccino',
@@ -877,7 +883,8 @@ export const menuItems: MenuItem[] = [
     name: { fr: "Cappuccino", en: "Cappuccino", ar: "كابوتشينو" },
     description: { fr: "Espresso avec mousse de lait crémeuse", en: "Espresso topped with creamy milk foam", ar: "إسبريسو مغطى برغوة الحليب" },
     image: "",
-    popular: true
+    popular: true,
+    station: "Bar"
   },
   {
     id: 'bc-frappuccino',
@@ -885,7 +892,8 @@ export const menuItems: MenuItem[] = [
     price: 26,
     name: { fr: "Frappuccino", en: "Frappuccino", ar: "فرابوتشينو" },
     description: { fr: "Café frappé glacé et crémeux", en: "Blended ice-cold creamy coffee", ar: "قهوة مثلجة ومخفوقة بالكريمة" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-mocaccino',
@@ -893,7 +901,8 @@ export const menuItems: MenuItem[] = [
     price: 26,
     name: { fr: "Mocaccino", en: "Mocaccino", ar: "موكاشينو" },
     description: { fr: "Mélange d'expresso, chocolat et lait chaud", en: "Espresso, hot chocolate and steamed milk", ar: "إسبريسو، شوكولاتة ساخنة وحليب" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-chocolat-ancienne',
@@ -901,7 +910,8 @@ export const menuItems: MenuItem[] = [
     price: 28,
     name: { fr: "Chocolat chaud à l'ancienne", en: "Old-school Hot Chocolate", ar: "شوكولاتة ساخنة تقليدية" },
     description: { fr: "Chocolat épais et onctueux à l'ancienne", en: "Thick traditional-style rich cocoa", ar: "شوكولاتة غليظة على الطريقة التقليدية" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-the-menthe',
@@ -909,7 +919,8 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Thé à la menthe", en: "Moroccan Mint Tea", ar: "شاي بالنعناع" },
     description: { fr: "Thé vert traditionnel à la menthe fraîche", en: "Traditional green tea with fresh mint", ar: "شاي أخضر تقليدي بالنعناع الطازج" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-verveine',
@@ -925,7 +936,8 @@ export const menuItems: MenuItem[] = [
     variants: [
       { id: 'eau', name: { fr: "Eau", en: "Water", ar: "ماء" }, price: 18 },
       { id: 'lait', name: { fr: "Lait", en: "Milk", ar: "حليب" }, price: 18 }
-    ]
+    ],
+    station: "Bar"
   },
   {
     id: 'bc-the-noir',
@@ -941,7 +953,8 @@ export const menuItems: MenuItem[] = [
     variants: [
       { id: 'eau', name: { fr: "Eau", en: "Water", ar: "ماء" }, price: 18 },
       { id: 'lait', name: { fr: "Lait", en: "Milk", ar: "حليب" }, price: 18 }
-    ]
+    ],
+    station: "Bar"
   },
   {
     id: 'bc-the-aromatise',
@@ -949,7 +962,8 @@ export const menuItems: MenuItem[] = [
     price: 20,
     name: { fr: "Thé aromatisé", en: "Flavored Tea", ar: "شاي معطر" },
     description: { fr: "Thé sélectionné parfumé aux fruits ou fleurs", en: "Fine teas flavored with fruits or flowers", ar: "شاي فاخر معطر بالفواكه أو الزهور" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-lait-froid',
@@ -957,7 +971,8 @@ export const menuItems: MenuItem[] = [
     price: 12,
     name: { fr: "Lait chaud", en: "Hot Milk", ar: "حليب ساخن" },
     description: { fr: "Lait chaud réconfortant", en: "Warm comforting milk", ar: "حليب ساخن دافئ" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'bc-lait-chaud',
@@ -965,7 +980,8 @@ export const menuItems: MenuItem[] = [
     price: 14,
     name: { fr: "Lait chaud", en: "Hot Milk", ar: "حليب ساخن" },
     description: { fr: "Lait chaud réconfortant", en: "Warm comforting milk", ar: "حليب ساخن دافئ" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
 
   // 15. Jus & Cocktails
@@ -979,7 +995,8 @@ export const menuItems: MenuItem[] = [
       en: "Lemon, orange, apple, banana, seasonal fruits",
       ar: "ليمون، برتقال، تفاح، موز، فواكه موسمية"
     },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-exotique',
@@ -991,7 +1008,8 @@ export const menuItems: MenuItem[] = [
       en: "Orange, kiwi, mango, pineapple",
       ar: "برتقال، كيوي، مانجو، أناناس"
     },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-amandine',
@@ -1004,7 +1022,8 @@ export const menuItems: MenuItem[] = [
       ar: "حليب، أفوكادو، لوز، جوز، زبيب"
     },
     image: "",
-    popular: true
+    popular: true,
+    station: "Bar"
   },
   {
     id: 'jc-pina',
@@ -1016,7 +1035,8 @@ export const menuItems: MenuItem[] = [
       en: "Pineapple, orange, vanilla, coconut milk, fresh pineapple, lemon",
       ar: "أناناس، برتقال، فانيليا، حليب جوز الهند، أناناس طازج، ليمون"
     },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-orange',
@@ -1024,7 +1044,8 @@ export const menuItems: MenuItem[] = [
     price: 22,
     name: { fr: "Orange", en: "Orange Juice", ar: "عصير برتقال" },
     description: { fr: "Jus d'orange frais pressé", en: "Freshly squeezed orange juice", ar: "عصير برتقال معصور طازج" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-citron',
@@ -1032,7 +1053,8 @@ export const menuItems: MenuItem[] = [
     price: 22,
     name: { fr: "Citron", en: "Lemon Juice", ar: "عصير ليمون" },
     description: { fr: "Jus de citron frais pressé", en: "Fresh squeezed lemon juice", ar: "عصير ليمون حامض طازج" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-carotte',
@@ -1040,7 +1062,8 @@ export const menuItems: MenuItem[] = [
     price: 22,
     name: { fr: "Carotte", en: "Carrot Juice", ar: "عصير جزر" },
     description: { fr: "Jus de carotte frais pressé", en: "Fresh squeezed carrot juice", ar: "عصير جزر مغذ طازج" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-banane',
@@ -1048,7 +1071,8 @@ export const menuItems: MenuItem[] = [
     price: 22,
     name: { fr: "Banane", en: "Banana Juice", ar: "عصير موز" },
     description: { fr: "Jus de banane onctueux préparé au lait", en: "Smooth banana milkshake", ar: "عصير موز مخفوق بالحليب" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-fraise',
@@ -1056,7 +1080,8 @@ export const menuItems: MenuItem[] = [
     price: 22,
     name: { fr: "Fraise", en: "Strawberry Juice", ar: "عصير فراولة" },
     description: { fr: "Jus de fraises fraîches pulpeux", en: "Fresh pulp strawberry juice", ar: "عصير فراولة طازج ومنعش" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-citron-ging',
@@ -1064,7 +1089,8 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Citron gingembre", en: "Lemon Ginger", ar: "ليمون وزنجبيل" },
     description: { fr: "Citron frais avec un zeste de gingembre", en: "Fresh lemon with zesty ginger boost", ar: "ليمون طازج مع لمسة زنجبيل منشطة" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-ananas',
@@ -1072,7 +1098,8 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Ananas", en: "Pineapple Juice", ar: "عصير أناناس" },
     description: { fr: "Jus d'ananas frais savoureux", en: "Sweet fresh pineapple juice", ar: "عصير أناناس طازج ولذيذ" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-avocat-lait',
@@ -1080,7 +1107,8 @@ export const menuItems: MenuItem[] = [
     price: 26,
     name: { fr: "Avocat au lait", en: "Avocado with Milk", ar: "أفوكادو بالحليب" },
     description: { fr: "Smoothie crémeux à l'avocat et au lait", en: "Creamy avocado smoothie with milk", ar: "أفوكادو كريمي مخفوق بالحليب" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-mangue',
@@ -1088,7 +1116,8 @@ export const menuItems: MenuItem[] = [
     price: 26,
     name: { fr: "Mangue", en: "Mango Juice", ar: "عصير مانجو" },
     description: { fr: "Jus de mangue onctueux et fruité", en: "Smooth pure exotic mango juice", ar: "عصير مانجو استوائي غني" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-panache',
@@ -1096,7 +1125,8 @@ export const menuItems: MenuItem[] = [
     price: 28,
     name: { fr: "Panaché", en: "Panaché", ar: "باناشي" },
     description: { fr: "Cocktail onctueux de fruits mélangés au lait", en: "Creamy mixed fruit juice with milk", ar: "كوكتيل فواكه مشكلة بالحليب" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-avocat-sec',
@@ -1104,7 +1134,8 @@ export const menuItems: MenuItem[] = [
     price: 32,
     name: { fr: "Avocat fruit sec", en: "Avocado with Dried Fruits", ar: "أفوكادو بالفواكه الجافة" },
     description: { fr: "Smoothie avocat garni de dattes, d'amandes et de noix", en: "Rich avocado smoothie with dates, almonds, walnuts", ar: "أفوكادو مغذ بالتمر واللوز والجوز" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-eau',
@@ -1112,7 +1143,8 @@ export const menuItems: MenuItem[] = [
     price: 10,
     name: { fr: "Eau minérale", en: "Mineral Water", ar: "مياه معدنية" },
     description: { fr: "Bouteille d'eau minérale de table", en: "Chilled table mineral water bottle", ar: "زجاجة مياه معدنية طبيعية" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-soda',
@@ -1120,7 +1152,8 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Soda", en: "Soda", ar: "صودا غازية" },
     description: { fr: "Canette de soda bien fraîche (Coca, Fanta, Sprite...)", en: "Ice-cold can of soda of choice", ar: "علبة مشروب غازي بارد" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-oulmes',
@@ -1128,7 +1161,8 @@ export const menuItems: MenuItem[] = [
     price: 12,
     name: { fr: "Oulmes", en: "Oulmès Sparkling", ar: "والماس" },
     description: { fr: "Eau minérale naturellement gazeuse", en: "Naturally carbonated sparkling water", ar: "مياه معدنية غازية طبيعية" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-mojito',
@@ -1136,7 +1170,8 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Mojito", en: "Virgin Mojito", ar: "موهيتو" },
     description: { fr: "Citron vert, menthe fraîche et eau gazeuse", en: "Virgin lime and mint carbonated refreshment", ar: "ليمون حامض، نعناع طازج ومياه غازية" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-iced-coffee',
@@ -1144,7 +1179,8 @@ export const menuItems: MenuItem[] = [
     price: 25,
     name: { fr: "Iced Coffee", en: "Iced Coffee", ar: "قهوة مثلجة" },
     description: { fr: "Café expresso glacé avec du lait et de la glace", en: "Chilled espresso served on ice with milk", ar: "إسبريسو بارد بالحليب والثلج" },
-    image: ""
+    image: "",
+    station: "Bar"
   },
   {
     id: 'jc-redbull',
