@@ -48,6 +48,12 @@ import { initialCategories } from '../firebase';
 
 const POS_PIN = '4271';
 const PIN_SESSION_KEY = 'domscafe_pos_unlocked';
+// Manager-PIN -- séparé du POS_PIN ci-dessus : celui-là ouvre l'écran pour
+// n'importe quel employé, celui-ci protège des actions sensibles une fois
+// dedans (annuler une commande déjà envoyée en cuisine, retirer un article
+// d'une commande en cours, appliquer une remise). Change-le indépendamment
+// du POS_PIN quand le turnover du personnel le justifie.
+const MANAGER_PIN = '7734';
 const TABLE_COUNT = 25;
 const TABLE_NUMBERS = Array.from({ length: TABLE_COUNT }, (_, i) => String(i + 1));
 
@@ -85,6 +91,11 @@ interface OrderDoc {
   // is displayed, including the kitchen view: this screen may end up
   // physically in the kitchen later, so a note has to survive that move.
   note?: string;
+  // Cumulative amount (MAD) deducted from `total` via applyDiscount() below.
+  // `total` itself already reflects the discount (reports/payment just read
+  // `total`) -- this field only exists so the receipt and order card can
+  // show that a discount was applied, and how much.
+  discount?: number;
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -275,6 +286,73 @@ function printReceipt(html: string) {
   }, 200);
 }
 
+// ---------------------------------------------------------------------------
+// Ouvrir le tiroir-caisse -- le tiroir est câblé sur la caisse enregistreuse
+// via le port RJ11/RJ12 de l'imprimante à reçus (pas un tiroir USB à part),
+// et s'ouvre en envoyant à l'imprimante la commande ESC/POS "cash drawer
+// kick" : ESC p 0 25 250. Confirmé avec Amar : l'imprimante est branchée en
+// USB sur le PC caisse, donc ce commando part via WebUSB, directement depuis
+// le navigateur.
+//
+// Deux limites réelles à connaître (WebUSB, pas spécifique à ce code) :
+//  1. Chrome et Edge uniquement -- Firefox et Safari n'implémentent pas
+//     WebUSB. Sur un PC Windows dédié à la caisse (comme ici), ce n'est
+//     normalement pas un problème.
+//  2. Windows attribue en général un pilote "USB Printing Support" à une
+//     imprimante à reçus USB -- c'est ce pilote que le bouton "🖨️ Imprimer"
+//     utilise déjà (impression via la boîte de dialogue du navigateur).
+//     WebUSB ne peut prendre le contrôle d'une interface que Windows n'a pas
+//     déjà accaparée : selon le modèle d'imprimante, ce bouton peut donc
+//     échouer avec un message "Accès refusé" tant que ce pilote est actif.
+//     La solution dans ce cas n'est pas de remplacer le pilote (ça casserait
+//     l'impression normale des reçus) mais un petit programme-pont local
+//     tournant sur ce PC -- à construire séparément si ce bouton échoue en
+//     pratique. Teste-le d'abord : beaucoup d'imprimantes à reçus exposent
+//     une interface USB générique que WebUSB peut utiliser sans conflit.
+const DRAWER_KICK = new Uint8Array([0x1b, 0x70, 0x00, 0x19, 0xfa]); // ESC p 0 25 250
+
+async function openCashDrawer(): Promise<{ ok: true } | { ok: false; message: string }> {
+  const usb: any = (navigator as any).usb;
+  if (!usb) {
+    return { ok: false, message: "WebUSB non supporté par ce navigateur (Chrome ou Edge requis)." };
+  }
+  try {
+    // Réutilise l'appareil déjà autorisé (un seul choix à faire au premier
+    // clic) ; sinon ouvre le sélecteur USB du navigateur.
+    let device = (await usb.getDevices())[0];
+    if (!device) {
+      device = await usb.requestDevice({ filters: [] });
+    }
+    await device.open();
+    if (device.configuration === null) await device.selectConfiguration(1);
+    // Cherche la première interface avec un endpoint bulk OUT -- fonctionne
+    // sans connaître à l'avance la marque/le modèle exact de l'imprimante.
+    let ifaceNumber: number | null = null;
+    let epOut: number | null = null;
+    outer: for (const conf of device.configurations) {
+      for (const iface of conf.interfaces) {
+        for (const alt of iface.alternates) {
+          const out = alt.endpoints.find((e: any) => e.direction === 'out');
+          if (out) {
+            ifaceNumber = iface.interfaceNumber;
+            epOut = out.endpointNumber;
+            break outer;
+          }
+        }
+      }
+    }
+    if (ifaceNumber === null || epOut === null) {
+      return { ok: false, message: 'Interface USB compatible introuvable sur cet appareil.' };
+    }
+    await device.claimInterface(ifaceNumber);
+    await device.transferOut(epOut, DRAWER_KICK);
+    await device.close();
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, message: err?.message || "Échec de l'ouverture du tiroir." };
+  }
+}
+
 function printOrderReceipt(order: OrderDoc) {
   const meta = [kindLabel(order)];
   if (order.createdAt) {
@@ -357,6 +435,60 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
 
 // ---------------------------------------------------------------------------
 
+// Manager-PIN invoerscherm -- kort schermpje dat vóór een gevoelige actie
+// verschijnt (order annuleren nadat hij al in de keuken staat, een artikel
+// uit een lopende order verwijderen, een korting toepassen). Zelfde
+// opmaak als PinGate hierboven, maar als overlay-modal in plaats van een
+// volledig scherm, en met een "Annuler" knop om de actie af te breken.
+function ManagerPinModal({ onResult }: { onResult: (ok: boolean) => void }) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState(false);
+
+  const submit = () => {
+    if (value === MANAGER_PIN) {
+      onResult(true);
+    } else {
+      setError(true);
+      setValue('');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
+      <div className="w-full max-w-xs pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 text-center animate-pop">
+        <p className="text-2xl mb-1">🔒</p>
+        <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1">Code manager requis</h3>
+        <p className="text-[#9A9490] text-xs mb-5">Cette action nécessite une autorisation.</p>
+        <input
+          type="password"
+          inputMode="numeric"
+          autoFocus
+          value={value}
+          onChange={(e) => {
+            setError(false);
+            setValue(e.target.value.replace(/\D/g, ''));
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          className="w-full text-center tracking-[0.5em] text-2xl bg-black/30 border border-[#F3ECDD]/20 rounded-xl py-3 text-[#F3ECDD] focus:outline-none focus:border-brand-orange focus:shadow-[0_0_0_3px_rgba(201,161,90,0.25)] transition-all mb-3"
+          placeholder="••••"
+        />
+        {error && <p className="text-red-400 text-xs mb-3 animate-pop">Code incorrect.</p>}
+        <button
+          onClick={submit}
+          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all mb-2"
+        >
+          Confirmer
+        </button>
+        <button onClick={() => onResult(false)} className="text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 function PaymentMethodModal({
   label,
   onChoose,
@@ -402,6 +534,8 @@ function OrderCard({
   onCancel,
   onDelete,
   onEditNote,
+  onRemoveItem,
+  onApplyDiscount,
 }: {
   order: OrderDoc;
   onAdvance: (order: OrderDoc) => void | Promise<void>;
@@ -409,6 +543,8 @@ function OrderCard({
   onCancel: (order: OrderDoc) => void | Promise<void>;
   onDelete: (order: OrderDoc) => void | Promise<void>;
   onEditNote: (order: OrderDoc) => void | Promise<void>;
+  onRemoveItem: (order: OrderDoc, index: number) => void | Promise<void>;
+  onApplyDiscount: (order: OrderDoc) => void | Promise<void>;
 }) {
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -444,6 +580,15 @@ function OrderCard({
             📝
           </button>
           <button
+            onClick={() => onApplyDiscount(order)}
+            title="Appliquer une remise (code manager)"
+            className={`text-sm w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+              order.discount ? 'text-brand-orange hover:text-brand-orange-hover hover:bg-brand-orange/10' : 'text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5'
+            }`}
+          >
+            🏷️
+          </button>
+          <button
             onClick={() => printOrderReceipt(order)}
             title="Imprimer le reçu"
             className="text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5 text-sm w-6 h-6 rounded-full flex items-center justify-center transition-colors"
@@ -476,15 +621,31 @@ function OrderCard({
 
       <div className="border-t border-[#F3ECDD]/10 pt-2 space-y-1">
         {order.items.map((it, idx) => (
-          <div key={idx} className="flex justify-between text-sm text-[#E3DCCB]">
+          <div key={idx} className="flex justify-between items-start gap-1.5 text-sm text-[#E3DCCB] group">
             <span>
               <span className="font-bold text-brand-orange">{it.quantity}×</span> {it.name}
               {it.note && <span className="block text-[11px] text-[#9A9490] italic">{it.note}</span>}
             </span>
-            <span className="text-[#9A9490] shrink-0 ps-2">{formatMAD(it.lineTotal)}</span>
+            <span className="flex items-center gap-1.5 shrink-0 ps-2">
+              <span className="text-[#9A9490]">{formatMAD(it.lineTotal)}</span>
+              <button
+                onClick={() => onRemoveItem(order, idx)}
+                title="Retirer cet article (code manager)"
+                className="text-[#5a5148] hover:text-red-400 text-xs w-4 h-4 rounded-full flex items-center justify-center transition-colors"
+              >
+                ×
+              </button>
+            </span>
           </div>
         ))}
       </div>
+
+      {!!order.discount && (
+        <div className="flex justify-between text-xs text-brand-orange font-bold -mt-1">
+          <span>🏷️ Remise appliquée</span>
+          <span>-{formatMAD(order.discount)}</span>
+        </div>
+      )}
 
       <div className="flex items-center justify-between border-t border-[#F3ECDD]/10 pt-2.5">
         <span className="font-display font-black text-brand-orange text-xl">{formatMAD(order.total)}</span>
@@ -589,6 +750,21 @@ function MenuGrid({
     window.setTimeout(() => setJustAdded((cur) => (cur === id ? null : cur)), 320);
   };
 
+  // "Montant libre" -- pour le rare cas qui n'a pas d'article dédié (un
+  // service ponctuel, un dépannage, un arrangement spécial). Deux prompts au
+  // lieu d'un mini-formulaire dédié : cohérent avec le reste de l'écran
+  // (editNote fait pareil) et largement suffisant pour un cas qui, par
+  // définition, "ne se présentera pas souvent".
+  const handleAddCustomAmount = () => {
+    const label = window.prompt('Description de cet article :', '');
+    if (label === null || !label.trim()) return;
+    const raw = window.prompt(`Montant pour « ${label.trim()} » (MAD) :`, '');
+    if (raw === null) return;
+    const price = parseFloat(raw.replace(',', '.'));
+    if (!isFinite(price) || price <= 0) return;
+    handleAdd(`custom-${Date.now()}`, label.trim(), price);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto flex min-h-0">
       {/* Category rail -- vertical, grouped, one line each. Replaces the old
@@ -639,12 +815,21 @@ function MenuGrid({
       </div>
 
       <div className="flex-1 p-5 overflow-y-auto min-w-0">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher un article…"
-          className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 mb-4 text-base text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange focus:shadow-[0_0_0_3px_rgba(201,161,90,0.2)] transition-shadow"
-        />
+        <div className="flex items-center gap-2.5 mb-4">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un article…"
+            className="flex-1 bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-base text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange focus:shadow-[0_0_0_3px_rgba(201,161,90,0.2)] transition-shadow"
+          />
+          <button
+            onClick={handleAddCustomAmount}
+            title="Ajouter un article avec un montant et une description libres"
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all whitespace-nowrap"
+          >
+            ➕ Montant libre
+          </button>
+        </div>
 
         <div className="grid grid-cols-2 gap-2.5">
           {items.map((it) => {
@@ -876,6 +1061,8 @@ function TablePanel({
   onCancelOrder,
   onDeleteOrder,
   onEditNote,
+  onRemoveItem,
+  onApplyDiscount,
 }: {
   table: string;
   orders: OrderDoc[];
@@ -886,6 +1073,8 @@ function TablePanel({
   onCancelOrder: (order: OrderDoc) => void | Promise<void>;
   onDeleteOrder: (order: OrderDoc) => void | Promise<void>;
   onEditNote: (order: OrderDoc) => void | Promise<void>;
+  onRemoveItem: (order: OrderDoc, index: number) => void | Promise<void>;
+  onApplyDiscount: (order: OrderDoc) => void | Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const { draft, addItem, changeQty, total, asOrderItems, reset } = useDraft();
@@ -939,6 +1128,13 @@ function TablePanel({
                       >
                         📝
                       </button>
+                      <button
+                        onClick={() => onApplyDiscount(o)}
+                        title="Appliquer une remise (code manager)"
+                        className={`text-[11px] font-bold transition-colors ${o.discount ? 'text-brand-orange hover:text-brand-orange-hover' : 'text-[#7A736C] hover:text-[#F3ECDD]'}`}
+                      >
+                        🏷️
+                      </button>
                       <button onClick={() => onDeleteOrder(o)} title="Supprimer définitivement (serveur inclus)" className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 transition-colors">
                         🗑️
                       </button>
@@ -951,13 +1147,28 @@ function TablePanel({
                     </div>
                   )}
                   {o.items.map((it, i) => (
-                    <div key={i} className="flex justify-between text-sm text-[#E3DCCB]">
+                    <div key={i} className="flex justify-between items-center gap-1.5 text-sm text-[#E3DCCB]">
                       <span>
                         <span className="font-bold text-brand-orange">{it.quantity}×</span> {it.name}
                       </span>
-                      <span className="text-[#9A9490]">{formatMAD(it.lineTotal)}</span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[#9A9490]">{formatMAD(it.lineTotal)}</span>
+                        <button
+                          onClick={() => onRemoveItem(o, i)}
+                          title="Retirer cet article (code manager)"
+                          className="text-[#5a5148] hover:text-red-400 text-xs w-4 h-4 rounded-full flex items-center justify-center transition-colors"
+                        >
+                          ×
+                        </button>
+                      </span>
                     </div>
                   ))}
+                  {!!o.discount && (
+                    <div className="flex justify-between text-xs text-brand-orange font-bold mt-1">
+                      <span>🏷️ Remise</span>
+                      <span>-{formatMAD(o.discount)}</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1079,6 +1290,22 @@ export default function PosApp() {
   // in" instead of a visible, diagnosable error).
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  // Offline-indicator state -- fromServer is false while the latest snapshot
+  // came only from the local IndexedDB cache (no live server round trip
+  // right now, i.e. "hors ligne" from Firestore's point of view even if
+  // navigator.onLine is technically true on a flaky connection).
+  // hasPendingWrites is true while this device has local changes (a new
+  // order, a status update...) that haven't been acknowledged by the server
+  // yet -- exactly the "wijzigingen die nog wachten op synchronisatie" the
+  // indicator needs to show.
+  const [fromServer, setFromServer] = useState(true);
+  const [hasPendingWrites, setHasPendingWrites] = useState(false);
+  // Manager-PIN gate -- a single pending-request slot is enough since only
+  // one sensitive action can be mid-confirmation at a time. resolve() is
+  // called with true/false by ManagerPinModal and awaited by
+  // requestManagerAuth() below.
+  const [managerAuthRequest, setManagerAuthRequest] = useState<{ resolve: (ok: boolean) => void } | null>(null);
+  const requestManagerAuth = (): Promise<boolean> => new Promise((resolve) => setManagerAuthRequest({ resolve }));
   const knownIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
@@ -1086,9 +1313,15 @@ export default function PosApp() {
     const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(
       q,
+      // includeMetadataChanges -- so the online/offline + "sync en attente"
+      // indicator updates the instant Firestore's own sync state changes,
+      // not just when the order data itself changes.
+      { includeMetadataChanges: true },
       (snap) => {
         setConnected(true);
         setConnectionError(null);
+        setFromServer(!snap.metadata.fromCache);
+        setHasPendingWrites(snap.metadata.hasPendingWrites);
         const list: OrderDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
 
         // First snapshot after mount just seeds the "seen" set — no chime for
@@ -1162,10 +1395,45 @@ export default function PosApp() {
       reportWriteError(err);
     }
   };
+  // Manager-PIN required -- une commande existe forcément déjà en cuisine
+  // dès qu'elle est créée (il n'y a pas d'étape séparée "envoyer en
+  // cuisine"), donc annuler ici veut toujours dire annuler après envoi.
   const cancel = async (order: OrderDoc) => {
+    if (!(await requestManagerAuth())) return;
     if (!window.confirm(`Annuler la commande (${kindLabel(order)}) ?`)) return;
     try {
       await updateDoc(doc(db, 'orders', order.id), { status: 'cancelled' });
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  // Manager-PIN required -- retire un seul article d'une commande déjà
+  // envoyée (pas le brouillon dans le panier avant envoi, qui reste libre).
+  const removeItemFromOrder = async (order: OrderDoc, index: number) => {
+    const removed = order.items[index];
+    if (!removed) return;
+    if (!(await requestManagerAuth())) return;
+    if (!window.confirm(`Retirer « ${removed.name} » de cette commande ?`)) return;
+    const items = order.items.filter((_, i) => i !== index);
+    const newTotal = Math.max(0, order.total - removed.lineTotal);
+    try {
+      await updateDoc(doc(db, 'orders', order.id), { items, total: newTotal });
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  // Manager-PIN required -- remise manuelle en MAD, déduite directement de
+  // `total` (les rapports et l'encaissement ne lisent que ce champ) ;
+  // `discount` garde la trace du montant cumulé pour l'affichage et le reçu.
+  const applyDiscount = async (order: OrderDoc) => {
+    if (!(await requestManagerAuth())) return;
+    const raw = window.prompt(`Remise à appliquer sur cette commande (total actuel : ${formatMAD(order.total)}) — montant en MAD :`, '');
+    if (raw === null) return;
+    const amount = parseFloat(raw.replace(',', '.'));
+    if (!isFinite(amount) || amount <= 0) return;
+    const newTotal = Math.max(0, order.total - amount);
+    try {
+      await updateDoc(doc(db, 'orders', order.id), { total: newTotal, discount: (order.discount || 0) + amount });
     } catch (err) {
       reportWriteError(err);
     }
@@ -1226,8 +1494,25 @@ export default function PosApp() {
     }
   };
 
+  // Bouton manuel -- affiche l'erreur si ça échoue (voir les deux limites
+  // WebUSB documentées au-dessus d'openCashDrawer).
+  const handleOpenDrawer = async () => {
+    const res = await openCashDrawer();
+    if (res.ok === false) {
+      window.alert(`Impossible d'ouvrir le tiroir : ${res.message}`);
+    }
+  };
+
   const choosePayment = (method: PaymentMethod) => {
     if (!payingTarget) return;
+    // Ouverture automatique du tiroir sur un paiement cash -- silencieuse en
+    // cas d'échec (pas d'alerte qui interrompt l'encaissement) : le bouton
+    // manuel ci-dessus reste la façon de diagnostiquer un souci matériel.
+    if (method === 'cash') {
+      openCashDrawer().then((res) => {
+        if (res.ok === false) console.warn('Ouverture auto du tiroir : ', res.message);
+      });
+    }
     // Close the modal immediately instead of waiting on the network round
     // trip -- Firestore's local cache already applies the change optimistically
     // for every listener (that's how the rest of this screen behaves too:
@@ -1438,6 +1723,35 @@ export default function PosApp() {
               {new Date(now).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
+          {/* Indicateur en ligne/hors ligne + synchronisation en attente --
+              "het kassascherm blijft werken als het internet uitvalt" : les
+              écritures continuent (cache local de Firestore, voir
+              firebase.ts), ce badge dit juste où on en est. hasPendingWrites
+              prime sur fromServer : même "en ligne", des changements locaux
+              pas encore confirmés par le serveur méritent le badge orange. */}
+          <span
+            title={
+              hasPendingWrites
+                ? "Des modifications locales attendent d'être synchronisées avec le serveur."
+                : fromServer
+                ? 'Connecté à Firestore.'
+                : "Hors ligne -- les actions faites ici restent enregistrées sur cet écran et se synchroniseront automatiquement au retour de la connexion."
+            }
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 ${
+              hasPendingWrites
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                : fromServer
+                ? 'bg-[#8FBF8A]/15 text-[#8FBF8A] border-[#8FBF8A]/40'
+                : 'bg-red-500/15 text-red-300 border-red-500/40'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                hasPendingWrites ? 'bg-amber-400 animate-pulse-dot' : fromServer ? 'bg-[#8FBF8A]' : 'bg-red-400'
+              }`}
+            />
+            {hasPendingWrites ? 'Synchronisation…' : fromServer ? 'En ligne' : 'Hors ligne'}
+          </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap p-1 rounded-full pos-surface border border-[#F3ECDD]/10">
@@ -1473,6 +1787,13 @@ export default function PosApp() {
             })}
           </div>
           <div className="w-px self-stretch bg-[#F3ECDD]/15 mx-0.5" />
+          <button
+            onClick={handleOpenDrawer}
+            title="Ouvrir le tiroir-caisse (commande envoyée à l'imprimante à reçus)"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+          >
+            🗄️ Ouvrir le tiroir
+          </button>
           <button
             onClick={() => setShowNewOrder(true)}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-black border border-brand-orange/40 bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.97] text-brand-orange transition-all shadow-sm shadow-black/20"
@@ -1559,7 +1880,7 @@ export default function PosApp() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {liveOrders.map((o) => (
-                <OrderCard key={o.id} order={o} onAdvance={advance} onTogglePaid={togglePaid} onCancel={cancel} onDelete={deleteOrder} onEditNote={editNote} />
+                <OrderCard key={o.id} order={o} onAdvance={advance} onTogglePaid={togglePaid} onCancel={cancel} onDelete={deleteOrder} onEditNote={editNote} onRemoveItem={removeItemFromOrder} onApplyDiscount={applyDiscount} />
               ))}
             </div>
           )
@@ -1805,6 +2126,8 @@ export default function PosApp() {
           onCancelOrder={cancel}
           onDeleteOrder={deleteOrder}
           onEditNote={editNote}
+          onRemoveItem={removeItemFromOrder}
+          onApplyDiscount={applyDiscount}
         />
       )}
 
@@ -1813,6 +2136,15 @@ export default function PosApp() {
           label={payingTarget.kind === 'table' ? `Table ${payingTarget.table}` : kindLabel(payingTarget.order)}
           onChoose={choosePayment}
           onCancel={() => setPayingTarget(null)}
+        />
+      )}
+
+      {managerAuthRequest && (
+        <ManagerPinModal
+          onResult={(ok) => {
+            managerAuthRequest.resolve(ok);
+            setManagerAuthRequest(null);
+          }}
         />
       )}
 

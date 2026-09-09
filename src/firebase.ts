@@ -1,14 +1,16 @@
 import { initializeApp } from "firebase/app";
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  setDoc, 
-  doc, 
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  collection,
+  addDoc,
+  setDoc,
+  doc,
   deleteDoc,
-  getDocs, 
-  onSnapshot, 
-  serverTimestamp 
+  getDocs,
+  onSnapshot,
+  serverTimestamp
 } from "firebase/firestore";
 import { menuItems, MenuItem } from "./data";
 
@@ -24,7 +26,16 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Offline persistence -- "kassascherm blijft werken als het internet
+// uitvalt": elke read/write gaat via een lokale IndexedDB-cache. Bestellingen
+// die offline aangemaakt of gewijzigd worden, blijven lokaal staan en
+// synchroniseren vanzelf zodra de verbinding terugkomt (Firestore's eigen
+// offline-queue, hier alleen ingeschakeld). persistentMultipleTabManager
+// zodat het ook werkt als de site en de kassa toevallig in twee tabbladen
+// tegelijk open staan op hetzelfde toestel.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 
 export interface RestaurantConfig {
   id: string;
