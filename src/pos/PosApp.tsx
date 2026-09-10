@@ -129,6 +129,13 @@ interface OrderDoc {
   // ajoutés depuis le dernier ticket au lieu de réimprimer toute
   // l'addition à chaque ajout sur une table déjà en cours.
   kitchenPrintedCount?: number;
+  // Le reçu caisse (bon client, window.print()) a-t-il déjà été envoyé à
+  // l'impression automatiquement ? Mis à `true` une seule fois, dès la
+  // création de la commande -- voir l'effet d'auto-impression du reçu plus
+  // bas, qui n'imprime chaque commande qu'une seule fois même si des
+  // articles y sont ajoutés ensuite (ces ajouts restent visibles au prochain
+  // "🖨️ Imprimer" manuel).
+  receiptPrinted?: boolean;
 }
 
 // Un override par article, clé = l'id de l'article dans data.ts pour un
@@ -661,6 +668,18 @@ type StationPrinter = (typeof STATION_PRINTERS)[number];
 function stationPrinterKey(station: string): string {
   return `domscafe_station_printer_${station}`;
 }
+
+// ---------------------------------------------------------------------------
+// Impression automatique du reçu caisse -- séparé des imprimantes bar/cuisine
+// ci-dessus : le reçu part via window.print() (boîte de dialogue Windows
+// normale, voir printReceipt), pas via WebUSB, donc pas de "connexion" à
+// faire. Mais SANS ce drapeau, activer l'auto-impression déclencherait aussi
+// la boîte de dialogue d'impression sur le pc bar/cuisine (qui tourne le
+// même écran caisse) à chaque nouvelle commande -- pas du tout ce qu'on veut.
+// D'où ce réglage par appareil (localStorage, comme les imprimantes de
+// station) : à activer une seule fois, sur le pc caisse uniquement, via le
+// bouton "🖨️ Reçu auto" dans l'en-tête.
+const KASSA_AUTO_PRINT_KEY = 'domscafe_kassa_auto_print';
 
 function stationPrinterLabel(station: string): string {
   return station === 'Bar' ? 'Bar' : 'Cuisine';
@@ -2517,6 +2536,19 @@ export default function PosApp() {
   const [stationPrinterMsg, setStationPrinterMsg] = useState<string | null>(null);
   const kitchenPrintInFlight = useRef<Set<string>>(new Set());
 
+  // Reçu caisse auto -- voir la note au-dessus de KASSA_AUTO_PRINT_KEY.
+  const [kassaAutoPrint, setKassaAutoPrint] = useState<boolean>(
+    () => localStorage.getItem(KASSA_AUTO_PRINT_KEY) === 'true'
+  );
+  const receiptPrintInFlight = useRef<Set<string>>(new Set());
+  const toggleKassaAutoPrint = () => {
+    setKassaAutoPrint((prev) => {
+      const next = !prev;
+      localStorage.setItem(KASSA_AUTO_PRINT_KEY, next ? 'true' : 'false');
+      return next;
+    });
+  };
+
   const refreshStationPrintersReady = async () => {
     const usb: any = (navigator as any).usb;
     if (!usb) return;
@@ -2579,6 +2611,28 @@ export default function PosApp() {
         });
     });
   }, [orders, anyStationPrinterReady, unlocked]);
+
+  // Reçu caisse auto -- même principe que l'effet cuisine/bar ci-dessus (une
+  // seule fois par commande, garde anti-doublon pendant l'impression), mais
+  // gardé par `kassaAutoPrint` (réglage par appareil) au lieu d'un statut de
+  // connexion WebUSB : ce bouton ouvre la boîte de dialogue d'impression du
+  // navigateur, la caissière n'a plus qu'à cliquer "Imprimer" dessus.
+  useEffect(() => {
+    if (!unlocked || !kassaAutoPrint) return;
+    orders.forEach((o) => {
+      if (o.status === 'cancelled') return;
+      if (o.receiptPrinted) return;
+      if (receiptPrintInFlight.current.has(o.id)) return;
+      receiptPrintInFlight.current.add(o.id);
+      try {
+        printOrderReceipt(o);
+      } finally {
+        updateDoc(doc(db, 'orders', o.id), { receiptPrinted: true })
+          .catch((err) => console.warn('Reçu auto : échec marquage imprimé', err))
+          .finally(() => receiptPrintInFlight.current.delete(o.id));
+      }
+    });
+  }, [orders, kassaAutoPrint, unlocked]);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -3062,6 +3116,21 @@ export default function PosApp() {
             className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
           >
             🗄️ Ouvrir le tiroir
+          </button>
+          <button
+            onClick={toggleKassaAutoPrint}
+            title={
+              kassaAutoPrint
+                ? "Reçu automatique activé sur CET appareil : chaque nouvelle commande ouvre la boîte d'impression. Clique pour désactiver."
+                : "À activer une seule fois, sur le pc caisse uniquement : chaque nouvelle commande ouvrira alors automatiquement la boîte d'impression du reçu."
+            }
+            className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border transition-all ${
+              kassaAutoPrint
+                ? 'border-[#8FBF8A]/50 text-[#8FBF8A] bg-[#8FBF8A]/10'
+                : 'border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40'
+            }`}
+          >
+            🖨️ Reçu auto {kassaAutoPrint ? 'activé' : 'désactivé'}
           </button>
           <button
             onClick={() => setShowNewOrder(true)}
