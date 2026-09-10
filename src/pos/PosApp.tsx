@@ -13,7 +13,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, uploadTvSlideImage } from '../firebase';
 import { menuItems as staticMenuItems, type MenuItem } from '../data';
 import { initialCategories } from '../firebase';
 
@@ -150,16 +150,20 @@ interface MenuOverride {
 // l'onglet "TV" ci-dessous et affiché en boucle sur tv.html -- écran promo
 // séparé, à ouvrir en plein écran sur la Smart TV de la salle (pas besoin de
 // boîtier supplémentaire, juste le navigateur déjà intégré à la TV).
-// Volontairement texte/prix seulement pour l'instant (pas encore de photos :
-// ça demanderait un système d'upload d'images séparé, à ajouter plus tard si
-// besoin) -- largement suffisant pour démarrer pendant que le menu change
-// encore. `order` détermine l'ordre d'affichage (plus petit = plus tôt) ;
-// `active` permet de préparer un slide sans encore le mettre en rotation.
+// `imageUrl` (Firebase Storage, voir uploadTvSlideImage dans firebase.ts) est
+// le mode d'affichage principal désormais -- quand il est présent, tv.html
+// affiche la photo plein cadre au lieu du gros titre texte (voir TvApp.tsx).
+// `title` reste obligatoire même pour un slide-photo : sert de nom interne
+// dans la liste ci-dessous et d'attribut alt de l'image, jamais affiché en
+// grand sur l'écran TV s'il y a une photo. `order` détermine l'ordre
+// d'affichage (plus petit = plus tôt) ; `active` permet de préparer un slide
+// sans encore le mettre en rotation.
 interface TvSlide {
   id: string;
   title: string;
   subtitle?: string;
   price?: number;
+  imageUrl?: string;
   order: number;
   active: boolean;
 }
@@ -1283,7 +1287,7 @@ function TvSlideEditModal({
   onClose,
 }: {
   slide: TvSlide | null;
-  onSave: (patch: { title: string; subtitle?: string; price?: number; active: boolean }) => void;
+  onSave: (patch: { title: string; subtitle?: string; price?: number; imageUrl?: string; active: boolean }) => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
@@ -1291,34 +1295,89 @@ function TvSlideEditModal({
   const [subtitle, setSubtitle] = useState(slide?.subtitle || '');
   const [price, setPrice] = useState(slide?.price !== undefined ? String(slide.price) : '');
   const [active, setActive] = useState(slide?.active !== false);
+  const [imageUrl, setImageUrl] = useState(slide?.imageUrl || '');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const priceTrim = price.trim();
   const priceNum = priceTrim ? parseFloat(priceTrim.replace(',', '.')) : undefined;
-  const valid = title.trim().length > 0 && (priceNum === undefined || isFinite(priceNum));
+  const valid = title.trim().length > 0 && (priceNum === undefined || isFinite(priceNum)) && !uploading;
 
   const submit = () => {
     if (!valid) return;
-    onSave({ title: title.trim(), subtitle: subtitle.trim() || undefined, price: priceNum, active });
+    onSave({
+      title: title.trim(),
+      subtitle: subtitle.trim() || undefined,
+      price: priceNum,
+      imageUrl: imageUrl || undefined,
+      active,
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permet de re-choisir le même fichier une deuxième fois
+    if (!file) return;
+    setUploading(true);
+    setUploadError('');
+    try {
+      const url = await uploadTvSlideImage(file);
+      setImageUrl(url);
+    } catch (err) {
+      console.error('TV slide image upload failed:', err);
+      setUploadError("Échec de l'envoi de la photo -- vérifie ta connexion et réessaie.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
-      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop max-h-[90vh] overflow-y-auto">
         <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-4 text-center">
           {slide ? 'Modifier le slide' : 'Nouveau slide'}
         </h3>
         <div className="space-y-3 mb-5">
+          {/* Photo -- mode d'affichage principal : si présente, tv.html
+              affiche l'image plein cadre au lieu du texte (voir TvApp.tsx). */}
+          <div>
+            {imageUrl ? (
+              <div className="relative rounded-lg overflow-hidden border border-[#F3ECDD]/15 mb-2">
+                <img src={imageUrl} alt="" className="w-full h-36 object-cover" />
+                <button
+                  onClick={() => setImageUrl('')}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-[#F3ECDD] text-sm font-bold flex items-center justify-center hover:bg-black/90 transition-all"
+                  title="Retirer la photo"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label
+                className={`flex flex-col items-center justify-center gap-1.5 w-full h-24 rounded-lg border border-dashed cursor-pointer transition-all ${
+                  uploading
+                    ? 'border-[#F3ECDD]/20 text-[#7A736C]'
+                    : 'border-[#F3ECDD]/25 text-[#9A9490] hover:border-brand-orange/50 hover:text-brand-orange'
+                }`}
+              >
+                <span className="text-xl">{uploading ? '⏳' : '📷'}</span>
+                <span className="text-xs font-bold">{uploading ? 'Envoi en cours…' : 'Ajouter une photo'}</span>
+                <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={handleFileChange} />
+              </label>
+            )}
+            {uploadError && <p className="text-xs text-red-400 mt-1.5">{uploadError}</p>}
+          </div>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titre (ex. Menu du midi)"
+            placeholder="Titre (nom interne, pas affiché si photo)"
             className={MENU_INPUT_CLASS}
-            autoFocus
+            autoFocus={!slide}
           />
           <input
             value={subtitle}
             onChange={(e) => setSubtitle(e.target.value)}
-            placeholder="Sous-titre (optionnel)"
+            placeholder="Sous-titre affiché en légende (optionnel)"
             className={MENU_INPUT_CLASS}
           />
           <input
@@ -1342,7 +1401,7 @@ function TvSlideEditModal({
           disabled={!valid}
           className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all mb-2"
         >
-          Enregistrer
+          {uploading ? 'Envoi de la photo…' : 'Enregistrer'}
         </button>
         {onDelete && (
           <button onClick={onDelete} className="w-full text-red-400/80 hover:text-red-400 text-sm font-bold py-2 mb-1 transition-colors">
@@ -2410,7 +2469,7 @@ export default function PosApp() {
     const ok = await requestManagerAuth();
     if (ok) setTvUnlocked(true);
   };
-  const createTvSlide = async (data: { title: string; subtitle?: string; price?: number; active: boolean }) => {
+  const createTvSlide = async (data: { title: string; subtitle?: string; price?: number; imageUrl?: string; active: boolean }) => {
     try {
       const maxOrder = tvSlides.reduce((m, s) => Math.max(m, s.order ?? 0), 0);
       await addDoc(collection(db, 'tvSlides'), { ...data, order: maxOrder + 1 });
@@ -3553,7 +3612,7 @@ export default function PosApp() {
                 <div className="pos-surface border border-brand-orange/25 rounded-xl p-3 mb-4 text-xs text-[#9A9490] leading-relaxed">
                   📺 Ces slides tournent en boucle sur <span className="font-bold text-[#F3ECDD]">/tv.html</span>, à ouvrir en plein
                   écran dans le navigateur de la Smart TV. Les changements ici apparaissent automatiquement sur l'écran, pas besoin
-                  de le rafraîchir manuellement. Pas encore de photos pour l'instant, texte et prix seulement.
+                  de le rafraîchir manuellement. Ajoute une photo à un slide pour qu'elle s'affiche plein cadre sur l'écran.
                 </div>
                 <div className="flex items-center justify-between gap-2 mb-4">
                   <p className="text-sm text-[#9A9490]">{tvSlides.length} slide{tvSlides.length !== 1 ? 's' : ''}</p>
@@ -3575,18 +3634,23 @@ export default function PosApp() {
                           s.active === false ? 'border-red-500/30 opacity-60' : 'border-[#F3ECDD]/10'
                         }`}
                       >
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-[#F3ECDD] truncate">
-                            {s.title}
-                            {s.active === false && <span className="ms-2 text-[10px] text-red-400 font-black uppercase align-middle">Pause</span>}
-                          </p>
-                          {(s.subtitle || s.price !== undefined) && (
-                            <p className="text-xs text-[#9A9490] truncate">
-                              {s.subtitle}
-                              {s.subtitle && s.price !== undefined ? ' · ' : ''}
-                              {s.price !== undefined ? formatMAD(s.price) : ''}
-                            </p>
+                        <div className="flex items-center gap-3 min-w-0">
+                          {s.imageUrl && (
+                            <img src={s.imageUrl} alt="" className="w-11 h-11 rounded-md object-cover shrink-0 border border-[#F3ECDD]/10" />
                           )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-[#F3ECDD] truncate">
+                              {s.title}
+                              {s.active === false && <span className="ms-2 text-[10px] text-red-400 font-black uppercase align-middle">Pause</span>}
+                            </p>
+                            {(s.subtitle || s.price !== undefined) && (
+                              <p className="text-xs text-[#9A9490] truncate">
+                                {s.subtitle}
+                                {s.subtitle && s.price !== undefined ? ' · ' : ''}
+                                {s.price !== undefined ? formatMAD(s.price) : ''}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button

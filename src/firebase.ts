@@ -12,6 +12,7 @@ import {
   onSnapshot,
   serverTimestamp
 } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { menuItems, MenuItem } from "./data";
 
 // Web app's Firebase configuration
@@ -36,6 +37,60 @@ const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
+
+// Firebase Storage -- utilisé uniquement pour les photos des slides de
+// l'écran TV (voir uploadTvSlideImage plus bas). Le reste de l'app (menu,
+// commandes) ne stocke que du texte/des prix dans Firestore, pas de fichiers.
+export const storage = getStorage(app);
+
+// Redimensionne côté navigateur avant l'upload -- une photo de téléphone fait
+// souvent 3 à 5 Mo à une résolution bien plus grande que ce qu'un écran de TV
+// peut afficher, ce qui ralentirait inutilement le chargement sur la Smart TV
+// (et l'upload lui-même sur un wifi de restaurant pas toujours rapide).
+// 1920px de large est largement suffisant pour un écran plein cadre, même 4K
+// (l'image est affichée en object-cover, pas en 1:1 pixel).
+function resizeImageForTv(file: File, maxWidth = 1920): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas context unavailable"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))),
+        "image/jpeg",
+        0.85
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Impossible de lire cette image"));
+    };
+    img.src = url;
+  });
+}
+
+// Upload une photo de slide TV vers Storage et renvoie son URL publique de
+// téléchargement, à stocker telle quelle dans le champ `imageUrl` du doc
+// Firestore (tvSlides ne contient jamais le fichier lui-même, juste ce lien).
+export async function uploadTvSlideImage(file: File): Promise<string> {
+  const blob = await resizeImageForTv(file);
+  const path = `tvSlides/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, blob, { contentType: "image/jpeg" });
+  return getDownloadURL(storageRef);
+}
 
 export interface RestaurantConfig {
   id: string;

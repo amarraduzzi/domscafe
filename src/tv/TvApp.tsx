@@ -30,6 +30,7 @@ interface TvSlide {
   title: string;
   subtitle?: string;
   price?: number;
+  imageUrl?: string;
   order?: number;
   active?: boolean;
 }
@@ -114,30 +115,64 @@ export default function TvApp() {
     []
   );
 
-  return (
-    <div className="fixed inset-0 overflow-hidden text-[#F3ECDD] font-sans select-none" style={background}>
-      <img src="/logo.webp" alt="" className="absolute top-10 left-1/2 -translate-x-1/2 h-16 w-auto object-contain opacity-90" />
+  const hasCaption = !!(current?.subtitle || current?.price !== undefined);
 
-      <div className="h-full w-full flex items-center justify-center px-16">
-        {current ? (
-          <div key={current.id} className="text-center max-w-5xl animate-fade-in">
-            <h1 className="font-display font-black leading-tight text-[clamp(2.5rem,7vw,6rem)] mb-6">{current.title}</h1>
-            {current.subtitle && (
-              <p className="text-[clamp(1.1rem,2.4vw,2rem)] text-[#D8CFC2] mb-8">{current.subtitle}</p>
-            )}
-            {current.price !== undefined && (
-              <span className="inline-block px-8 py-3 rounded-full bg-brand-orange text-[#1A1208] font-display font-black text-[clamp(1.5rem,3vw,2.75rem)] shadow-lg shadow-brand-orange/30">
-                {formatMAD(current.price)}
-              </span>
+  return (
+    <div className="fixed inset-0 overflow-hidden text-[#F3ECDD] font-sans select-none" style={current?.imageUrl ? undefined : background}>
+      {current?.imageUrl ? (
+        // Slide-photo : l'image remplit tout l'écran (voir uploadTvSlideImage
+        // dans firebase.ts pour le redimensionnement fait avant l'upload).
+        // Le titre du slide ne s'affiche jamais ici -- c'est juste son nom
+        // interne dans la liste de gestion côté caisse -- mais sous-titre et
+        // prix restent affichables en légende en bas, pour un slide du genre
+        // "photo de la pizza + son prix".
+        <>
+          <img
+            key={current.id}
+            src={current.imageUrl}
+            alt={current.title}
+            className="absolute inset-0 w-full h-full object-cover animate-fade-in"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30 pointer-events-none" />
+          <img src="/logo.webp" alt="" className="absolute top-10 left-1/2 -translate-x-1/2 h-14 w-auto object-contain opacity-90 drop-shadow" />
+          {hasCaption && (
+            <div className="absolute bottom-16 left-0 right-0 flex flex-col items-center gap-3 px-16 text-center animate-fade-in">
+              {current.subtitle && (
+                <p className="text-[clamp(1.1rem,2.6vw,2.1rem)] font-display font-bold drop-shadow-lg">{current.subtitle}</p>
+              )}
+              {current.price !== undefined && (
+                <span className="inline-block px-8 py-3 rounded-full bg-brand-orange text-[#1A1208] font-display font-black text-[clamp(1.5rem,3vw,2.75rem)] shadow-lg shadow-brand-orange/30">
+                  {formatMAD(current.price)}
+                </span>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <img src="/logo.webp" alt="" className="absolute top-10 left-1/2 -translate-x-1/2 h-16 w-auto object-contain opacity-90" />
+          <div className="h-full w-full flex items-center justify-center px-16">
+            {current ? (
+              <div key={current.id} className="text-center max-w-5xl animate-fade-in">
+                <h1 className="font-display font-black leading-tight text-[clamp(2.5rem,7vw,6rem)] mb-6">{current.title}</h1>
+                {current.subtitle && (
+                  <p className="text-[clamp(1.1rem,2.4vw,2rem)] text-[#D8CFC2] mb-8">{current.subtitle}</p>
+                )}
+                {current.price !== undefined && (
+                  <span className="inline-block px-8 py-3 rounded-full bg-brand-orange text-[#1A1208] font-display font-black text-[clamp(1.5rem,3vw,2.75rem)] shadow-lg shadow-brand-orange/30">
+                    {formatMAD(current.price)}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="text-center animate-fade-in">
+                <p className="font-display font-black text-[clamp(2rem,5vw,4rem)] mb-3">DOM'S CAFÉ</p>
+                <p className="text-[#9A9490] text-lg">Rue Jabal Ayachi, Rabat</p>
+              </div>
             )}
           </div>
-        ) : (
-          <div className="text-center animate-fade-in">
-            <p className="font-display font-black text-[clamp(2rem,5vw,4rem)] mb-3">DOM'S CAFÉ</p>
-            <p className="text-[#9A9490] text-lg">Rue Jabal Ayachi, Rabat</p>
-          </div>
-        )}
-      </div>
+        </>
+      )}
 
       {slides.length > 1 && (
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-2">
