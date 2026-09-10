@@ -16,6 +16,8 @@ import {
 import { db, uploadTvSlideImage } from '../firebase';
 import { menuItems as staticMenuItems, type MenuItem } from '../data';
 import { initialCategories } from '../firebase';
+import { pingPrinterBridge, printPdfViaBridge } from '../printerBridge';
+import { buildTicketPdfBase64, type TicketLine } from '../ticketPdf';
 
 // ---------------------------------------------------------------------------
 // Dom's Café — order hub / POS screen (domscafe.pages.dev/pos.html)
@@ -635,190 +637,55 @@ async function openCashDrawer(): Promise<{ ok: true } | { ok: false; message: st
 }
 
 // ---------------------------------------------------------------------------
-// Tickets Bar/Cuisine -- deux imprimantes distinctes, physiquement à la bar
-// et en cuisine, mais toutes les deux en USB sur LE MÊME pc (confirmé avec
-// Amar : 3 imprimantes en tout, une par poste -- comptoir/bar/cuisine --
-// toutes en USB, bar+cuisine sur un seul pc entre les deux stations). Même
-// approche WebUSB que le tiroir-caisse, mais avec DEUX permissions
-// distinctes sur ce même navigateur au lieu d'une seule : "Connecter" pour
-// Bar et pour Cuisine sont deux boutons séparés, chacun mémorisant à quel
-// appareil USB il correspond (STATION_PRINTER_KEY) pour le retrouver au
-// prochain chargement de la page sans redemander la permission.
+// Tickets Ticket/Bar/Cuisine -- 3 imprimantes, toutes déjà installées comme
+// imprimantes Windows normales sur le pc du comptoir (confirmé avec Amar :
+// une seule machine, "TICKET"/"BAR"/"CUISINE" apparaissent déjà dans la
+// liste "Destination" du dialogue d'impression Chrome). Ancienne approche
+// WebUSB abandonnée : Windows a déjà accaparé ces imprimantes avec son
+// propre pilote (comportement normal, documenté plus haut pour le tiroir),
+// donc `navigator.usb.requestDevice()` n'y voit jamais rien à choisir.
 //
-// Limite réelle à connaître : si les deux imprimantes sont exactement le
-// même modèle ET qu'il n'expose pas de numéro de série via USB (fréquent
-// sur les imprimantes à reçus bon marché), le navigateur ne peut pas les
-// distinguer de façon fiable après un rechargement de page -- elles
-// resteront bien connectées à DEUX appareils différents (jamais les deux
-// tickets sur une seule imprimante), mais laquelle est "Bar" et laquelle
-// est "Cuisine" peut s'inverser après un redémarrage du navigateur. D'où le
-// bouton "Test" à côté de chaque imprimante une fois connectée : à utiliser
-// après chaque redémarrage du pc/navigateur pour vérifier que le bon ticket
-// part au bon endroit, et reconnecter si besoin.
-//
-// Encodage volontairement simplifié : accents retirés (stripAccents) avant
-// envoi. Une imprimante ESC/POS a besoin qu'on lui dise quelle page de code
-// utiliser pour afficher les caractères accentués correctement, et ça varie
-// selon le modèle -- plutôt que de deviner et risquer des caractères
-// bizarres sur le ticket, le texte part en ASCII simple, toujours lisible
-// quel que soit le modèle exact.
-const STATION_PRINTERS = ['Bar', 'Kitchen'] as const;
-type StationPrinter = (typeof STATION_PRINTERS)[number];
+// Impression automatique et silencieuse (sans AUCUNE boîte de dialogue) via
+// le "pont d'impression" -- une petite extension Chrome installée une seule
+// fois sur ce pc (voir printer-bridge-extension/README.md et
+// src/printerBridge.ts) qui utilise chrome.printing, une API réservée aux
+// extensions, pour choisir précisément l'imprimante par son nom Windows et
+// lancer l'impression sans dialogue. Sans cette extension (pas encore
+// installée, désactivée...), tout retombe automatiquement sur l'ancien
+// comportement : le bouton "🖨️ Imprimer" manuel du reçu caisse continue de
+// fonctionner via window.print(), et les tickets bar/cuisine ne s'impriment
+// simplement pas tant que le pont n'est pas détecté (voir printerBridgeReady
+// plus bas) -- pas de dialogue intempestif sur cet écran partagé.
+const PRINTER_NAMES = { ticket: 'TICKET', bar: 'BAR', cuisine: 'CUISINE' } as const;
 
-function stationPrinterKey(station: string): string {
-  return `domscafe_station_printer_${station}`;
+function stationPrinterName(station: string): string {
+  return station === 'Bar' ? PRINTER_NAMES.bar : PRINTER_NAMES.cuisine;
 }
 
-// ---------------------------------------------------------------------------
-// Impression automatique du reçu caisse -- séparé des imprimantes bar/cuisine
-// ci-dessus : le reçu part via window.print() (boîte de dialogue Windows
-// normale, voir printReceipt), pas via WebUSB, donc pas de "connexion" à
-// faire. Mais SANS ce drapeau, activer l'auto-impression déclencherait aussi
-// la boîte de dialogue d'impression sur le pc bar/cuisine (qui tourne le
-// même écran caisse) à chaque nouvelle commande -- pas du tout ce qu'on veut.
-// D'où ce réglage par appareil (localStorage, comme les imprimantes de
-// station) : à activer une seule fois, sur le pc caisse uniquement, via le
-// bouton "🖨️ Reçu auto" dans l'en-tête.
-const KASSA_AUTO_PRINT_KEY = 'domscafe_kassa_auto_print';
-
-function stationPrinterLabel(station: string): string {
+function stationLabel(station: string): string {
   return station === 'Bar' ? 'Bar' : 'Cuisine';
 }
 
-function stripAccents(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
-
-function textToBytes(s: string): number[] {
-  return Array.from(stripAccents(s)).map((ch) => {
-    const code = ch.charCodeAt(0);
-    return code < 256 ? code : 0x3f; // '?' de secours pour le reste (emojis, arabe, ...)
-  });
-}
-
-function buildKitchenTicketBytes(opts: {
+function buildKitchenTicketLines(opts: {
   station: string;
   label: string;
   time: string;
   items: { quantity: number; name: string }[];
   note?: string;
-}): Uint8Array {
-  const ESC = 0x1b;
-  const GS = 0x1d;
-  const bytes: number[] = [];
-  const raw = (arr: number[]) => bytes.push(...arr);
-  const line = (s: string = '') => {
-    raw(textToBytes(s));
-    bytes.push(0x0a);
-  };
-  raw([ESC, 0x40]); // init
-  raw([ESC, 0x61, 0x01]); // centré
-  raw([GS, 0x21, 0x11]); // double hauteur/largeur
-  line(opts.station === 'Bar' ? 'BAR' : 'CUISINE');
-  raw([GS, 0x21, 0x00]); // taille normale
-  line('================================');
-  raw([ESC, 0x61, 0x00]); // aligné à gauche
-  raw([ESC, 0x45, 0x01]); // gras on
-  line(opts.label);
-  raw([ESC, 0x45, 0x00]); // gras off
-  line(opts.time);
-  line('--------------------------------');
-  raw([GS, 0x21, 0x11]);
-  opts.items.forEach((it) => line(`${it.quantity}x ${it.name}`));
-  raw([GS, 0x21, 0x00]);
+}): TicketLine[] {
+  const lines: TicketLine[] = [];
+  lines.push({ text: opts.station === 'Bar' ? 'BAR' : 'CUISINE', bold: true, size: 'large', align: 'center' });
+  lines.push({ text: '================================', align: 'center' });
+  lines.push({ text: opts.label, bold: true });
+  lines.push({ text: opts.time });
+  lines.push({ text: '--------------------------------' });
+  opts.items.forEach((it) => lines.push({ text: `${it.quantity}x ${it.name}`, size: 'large' }));
   if (opts.note) {
-    line('--------------------------------');
-    raw([ESC, 0x45, 0x01]);
-    line(`NOTE: ${opts.note}`);
-    raw([ESC, 0x45, 0x00]);
+    lines.push({ text: '--------------------------------' });
+    lines.push({ text: `NOTE: ${opts.note}`, bold: true });
   }
-  line('================================');
-  line();
-  line();
-  raw([GS, 0x56, 0x00]); // coupe complète
-  return new Uint8Array(bytes);
-}
-
-// Retrouve, parmi les appareils USB déjà autorisés sur ce navigateur, lequel
-// correspond à quelle station -- via l'empreinte (vendorId/productId/
-// serialNumber) mémorisée au moment du "Connecter". `claimed` empêche que
-// deux stations sans numéro de série et du même modèle ne pointent par
-// erreur vers le MÊME appareil physique : chaque device ne peut être
-// attribué qu'une fois par résolution, même si l'ordre exact peut varier
-// après un redémarrage (voir la note au-dessus).
-async function resolveStationPrinters(): Promise<Map<string, any>> {
-  const usb: any = (navigator as any).usb;
-  const result = new Map<string, any>();
-  if (!usb) return result;
-  const devices: any[] = await usb.getDevices();
-  const claimed = new Set<any>();
-  for (const station of STATION_PRINTERS) {
-    const raw = localStorage.getItem(stationPrinterKey(station));
-    if (!raw) continue;
-    let fp: { vendorId: number; productId: number; serialNumber: string | null };
-    try {
-      fp = JSON.parse(raw);
-    } catch {
-      continue;
-    }
-    const candidates = devices.filter((d) => d.vendorId === fp.vendorId && d.productId === fp.productId && !claimed.has(d));
-    const match = (fp.serialNumber ? candidates.find((d) => d.serialNumber === fp.serialNumber) : undefined) || candidates[0];
-    if (match) {
-      result.set(station, match);
-      claimed.add(match);
-    }
-  }
-  return result;
-}
-
-async function sendToStationPrinter(station: string, bytes: Uint8Array): Promise<{ ok: true } | { ok: false; message: string }> {
-  const usb: any = (navigator as any).usb;
-  if (!usb) return { ok: false, message: 'WebUSB non supporté par ce navigateur (Chrome ou Edge requis).' };
-  try {
-    const printers = await resolveStationPrinters();
-    const device = printers.get(station);
-    if (!device) return { ok: false, message: `Aucune imprimante ${stationPrinterLabel(station)} connectée sur cet appareil.` };
-    await device.open();
-    if (device.configuration === null) await device.selectConfiguration(1);
-    let ifaceNumber: number | null = null;
-    let epOut: number | null = null;
-    outer: for (const conf of device.configurations) {
-      for (const iface of conf.interfaces) {
-        for (const alt of iface.alternates) {
-          const out = alt.endpoints.find((e: any) => e.direction === 'out');
-          if (out) {
-            ifaceNumber = iface.interfaceNumber;
-            epOut = out.endpointNumber;
-            break outer;
-          }
-        }
-      }
-    }
-    if (ifaceNumber === null || epOut === null) {
-      return { ok: false, message: 'Interface USB compatible introuvable sur cet appareil.' };
-    }
-    await device.claimInterface(ifaceNumber);
-    await device.transferOut(epOut, bytes);
-    await device.close();
-    return { ok: true };
-  } catch (err: any) {
-    return { ok: false, message: err?.message || `Échec de l'impression sur l'imprimante ${stationPrinterLabel(station)}.` };
-  }
-}
-
-async function connectStationPrinter(station: string): Promise<{ ok: true } | { ok: false; message: string }> {
-  const usb: any = (navigator as any).usb;
-  if (!usb) return { ok: false, message: 'WebUSB non supporté par ce navigateur (Chrome ou Edge requis).' };
-  try {
-    const device = await usb.requestDevice({ filters: [] });
-    localStorage.setItem(
-      stationPrinterKey(station),
-      JSON.stringify({ vendorId: device.vendorId, productId: device.productId, serialNumber: device.serialNumber || null })
-    );
-    return { ok: true };
-  } catch (err: any) {
-    return { ok: false, message: err?.message || 'Connexion annulée.' };
-  }
+  lines.push({ text: '================================' });
+  return lines;
 }
 
 // N'imprime que les items passés (l'appelant se charge de ne passer que
@@ -837,8 +704,9 @@ async function printKitchenTicketForOrder(order: OrderDoc, newItems: OrderItem[]
     ? order.createdAt.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
     : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   for (const [station, its] of byStation) {
-    const bytes = buildKitchenTicketBytes({ station, label: kindLabel(order), time, items: its, note: order.note });
-    const res = await sendToStationPrinter(station, bytes);
+    const lines = buildKitchenTicketLines({ station, label: kindLabel(order), time, items: its, note: order.note });
+    const pdfBase64 = buildTicketPdfBase64(lines);
+    const res = await printPdfViaBridge(stationPrinterName(station), `Ticket ${stationLabel(station)}`, pdfBase64);
     if (res.ok === false) throw new Error(res.message);
   }
 }
@@ -848,21 +716,73 @@ function receiptDateLine(ms?: number): string {
   return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-function printOrderReceipt(order: OrderDoc) {
-  printReceipt(
-    buildReceiptHTML({
-      label: kindLabel(order),
-      employeeName: order.employeeName,
-      dateLine: receiptDateLine(order.createdAt?.toMillis()),
-      items: order.items,
-      total: order.total,
-      paidLine: order.paid ? `Payé${order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}` : 'Non payé',
-      note: order.note,
-    })
+// Version "lignes" du même reçu, pour le pont d'impression (PDF silencieux)
+// -- voir buildReceiptHTML ci-dessus pour l'équivalent HTML utilisé par le
+// repli window.print(). Les deux doivent rester équivalents en contenu.
+function buildReceiptTicketLines(opts: {
+  label: string;
+  employeeName?: string;
+  dateLine: string;
+  items: ReceiptLine[];
+  total: number;
+  paidLine?: string;
+  note?: string;
+}): TicketLine[] {
+  const lines: TicketLine[] = [];
+  lines.push({ text: RECEIPT_BUSINESS.name, bold: true, size: 'large', align: 'center' });
+  RECEIPT_BUSINESS.addressLines.forEach((l) => lines.push({ text: l, align: 'center', size: 'small' }));
+  lines.push({ text: `TEL ${RECEIPT_BUSINESS.phone}`, align: 'center', size: 'small' });
+  lines.push({ text: `ICE:${RECEIPT_BUSINESS.ice}`, align: 'center', size: 'small' });
+  lines.push({ text: '--------------------------------' });
+  lines.push({ text: opts.label, bold: true });
+  if (opts.employeeName) lines.push({ text: `Servi par: ${opts.employeeName.toUpperCase()}`, size: 'small' });
+  lines.push({ text: '--------------------------------' });
+  lines.push({ text: 'Document provisoire', align: 'center', size: 'small' });
+  opts.items.forEach((it) =>
+    lines.push({ text: `${it.quantity} ${it.name.toUpperCase()}  ${formatReceiptPrice(it.lineTotal)}` })
   );
+  if (opts.note) lines.push({ text: `NOTE: ${opts.note}`, bold: true });
+  lines.push({ text: '--------------------------------' });
+  lines.push({ text: `TOTAL  ${formatReceiptPrice(opts.total)}`, bold: true, size: 'large' });
+  if (opts.paidLine) lines.push({ text: `Statut: ${opts.paidLine}` });
+  lines.push({ text: '--------------------------------' });
+  lines.push({ text: opts.dateLine, align: 'center', size: 'small' });
+  lines.push({ text: 'Merci de votre visite, a bientot...', align: 'center', size: 'small' });
+  return lines;
 }
 
-function printTableReceipt(table: string, orders: OrderDoc[]) {
+// Essaie d'abord le pont d'impression silencieux (imprimante "TICKET",
+// aucun dialogue) ; retombe automatiquement sur l'ancien window.print() si
+// le pont n'est pas installé/disponible sur ce pc -- jamais d'échec sec.
+async function printReceiptSmart(opts: {
+  label: string;
+  employeeName?: string;
+  dateLine: string;
+  items: ReceiptLine[];
+  total: number;
+  paidLine?: string;
+  note?: string;
+}): Promise<void> {
+  const pdfBase64 = buildTicketPdfBase64(buildReceiptTicketLines(opts));
+  const res = await printPdfViaBridge(PRINTER_NAMES.ticket, 'Reçu caisse', pdfBase64);
+  if (res.ok === false) {
+    printReceipt(buildReceiptHTML(opts));
+  }
+}
+
+async function printOrderReceipt(order: OrderDoc): Promise<void> {
+  await printReceiptSmart({
+    label: kindLabel(order),
+    employeeName: order.employeeName,
+    dateLine: receiptDateLine(order.createdAt?.toMillis()),
+    items: order.items,
+    total: order.total,
+    paidLine: order.paid ? `Payé${order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}` : 'Non payé',
+    note: order.note,
+  });
+}
+
+async function printTableReceipt(table: string, orders: OrderDoc[]): Promise<void> {
   const items = orders.flatMap((o) => o.items);
   const total = orders.reduce((s, o) => s + o.total, 0);
   const allPaid = orders.length > 0 && orders.every((o) => o.paid);
@@ -871,17 +791,15 @@ function printTableReceipt(table: string, orders: OrderDoc[]) {
   // des employés différents -- affiche le dernier employé à y avoir touché
   // plutôt qu'un mélange, faute de mieux sans notion de "serveur de table".
   const employeeName = orders.length > 0 ? orders[orders.length - 1].employeeName : undefined;
-  printReceipt(
-    buildReceiptHTML({
-      label: `Table ${table}`,
-      employeeName,
-      dateLine: receiptDateLine(),
-      items,
-      total,
-      paidLine: allPaid ? 'Payé' : 'Non payé',
-      note: notes.length > 0 ? notes.join(' / ') : undefined,
-    })
-  );
+  await printReceiptSmart({
+    label: `Table ${table}`,
+    employeeName,
+    dateLine: receiptDateLine(),
+    items,
+    total,
+    paidLine: allPaid ? 'Payé' : 'Non payé',
+    note: notes.length > 0 ? notes.join(' / ') : undefined,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -2528,74 +2446,48 @@ export default function PosApp() {
     }
   };
 
-  // Imprimantes bar/cuisine -- voir la note au-dessus de printKitchenTicketForOrder.
-  // "Prête" seulement si CET appareil a lui-même déjà connecté cette station
-  // (fingerprint en localStorage), pas juste parce qu'il a une permission
-  // WebUSB pour un autre appareil (le tiroir-caisse, sur le pc du comptoir).
-  const [stationPrintersReady, setStationPrintersReady] = useState<Record<string, boolean>>({});
-  const [stationPrinterMsg, setStationPrinterMsg] = useState<string | null>(null);
+  // Pont d'impression -- voir la note au-dessus de PRINTER_NAMES et
+  // src/printerBridge.ts. Un simple ping suffit à savoir s'il est installé
+  // et actif sur ce pc, pas de "connexion"/permission à faire comme avec
+  // l'ancienne approche WebUSB : re-testé toutes les 10s tant que l'écran
+  // est déverrouillé, pour détecter automatiquement une extension tout
+  // juste installée/activée sans devoir recharger la page.
+  const [printerBridgeReady, setPrinterBridgeReady] = useState(false);
+  const [printerMsg, setPrinterMsg] = useState<string | null>(null);
   const kitchenPrintInFlight = useRef<Set<string>>(new Set());
-
-  // Reçu caisse auto -- voir la note au-dessus de KASSA_AUTO_PRINT_KEY.
-  const [kassaAutoPrint, setKassaAutoPrint] = useState<boolean>(
-    () => localStorage.getItem(KASSA_AUTO_PRINT_KEY) === 'true'
-  );
   const receiptPrintInFlight = useRef<Set<string>>(new Set());
-  const toggleKassaAutoPrint = () => {
-    setKassaAutoPrint((prev) => {
-      const next = !prev;
-      localStorage.setItem(KASSA_AUTO_PRINT_KEY, next ? 'true' : 'false');
-      return next;
-    });
-  };
-
-  const refreshStationPrintersReady = async () => {
-    const usb: any = (navigator as any).usb;
-    if (!usb) return;
-    const printers = await resolveStationPrinters();
-    const next: Record<string, boolean> = {};
-    STATION_PRINTERS.forEach((st) => {
-      next[st] = printers.has(st);
-    });
-    setStationPrintersReady(next);
-  };
 
   useEffect(() => {
     if (!unlocked) return;
-    refreshStationPrintersReady();
+    let cancelled = false;
+    const check = () => pingPrinterBridge().then((ok) => !cancelled && setPrinterBridgeReady(ok));
+    check();
+    const id = window.setInterval(check, 10000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, [unlocked]);
 
-  const handleConnectStationPrinter = async (station: string) => {
-    const res = await connectStationPrinter(station);
-    if (res.ok === false) {
-      setStationPrinterMsg(res.message);
-    } else {
-      setStationPrinterMsg(`Imprimante ${stationPrinterLabel(station)} connectée.`);
-    }
-    await refreshStationPrintersReady();
-    window.setTimeout(() => setStationPrinterMsg(null), 4000);
+  const handleTestPrinter = async (printerName: string, label: string) => {
+    const pdfBase64 = buildTicketPdfBase64([
+      { text: label.toUpperCase(), bold: true, size: 'large', align: 'center' },
+      { text: '================================', align: 'center' },
+      { text: `Ticket de test ${label}` },
+      { text: new Date().toLocaleString('fr-FR') },
+    ]);
+    const res = await printPdfViaBridge(printerName, `Test ${label}`, pdfBase64);
+    setPrinterMsg(res.ok === false ? res.message : `Test envoyé à l'imprimante ${label}.`);
+    window.setTimeout(() => setPrinterMsg(null), 4000);
   };
 
-  const handleTestStationPrinter = async (station: string) => {
-    const bytes = buildKitchenTicketBytes({
-      station,
-      label: 'TEST',
-      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      items: [{ name: `Ticket de test ${stationPrinterLabel(station)}`, quantity: 1 }],
-    });
-    const res = await sendToStationPrinter(station, bytes);
-    setStationPrinterMsg(res.ok === false ? res.message : `Test envoyé à l'imprimante ${stationPrinterLabel(station)}.`);
-    window.setTimeout(() => setStationPrinterMsg(null), 4000);
-  };
-
-  // Auto-print -- se déclenche à chaque changement de `orders` (donc à
-  // chaque snapshot Firestore), mais ne réimprime que les items pas encore
-  // couverts par kitchenPrintedCount, et kitchenPrintInFlight évite qu'un
-  // second snapshot arrivant pendant qu'un ticket est encore en train de
-  // s'imprimer ne déclenche une impression en double du même lot.
-  const anyStationPrinterReady = Object.values(stationPrintersReady).some(Boolean);
+  // Auto-print bar/cuisine -- se déclenche à chaque changement de `orders`
+  // (donc à chaque snapshot Firestore), mais ne réimprime que les items pas
+  // encore couverts par kitchenPrintedCount, et kitchenPrintInFlight évite
+  // qu'un second snapshot arrivant pendant qu'un ticket est encore en train
+  // de s'imprimer ne déclenche une impression en double du même lot.
   useEffect(() => {
-    if (!unlocked || !anyStationPrinterReady) return;
+    if (!unlocked || !printerBridgeReady) return;
     orders.forEach((o) => {
       if (o.status === 'cancelled') return;
       const printedCount = o.kitchenPrintedCount || 0;
@@ -2610,29 +2502,30 @@ export default function PosApp() {
           kitchenPrintInFlight.current.delete(o.id);
         });
     });
-  }, [orders, anyStationPrinterReady, unlocked]);
+  }, [orders, printerBridgeReady, unlocked]);
 
-  // Reçu caisse auto -- même principe que l'effet cuisine/bar ci-dessus (une
-  // seule fois par commande, garde anti-doublon pendant l'impression), mais
-  // gardé par `kassaAutoPrint` (réglage par appareil) au lieu d'un statut de
-  // connexion WebUSB : ce bouton ouvre la boîte de dialogue d'impression du
-  // navigateur, la caissière n'a plus qu'à cliquer "Imprimer" dessus.
+  // Reçu caisse auto -- même principe, une seule fois par commande (drapeau
+  // receiptPrinted, jamais réémis même si des articles sont ajoutés ensuite
+  // -- le bouton "🖨️ Imprimer" manuel reste là pour un reçu à jour). Gardé
+  // par `printerBridgeReady` : tant que le pont n'est pas détecté, cette
+  // commande unique tourne sur un seul pc, donc pas de risque de déclencher
+  // une impression ailleurs -- mais sans le pont, ouvrir une boîte de
+  // dialogue toute seule à chaque commande serait quand même intrusif, donc
+  // on attend explicitement que le pont soit prêt avant d'imprimer sans
+  // bouton.
   useEffect(() => {
-    if (!unlocked || !kassaAutoPrint) return;
+    if (!unlocked || !printerBridgeReady) return;
     orders.forEach((o) => {
       if (o.status === 'cancelled') return;
       if (o.receiptPrinted) return;
       if (receiptPrintInFlight.current.has(o.id)) return;
       receiptPrintInFlight.current.add(o.id);
-      try {
-        printOrderReceipt(o);
-      } finally {
-        updateDoc(doc(db, 'orders', o.id), { receiptPrinted: true })
-          .catch((err) => console.warn('Reçu auto : échec marquage imprimé', err))
-          .finally(() => receiptPrintInFlight.current.delete(o.id));
-      }
+      printOrderReceipt(o)
+        .then(() => updateDoc(doc(db, 'orders', o.id), { receiptPrinted: true }))
+        .catch((err) => console.warn('Reçu auto : échec impression', err))
+        .finally(() => receiptPrintInFlight.current.delete(o.id));
     });
-  }, [orders, kassaAutoPrint, unlocked]);
+  }, [orders, printerBridgeReady, unlocked]);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -3117,21 +3010,20 @@ export default function PosApp() {
           >
             🗄️ Ouvrir le tiroir
           </button>
-          <button
-            onClick={toggleKassaAutoPrint}
+          <span
             title={
-              kassaAutoPrint
-                ? "Reçu automatique activé sur CET appareil : chaque nouvelle commande ouvre la boîte d'impression. Clique pour désactiver."
-                : "À activer une seule fois, sur le pc caisse uniquement : chaque nouvelle commande ouvrira alors automatiquement la boîte d'impression du reçu."
+              printerBridgeReady
+                ? 'Pont d\'impression détecté : Ticket/Bar/Cuisine impriment automatiquement, sans aucun clic.'
+                : "Pont d'impression non détecté sur ce pc -- voir l'onglet Cuisine pour l'installer (une seule fois). En attendant, le reçu caisse reste imprimable via le bouton \"🖨️ Imprimer\"."
             }
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border transition-all ${
-              kassaAutoPrint
+            className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border ${
+              printerBridgeReady
                 ? 'border-[#8FBF8A]/50 text-[#8FBF8A] bg-[#8FBF8A]/10'
-                : 'border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40'
+                : 'border-red-500/40 text-red-400 bg-red-500/10'
             }`}
           >
-            🖨️ Reçu auto {kassaAutoPrint ? 'activé' : 'désactivé'}
-          </button>
+            🖨️ Impression auto {printerBridgeReady ? 'active' : 'inactive'}
+          </span>
           <button
             onClick={() => setShowNewOrder(true)}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-black border border-brand-orange/40 bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.97] text-brand-orange transition-all shadow-sm shadow-black/20"
@@ -3227,30 +3119,30 @@ export default function PosApp() {
         {tab === 'kitchen' && (
           <div>
             <div className="flex items-center justify-end gap-2 mb-4 flex-wrap">
-              {stationPrinterMsg && <span className="text-xs text-[#9A9490]">{stationPrinterMsg}</span>}
-              {STATION_PRINTERS.map((station) => (
-                <div key={station} className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleConnectStationPrinter(station)}
-                    title={`À cliquer une seule fois, sur l'appareil branché à l'imprimante ${stationPrinterLabel(station)}`}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                      stationPrintersReady[station]
-                        ? 'border-[#8FBF8A]/40 text-[#8FBF8A]'
-                        : 'border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40'
-                    }`}
-                  >
-                    🖨️ {stationPrintersReady[station] ? `Imprimante ${stationPrinterLabel(station)} connectée` : `Connecter l'imprimante ${stationPrinterLabel(station)}`}
-                  </button>
-                  {stationPrintersReady[station] && (
-                    <button
-                      onClick={() => handleTestStationPrinter(station)}
-                      title={`Imprimer un ticket de test sur l'imprimante ${stationPrinterLabel(station)}`}
-                      className="px-2 py-1.5 rounded-lg text-xs font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
-                    >
-                      Test
-                    </button>
-                  )}
-                </div>
+              {printerMsg && <span className="text-xs text-[#9A9490]">{printerMsg}</span>}
+              {!printerBridgeReady && (
+                <span className="text-xs font-bold text-red-400 border border-red-500/40 bg-red-500/10 rounded-lg px-3 py-1.5">
+                  ⚠️ Pont d'impression non détecté sur ce pc — voir printer-bridge-extension/README.md pour l'installer (une seule fois).
+                </span>
+              )}
+              {([
+                { key: 'ticket', name: PRINTER_NAMES.ticket, label: 'Ticket' },
+                { key: 'bar', name: PRINTER_NAMES.bar, label: 'Bar' },
+                { key: 'cuisine', name: PRINTER_NAMES.cuisine, label: 'Cuisine' },
+              ] as const).map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => handleTestPrinter(p.name, p.label)}
+                  disabled={!printerBridgeReady}
+                  title={
+                    printerBridgeReady
+                      ? `Imprimer un ticket de test sur l'imprimante ${p.label} (${p.name})`
+                      : "Le pont d'impression doit être installé avant de pouvoir tester une imprimante."
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  🖨️ Test {p.label}
+                </button>
               ))}
             </div>
             {kitchenByStation.length === 0 ? (

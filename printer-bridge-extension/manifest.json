@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Dom's Café — Pont d'impression",
+  "version": "1.0.0",
+  "description": "Envoie les tickets (Ticket caisse / Bar / Cuisine) directement à la bonne imprimante Windows, sans boîte de dialogue. Installé une seule fois sur le pc du comptoir.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsua7AXRcCM1McSzA+3nH3dcVi++SfCFvaa6WQGYshYXr4z6+379q251jFZvCny6w8deRs+dqIobObpxk6tfC/aREx4V9u7TQ4GGInQklL1uoiSYrgeejbTasK99tb8DvZJizveXAQO+hQg0E5fW11gIebt8vQ2UZ8RQv5L5I7Xy17sb8mbq06HjtNXlIc7pKarrrdxO0OmHiqQSrIN/OGMSER2Sz8hfJYllEngxLnw7trBjrIG3ciwH6QxPypxMUMscTRxcQi0rOweIbLV0FA/cVgoRz/4l3g5DuLlOWHt8Effmjiz0Dwd5j0v/25HXNm4dlvEHC/tKkUzRQ2zJ7VwIDAQAB",
+  "permissions": ["printing"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "externally_connectable": {
+    "matches": ["https://domscafe.pages.dev/*", "http://localhost/*", "http://localhost:*/*"]
+  }
+}
