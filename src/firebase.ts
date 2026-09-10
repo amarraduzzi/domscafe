@@ -1,8 +1,6 @@
 import { initializeApp } from "firebase/app";
 import {
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  getFirestore,
   collection,
   addDoc,
   setDoc,
@@ -27,16 +25,20 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-// Offline persistence -- "kassascherm blijft werken als het internet
-// uitvalt": elke read/write gaat via een lokale IndexedDB-cache. Bestellingen
-// die offline aangemaakt of gewijzigd worden, blijven lokaal staan en
-// synchroniseren vanzelf zodra de verbinding terugkomt (Firestore's eigen
-// offline-queue, hier alleen ingeschakeld). persistentMultipleTabManager
-// zodat het ook werkt als de site en de kassa toevallig in twee tabbladen
-// tegelijk open staan op hetzelfde toestel.
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-});
+// Firestore -- gewone in-memory cache, GEEN persistentLocalCache meer.
+//
+// Stond hier eerder wel (IndexedDB-cache + persistentMultipleTabManager) om
+// het kassascherm te laten doorwerken bij een korte internetstoring. Maar
+// zodra de browser zijn IndexedDB-backing-store niet kan openen (gebeurt in
+// de praktijk vaker dan je zou denken: kapotte/geblokkeerde site-data,
+// corrupte profielmap, sommige extensies/kiosk-instellingen), gooit de
+// Firestore-SDK (12.x) daarna een interne "Unexpected state (ID: b815)"
+// assertion-crash die de hele app blokkeert -- geen orders meer lezen of
+// schrijven, geen TV-slides meer opslaan, tot een refresh, waarna het meteen
+// weer misgaat zolang IndexedDB in die browser stuk blijft. Dat woog niet op
+// tegen het beetje offline-comfort dat de cache gaf, dus terug naar de
+// simpele, altijd-werkende instelling.
+export const db = getFirestore(app);
 
 // Firebase Storage -- utilisé uniquement pour les photos des slides de
 // l'écran TV (voir uploadTvSlideImage plus bas). Le reste de l'app (menu,
