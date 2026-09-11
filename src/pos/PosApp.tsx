@@ -16,8 +16,8 @@ import {
 import { db, uploadTvSlideImage } from '../firebase';
 import { menuItems as staticMenuItems, type MenuItem } from '../data';
 import { initialCategories } from '../firebase';
-import { pingPrinterBridge, printPdfViaBridge } from '../printerBridge';
-import { buildTicketPdfBase64, type TicketLine } from '../ticketPdf';
+import { pingPrinterBridge, printEscPosViaBridge } from '../printerBridge';
+import { buildTicketEscPosBase64, type TicketLine } from '../escpos';
 
 // ---------------------------------------------------------------------------
 // Dom's Café — order hub / POS screen (domscafe.pages.dev/pos.html)
@@ -705,8 +705,8 @@ async function printKitchenTicketForOrder(order: OrderDoc, newItems: OrderItem[]
     : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   for (const [station, its] of byStation) {
     const lines = buildKitchenTicketLines({ station, label: kindLabel(order), time, items: its, note: order.note });
-    const pdfBase64 = buildTicketPdfBase64(lines);
-    const res = await printPdfViaBridge(stationPrinterName(station), `Ticket ${stationLabel(station)}`, pdfBase64);
+    const dataBase64 = buildTicketEscPosBase64(lines);
+    const res = await printEscPosViaBridge(stationPrinterName(station), `Ticket ${stationLabel(station)}`, dataBase64);
     if (res.ok === false) throw new Error(res.message);
   }
 }
@@ -763,8 +763,8 @@ async function printReceiptSmart(opts: {
   paidLine?: string;
   note?: string;
 }): Promise<void> {
-  const pdfBase64 = buildTicketPdfBase64(buildReceiptTicketLines(opts));
-  const res = await printPdfViaBridge(PRINTER_NAMES.ticket, 'Reçu caisse', pdfBase64);
+  const dataBase64 = buildTicketEscPosBase64(buildReceiptTicketLines(opts));
+  const res = await printEscPosViaBridge(PRINTER_NAMES.ticket, 'Reçu caisse', dataBase64);
   if (res.ok === false) {
     printReceipt(buildReceiptHTML(opts));
   }
@@ -2470,13 +2470,13 @@ export default function PosApp() {
   }, [unlocked]);
 
   const handleTestPrinter = async (printerName: string, label: string) => {
-    const pdfBase64 = buildTicketPdfBase64([
+    const dataBase64 = buildTicketEscPosBase64([
       { text: label.toUpperCase(), bold: true, size: 'large', align: 'center' },
       { text: '================================', align: 'center' },
       { text: `Ticket de test ${label}` },
       { text: new Date().toLocaleString('fr-FR') },
     ]);
-    const res = await printPdfViaBridge(printerName, `Test ${label}`, pdfBase64);
+    const res = await printEscPosViaBridge(printerName, `Test ${label}`, dataBase64);
     setPrinterMsg(res.ok === false ? res.message : `Test envoyé à l'imprimante ${label}.`);
     window.setTimeout(() => setPrinterMsg(null), 4000);
   };
