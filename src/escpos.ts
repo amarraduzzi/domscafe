@@ -37,6 +37,11 @@ function textBytes(text: string): number[] {
   return bytes;
 }
 
+export function bytesToBase64(bytes: number[] | Uint8Array): string {
+  const bin = String.fromCharCode(...Array.from(bytes));
+  return btoa(bin);
+}
+
 export function buildTicketEscPosBase64(lines: TicketLine[]): string {
   const bytes: number[] = [];
   const push = (...vals: number[]) => bytes.push(...vals);

@@ -6,6 +6,12 @@ ChromeOS). Ce petit programme tourne directement sur le pc du comptoir et
 imprime lui-même, sans boîte de dialogue, sur l'imprimante Windows exacte
 demandée par l'écran caisse (**TICKET**, **BAR**, **CUISINE**).
 
+Compilé en C natif (pas Go) spécifiquement parce que le pc du comptoir
+tourne sous **Windows 7** : les exécutables Go récents ne se lancent plus du
+tout sur Windows 7/8 (minimum Windows 10). Ce `printhost.exe` n'utilise que
+des fonctions Windows disponibles depuis Windows XP, donc pas de souci de
+compatibilité.
+
 ## Installation (une seule fois, sur le pc du comptoir)
 
 1. Copie tout le dossier `printhost` (avec `printhost.exe` et `install.bat`

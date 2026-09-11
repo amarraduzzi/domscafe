@@ -17,7 +17,7 @@ import { db, uploadTvSlideImage } from '../firebase';
 import { menuItems as staticMenuItems, type MenuItem } from '../data';
 import { initialCategories } from '../firebase';
 import { pingPrinterBridge, printEscPosViaBridge } from '../printerBridge';
-import { buildTicketEscPosBase64, type TicketLine } from '../escpos';
+import { buildTicketEscPosBase64, bytesToBase64, type TicketLine } from '../escpos';
 
 // ---------------------------------------------------------------------------
 // Dom's Café — order hub / POS screen (domscafe.pages.dev/pos.html)
@@ -573,67 +573,22 @@ function printReceipt(html: string) {
 // Ouvrir le tiroir-caisse -- le tiroir est câblé sur la caisse enregistreuse
 // via le port RJ11/RJ12 de l'imprimante à reçus (pas un tiroir USB à part),
 // et s'ouvre en envoyant à l'imprimante la commande ESC/POS "cash drawer
-// kick" : ESC p 0 25 250. Confirmé avec Amar : l'imprimante est branchée en
-// USB sur le PC caisse, donc ce commando part via WebUSB, directement depuis
-// le navigateur.
+// kick" : ESC p 0 25 250.
 //
-// Deux limites réelles à connaître (WebUSB, pas spécifique à ce code) :
-//  1. Chrome et Edge uniquement -- Firefox et Safari n'implémentent pas
-//     WebUSB. Sur un PC Windows dédié à la caisse (comme ici), ce n'est
-//     normalement pas un problème.
-//  2. Windows attribue en général un pilote "USB Printing Support" à une
-//     imprimante à reçus USB -- c'est ce pilote que le bouton "🖨️ Imprimer"
-//     utilise déjà (impression via la boîte de dialogue du navigateur).
-//     WebUSB ne peut prendre le contrôle d'une interface que Windows n'a pas
-//     déjà accaparée : selon le modèle d'imprimante, ce bouton peut donc
-//     échouer avec un message "Accès refusé" tant que ce pilote est actif.
-//     La solution dans ce cas n'est pas de remplacer le pilote (ça casserait
-//     l'impression normale des reçus) mais un petit programme-pont local
-//     tournant sur ce PC -- à construire séparément si ce bouton échoue en
-//     pratique. Teste-le d'abord : beaucoup d'imprimantes à reçus exposent
-//     une interface USB générique que WebUSB peut utiliser sans conflit.
-const DRAWER_KICK = new Uint8Array([0x1b, 0x70, 0x00, 0x19, 0xfa]); // ESC p 0 25 250
+// Ancienne version : ce commando partait via WebUSB, directement depuis le
+// navigateur -- mais WebUSB ne peut pas prendre le contrôle d'une interface
+// que Windows a déjà accaparée avec son propre pilote d'imprimante (exactement
+// le même problème que pour les tickets, voir plus bas). D'où l'erreur
+// "Access denied" rencontrée en pratique. Fix identique : on passe par
+// printhost (voir printhost/README.md et src/printerBridge.ts), qui envoie
+// la commande directement à l'imprimante "TICKET" via la file d'impression
+// Windows -- aucune boîte de dialogue, aucun conflit de pilote.
+const DRAWER_KICK = [0x1b, 0x70, 0x00, 0x19, 0xfa]; // ESC p 0 25 250
 
 async function openCashDrawer(): Promise<{ ok: true } | { ok: false; message: string }> {
-  const usb: any = (navigator as any).usb;
-  if (!usb) {
-    return { ok: false, message: "WebUSB non supporté par ce navigateur (Chrome ou Edge requis)." };
-  }
-  try {
-    // Réutilise l'appareil déjà autorisé (un seul choix à faire au premier
-    // clic) ; sinon ouvre le sélecteur USB du navigateur.
-    let device = (await usb.getDevices())[0];
-    if (!device) {
-      device = await usb.requestDevice({ filters: [] });
-    }
-    await device.open();
-    if (device.configuration === null) await device.selectConfiguration(1);
-    // Cherche la première interface avec un endpoint bulk OUT -- fonctionne
-    // sans connaître à l'avance la marque/le modèle exact de l'imprimante.
-    let ifaceNumber: number | null = null;
-    let epOut: number | null = null;
-    outer: for (const conf of device.configurations) {
-      for (const iface of conf.interfaces) {
-        for (const alt of iface.alternates) {
-          const out = alt.endpoints.find((e: any) => e.direction === 'out');
-          if (out) {
-            ifaceNumber = iface.interfaceNumber;
-            epOut = out.endpointNumber;
-            break outer;
-          }
-        }
-      }
-    }
-    if (ifaceNumber === null || epOut === null) {
-      return { ok: false, message: 'Interface USB compatible introuvable sur cet appareil.' };
-    }
-    await device.claimInterface(ifaceNumber);
-    await device.transferOut(epOut, DRAWER_KICK);
-    await device.close();
-    return { ok: true };
-  } catch (err: any) {
-    return { ok: false, message: err?.message || "Échec de l'ouverture du tiroir." };
-  }
+  const res = await printEscPosViaBridge(PRINTER_NAMES.ticket, 'Ouvrir tiroir', bytesToBase64(DRAWER_KICK));
+  if (res.ok === false) return { ok: false, message: res.message };
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -646,12 +601,11 @@ async function openCashDrawer(): Promise<{ ok: true } | { ok: false; message: st
 // donc `navigator.usb.requestDevice()` n'y voit jamais rien à choisir.
 //
 // Impression automatique et silencieuse (sans AUCUNE boîte de dialogue) via
-// le "pont d'impression" -- une petite extension Chrome installée une seule
-// fois sur ce pc (voir printer-bridge-extension/README.md et
-// src/printerBridge.ts) qui utilise chrome.printing, une API réservée aux
-// extensions, pour choisir précisément l'imprimante par son nom Windows et
-// lancer l'impression sans dialogue. Sans cette extension (pas encore
-// installée, désactivée...), tout retombe automatiquement sur l'ancien
+// le "pont d'impression" -- un petit programme (printhost.exe) installé une
+// seule fois sur ce pc (voir printhost/README.md et src/printerBridge.ts)
+// qui écoute sur 127.0.0.1 et écrit directement dans la file d'impression
+// Windows demandée, en RAW. Sans ce programme (pas encore lancé...), tout
+// retombe automatiquement sur l'ancien
 // comportement : le bouton "🖨️ Imprimer" manuel du reçu caisse continue de
 // fonctionner via window.print(), et les tickets bar/cuisine ne s'impriment
 // simplement pas tant que le pont n'est pas détecté (voir printerBridgeReady
@@ -3122,7 +3076,7 @@ export default function PosApp() {
               {printerMsg && <span className="text-xs text-[#9A9490]">{printerMsg}</span>}
               {!printerBridgeReady && (
                 <span className="text-xs font-bold text-red-400 border border-red-500/40 bg-red-500/10 rounded-lg px-3 py-1.5">
-                  ⚠️ Pont d'impression non détecté sur ce pc — voir printer-bridge-extension/README.md pour l'installer (une seule fois).
+                  ⚠️ Pont d'impression non détecté sur ce pc — voir printhost/README.md pour l'installer (une seule fois).
                 </span>
               )}
               {([
