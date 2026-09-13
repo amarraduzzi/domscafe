@@ -1,5 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Printer,
+  NotebookPen,
+  Lock,
+  Trash2,
+  Banknote,
+  CreditCard,
+  Tag,
+  BarChart3,
+  Bike,
+  AlertTriangle,
+  ChefHat,
+  Tv,
+  Pencil,
+  Sparkles,
+  Flame,
+  Bell,
+  Hourglass,
+  Camera,
+  UtensilsCrossed,
+  Plus,
+  Armchair,
+  Receipt,
+  History,
+  ClipboardList,
+  Archive,
+  Clock,
+  CupSoda,
+  ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw,
+  Check,
+  X,
+} from 'lucide-react';
+import {
   collection,
   onSnapshot,
   orderBy,
@@ -193,11 +228,19 @@ interface DailyClosure {
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  new: '🆕 Nouveau',
-  preparing: '🔥 En préparation',
-  ready: '🔔 Prêt',
-  served: '✓ Servi',
-  cancelled: '✕ Annulé',
+  new: 'Nouveau',
+  preparing: 'En préparation',
+  ready: 'Prêt',
+  served: 'Servi',
+  cancelled: 'Annulé',
+};
+
+const STATUS_ICON: Record<OrderStatus, typeof Sparkles> = {
+  new: Sparkles,
+  preparing: Flame,
+  ready: Bell,
+  served: Check,
+  cancelled: X,
 };
 
 // Category groups for the item picker -- purely a display grouping so the
@@ -209,9 +252,9 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 // commandes les plus fréquentes, elles doivent être en haut de la liste.
 // (Boissons Chaudes is already first within this group, see firebase.ts.)
 const CATEGORY_GROUPS: { label: string; ids: string[] }[] = [
-  { label: 'Boissons', ids: ['boissons_chaudes', 'boissons_fraiches', 'jus_cocktails'] },
+  { label: 'Boissons', ids: ['boissons_chaudes', 'jus_cocktails'] },
   { label: 'Petit-déj', ids: ['breakfasts', 'omelettes', 'toasts', 'viennoiserie', 'crepes_sucrees', 'crepes_salees'] },
-  { label: 'Plats', ids: ['pizzas', 'sandwiches', 'tacos', 'pasticcie', 'burgers', 'salades', 'pates'] },
+  { label: 'Plats', ids: ['pizzas', 'sandwiches', 'tacos', 'salades'] },
   { label: 'Desserts', ids: ['desserts'] },
 ];
 
@@ -531,7 +574,7 @@ function buildReceiptHTML(opts: {
   <div class="doctype">Document provisoire</div>
   <div class="cols"><span>Qté Article</span><span>Prix total</span></div>
   ${itemRows}
-  ${opts.note ? `<div class="note">📝 ${escapeHtml(opts.note)}</div>` : ''}
+  ${opts.note ? `<div class="note">${escapeHtml(opts.note)}</div>` : ''}
   <div class="rule"></div>
   <div class="total-row"><span>TOTAL</span><span>${formatReceiptPrice(opts.total)}</span></div>
   ${opts.paidLine ? `<div class="row"><span>Statut</span><span>${escapeHtml(opts.paidLine)}</span></div>` : ''}
@@ -827,7 +870,7 @@ function IdleLockOverlay({ currentEmployee, onUnlock }: { currentEmployee: Emplo
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[90] flex flex-col items-center justify-center px-6 animate-fade-in">
       <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-8 text-center animate-pop">
-        <p className="text-4xl mb-2">🔒</p>
+        <p className="mb-2 flex justify-center"><Lock className="w-9 h-9" /></p>
         <h1 className="font-display font-black text-2xl text-[#F3ECDD] mb-1 tracking-wide">Écran verrouillé</h1>
         <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-6">
           {currentEmployee ? `Inactivité — code de ${currentEmployee.name} ou d'un collègue` : 'Code personnel pour continuer'}
@@ -880,7 +923,7 @@ function ManagerPinModal({ onResult }: { onResult: (ok: boolean) => void }) {
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
       <div className="w-full max-w-xs pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 text-center animate-pop">
-        <p className="text-2xl mb-1">🔒</p>
+        <p className="mb-1 flex justify-center"><Lock className="w-6 h-6" /></p>
         <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1">Code manager requis</h3>
         <p className="text-[#9A9490] text-xs mb-5">Cette action nécessite une autorisation.</p>
         <input
@@ -971,16 +1014,16 @@ function XReportModal({ stats, onClose }: { stats: ReturnType<typeof computeStat
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
       <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop">
-        <p className="text-2xl mb-1 text-center">📊</p>
+        <p className="mb-1 flex justify-center"><BarChart3 className="w-6 h-6" /></p>
         <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1 text-center">Rapport X</h3>
         <p className="text-[#9A9490] text-xs mb-5 text-center">
           Aperçu de la journée en cours depuis 00h00 -- consultable à tout moment, ne réinitialise rien.
         </p>
         <div className="space-y-1.5 text-sm mb-5">
           <div className="flex justify-between"><span className="text-[#9A9490]">Chiffre d'affaires</span><span className="font-bold text-brand-orange">{formatMAD(stats.revenue)}</span></div>
-          <div className="flex justify-between"><span className="text-[#9A9490]">💵 Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.cash)}</span></div>
-          <div className="flex justify-between"><span className="text-[#9A9490]">💳 Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.card)}</span></div>
-          <div className="flex justify-between"><span className="text-[#9A9490]">🛵 Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.glovo)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Banknote className="inline-block w-3.5 h-3.5" /> Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.cash)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><CreditCard className="inline-block w-3.5 h-3.5" /> Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.card)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Bike className="inline-block w-3.5 h-3.5" /> Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.glovo)}</span></div>
           {stats.unspecified > 0 && (
             <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.unspecified)}</span></div>
           )}
@@ -988,9 +1031,9 @@ function XReportModal({ stats, onClose }: { stats: ReturnType<typeof computeStat
         </div>
         <button
           onClick={print}
-          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all mb-2"
+          className="w-full bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] text-[#1A1208] font-display font-black py-3 rounded-xl shadow-lg shadow-brand-orange/20 transition-all mb-2 flex items-center justify-center gap-2"
         >
-          🖨️ Imprimer
+          <Printer className="w-4 h-4" /> Imprimer
         </button>
         <button onClick={onClose} className="w-full text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
           Fermer
@@ -1036,7 +1079,7 @@ function ZReportModal({
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
       <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop">
-        <p className="text-2xl mb-1 text-center">🔒</p>
+        <p className="mb-1 flex justify-center"><Lock className="w-6 h-6" /></p>
         <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1 text-center">Rapport Z -- clôture du jour</h3>
         {closure ? (
           <p className="text-[#8FBF8A] text-xs mb-5 text-center font-bold">
@@ -1049,9 +1092,9 @@ function ZReportModal({
         )}
         <div className="space-y-1.5 text-sm mb-5">
           <div className="flex justify-between"><span className="text-[#9A9490]">Chiffre d'affaires</span><span className="font-bold text-brand-orange">{formatMAD(display.revenue)}</span></div>
-          <div className="flex justify-between"><span className="text-[#9A9490]">💵 Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.cash)}</span></div>
-          <div className="flex justify-between"><span className="text-[#9A9490]">💳 Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.card)}</span></div>
-          <div className="flex justify-between"><span className="text-[#9A9490]">🛵 Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.glovo)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Banknote className="inline-block w-3.5 h-3.5" /> Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.cash)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><CreditCard className="inline-block w-3.5 h-3.5" /> Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.card)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Bike className="inline-block w-3.5 h-3.5" /> Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.glovo)}</span></div>
           {display.unspecified > 0 && (
             <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.unspecified)}</span></div>
           )}
@@ -1059,9 +1102,9 @@ function ZReportModal({
         </div>
         <button
           onClick={print}
-          className="w-full bg-[#3a332b] hover:bg-[#463e34] active:scale-[0.98] text-[#F3ECDD] font-display font-black py-3 rounded-xl transition-all mb-2"
+          className="w-full bg-[#3a332b] hover:bg-[#463e34] active:scale-[0.98] text-[#F3ECDD] font-display font-black py-3 rounded-xl transition-all mb-2 flex items-center justify-center gap-2"
         >
-          🖨️ Imprimer
+          <Printer className="w-4 h-4" /> Imprimer
         </button>
         {!closure && (
           <button
@@ -1146,9 +1189,13 @@ function MenuItemEditModal({
             onClick={() => setActive((a) => !a)}
             className={`w-full px-3 py-2.5 rounded-lg text-sm font-bold border transition-all ${
               active ? 'border-[#8FBF8A]/40 text-[#8FBF8A]' : 'border-red-500/40 text-red-400'
-            }`}
+            } flex items-center justify-center gap-1.5`}
           >
-            {active ? '✓ Actif' : '✗ Épuisé / masqué'}
+            {active ? (
+              <><Check className="w-4 h-4" /> Actif</>
+            ) : (
+              <><X className="w-4 h-4" /> Épuisé / masqué</>
+            )}
           </button>
         </div>
         <button
@@ -1159,8 +1206,12 @@ function MenuItemEditModal({
           Enregistrer
         </button>
         {onDelete && (
-          <button onClick={onDelete} className="w-full text-red-400/80 hover:text-red-400 text-sm font-bold py-2 mb-1 transition-colors">
-            {isCustom ? '🗑️ Supprimer' : '↺ Réinitialiser (valeurs du code)'}
+          <button onClick={onDelete} className="w-full text-red-400/80 hover:text-red-400 text-sm font-bold py-2 mb-1 transition-colors flex items-center justify-center gap-1.5">
+            {isCustom ? (
+              <><Trash2 className="w-4 h-4" /> Supprimer</>
+            ) : (
+              <><RotateCcw className="w-4 h-4" /> Réinitialiser (valeurs du code)</>
+            )}
           </button>
         )}
         <button onClick={onClose} className="w-full text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
@@ -1240,7 +1291,7 @@ function TvSlideEditModal({
                   className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-[#F3ECDD] text-sm font-bold flex items-center justify-center hover:bg-black/90 transition-all"
                   title="Retirer la photo"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             ) : (
@@ -1251,7 +1302,7 @@ function TvSlideEditModal({
                     : 'border-[#F3ECDD]/25 text-[#9A9490] hover:border-brand-orange/50 hover:text-brand-orange'
                 }`}
               >
-                <span className="text-xl">{uploading ? '⏳' : '📷'}</span>
+                <span className="text-xl">{uploading ? <Hourglass className="w-5 h-5" /> : <Camera className="w-5 h-5" />}</span>
                 <span className="text-xs font-bold">{uploading ? 'Envoi en cours…' : 'Ajouter une photo'}</span>
                 <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={handleFileChange} />
               </label>
@@ -1282,9 +1333,13 @@ function TvSlideEditModal({
             onClick={() => setActive((a) => !a)}
             className={`w-full px-3 py-2.5 rounded-lg text-sm font-bold border transition-all ${
               active ? 'border-[#8FBF8A]/40 text-[#8FBF8A]' : 'border-red-500/40 text-red-400'
-            }`}
+            } flex items-center justify-center gap-1.5`}
           >
-            {active ? '✓ En rotation sur la TV' : '✗ En pause (masqué)'}
+            {active ? (
+              <><Check className="w-4 h-4" /> En rotation sur la TV</>
+            ) : (
+              <><X className="w-4 h-4" /> En pause (masqué)</>
+            )}
           </button>
         </div>
         <button
@@ -1295,8 +1350,8 @@ function TvSlideEditModal({
           {uploading ? 'Envoi de la photo…' : 'Enregistrer'}
         </button>
         {onDelete && (
-          <button onClick={onDelete} className="w-full text-red-400/80 hover:text-red-400 text-sm font-bold py-2 mb-1 transition-colors">
-            🗑️ Supprimer
+          <button onClick={onDelete} className="w-full text-red-400/80 hover:text-red-400 text-sm font-bold py-2 mb-1 transition-colors flex items-center justify-center gap-1.5">
+            <Trash2 className="w-4 h-4" /> Supprimer
           </button>
         )}
         <button onClick={onClose} className="w-full text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
@@ -1344,15 +1399,15 @@ function PaymentMethodModal({
             <div className="grid grid-cols-2 gap-3 mb-3">
               <button
                 onClick={() => onChoose({ method: 'cash' })}
-                className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all"
+                className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all flex items-center justify-center gap-2"
               >
-                💵 Cash
+                <Banknote className="w-5 h-5" /> Cash
               </button>
               <button
                 onClick={() => onChoose({ method: 'card' })}
-                className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all"
+                className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all flex items-center justify-center gap-2"
               >
-                💳 Carte
+                <CreditCard className="w-5 h-5" /> Carte
               </button>
             </div>
             <button
@@ -1452,7 +1507,7 @@ function OrderCard({
               order.note ? 'text-brand-orange hover:text-brand-orange-hover hover:bg-brand-orange/10' : 'text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5'
             }`}
           >
-            📝
+            <NotebookPen className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onApplyDiscount(order)}
@@ -1461,35 +1516,35 @@ function OrderCard({
               order.discount ? 'text-brand-orange hover:text-brand-orange-hover hover:bg-brand-orange/10' : 'text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5'
             }`}
           >
-            🏷️
+            <Tag className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => printOrderReceipt(order)}
             title="Imprimer le reçu"
             className="text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5 text-sm w-6 h-6 rounded-full flex items-center justify-center transition-colors"
           >
-            🖨️
+            <Printer className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onCancel(order)}
             title="Annuler la commande"
             className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-xs w-6 h-6 rounded-full flex items-center justify-center transition-colors"
           >
-            ✕
+            <X className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onDelete(order)}
             title="Supprimer définitivement (serveur inclus)"
             className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-sm w-6 h-6 rounded-full flex items-center justify-center transition-colors"
           >
-            🗑️
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {order.note && (
         <div className="bg-brand-orange/10 border border-brand-orange/25 rounded-lg px-3 py-2 flex items-start gap-2">
-          <span className="text-sm shrink-0">📝</span>
+          <span className="text-sm shrink-0"><NotebookPen className="w-3.5 h-3.5" /></span>
           <p className="text-sm text-brand-orange font-medium leading-snug">{order.note}</p>
         </div>
       )}
@@ -1517,7 +1572,7 @@ function OrderCard({
 
       {!!order.discount && (
         <div className="flex justify-between text-xs text-brand-orange font-bold -mt-1">
-          <span>🏷️ Remise appliquée</span>
+          <span className="inline-flex items-center gap-1"><Tag className="w-3 h-3" /> Remise appliquée</span>
           <span>-{formatMAD(order.discount)}</span>
         </div>
       )}
@@ -1532,7 +1587,13 @@ function OrderCard({
               : 'bg-transparent text-[#9A9490] border-[#F3ECDD]/20 hover:border-[#F3ECDD]/40'
           }`}
         >
-          {order.paid ? `✓ Payé${order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}` : 'Marquer payé'}
+          {order.paid ? (
+            <span className="inline-flex items-center gap-1">
+              <Check className="w-3 h-3" /> Payé{order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}
+            </span>
+          ) : (
+            'Marquer payé'
+          )}
         </button>
       </div>
 
@@ -1661,7 +1722,7 @@ function MenuGrid({
           }`}
           style={activeCategory === 'all' ? { borderColor: '#C9A15A' } : undefined}
         >
-          <span>🍽️</span> Tout
+          <UtensilsCrossed className="inline-block w-4 h-4" /> Tout
         </button>
         {groupedRows.map((row) => {
           const color = GROUP_COLOR[row.label] || '#C9A15A';
@@ -1704,7 +1765,7 @@ function MenuGrid({
             title="Ajouter un article avec un montant et une description libres"
             className="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all whitespace-nowrap"
           >
-            ➕ Montant libre
+            <Plus className="w-4 h-4" /> Montant libre
           </button>
         </div>
 
@@ -1909,7 +1970,7 @@ function NewOrderPanel({
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="📝 Remarque (allergie, sans oignon...)"
+            placeholder="Remarque (allergie, sans oignon...)"
             className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange"
           />
         </div>
@@ -1996,7 +2057,11 @@ function TablePanel({
               return (
                 <div key={o.id} className="pos-surface rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-[#9A9490]">
+                    <span className="text-xs font-bold text-[#9A9490] inline-flex items-center gap-1">
+                      {(() => {
+                        const StatusIcon = STATUS_ICON[status];
+                        return <StatusIcon className="inline-block w-3 h-3" />;
+                      })()}
                       {STATUS_LABEL[status]} · <span className={elapsedStyle(mins)}>{elapsedLabel(mins)}</span>
                     </span>
                     <div className="flex items-center gap-3">
@@ -2013,23 +2078,23 @@ function TablePanel({
                         title={o.note ? 'Modifier la remarque' : 'Ajouter une remarque'}
                         className={`text-[11px] font-bold transition-colors ${o.note ? 'text-brand-orange hover:text-brand-orange-hover' : 'text-[#7A736C] hover:text-[#F3ECDD]'}`}
                       >
-                        📝
+                        <NotebookPen className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onApplyDiscount(o)}
                         title="Appliquer une remise (code manager)"
                         className={`text-[11px] font-bold transition-colors ${o.discount ? 'text-brand-orange hover:text-brand-orange-hover' : 'text-[#7A736C] hover:text-[#F3ECDD]'}`}
                       >
-                        🏷️
+                        <Tag className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => onDeleteOrder(o)} title="Supprimer définitivement (serveur inclus)" className="text-[11px] font-bold text-[#7A736C] hover:text-red-400 transition-colors">
-                        🗑️
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                   {o.note && (
                     <div className="bg-brand-orange/10 border border-brand-orange/25 rounded-lg px-2.5 py-1.5 mb-2 flex items-start gap-1.5">
-                      <span className="text-xs shrink-0">📝</span>
+                      <span className="text-xs shrink-0"><NotebookPen className="w-3.5 h-3.5" /></span>
                       <p className="text-xs text-brand-orange font-medium leading-snug">{o.note}</p>
                     </div>
                   )}
@@ -2052,7 +2117,7 @@ function TablePanel({
                   ))}
                   {!!o.discount && (
                     <div className="flex justify-between text-xs text-brand-orange font-bold mt-1">
-                      <span>🏷️ Remise</span>
+                      <span className="inline-flex items-center gap-1"><Tag className="w-3 h-3" /> Remise</span>
                       <span>-{formatMAD(o.discount)}</span>
                     </div>
                   )}
@@ -2065,9 +2130,9 @@ function TablePanel({
                 <button
                   onClick={() => printTableReceipt(table, orders)}
                   title="Imprimer le reçu"
-                  className="text-sm font-bold px-3.5 py-2.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+                  className="text-sm font-bold px-3.5 py-2.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all flex items-center gap-1.5"
                 >
-                  🖨️ Imprimer
+                  <Printer className="w-4 h-4" /> Imprimer
                 </button>
                 <button
                   onClick={onCheckout}
@@ -2856,7 +2921,7 @@ export default function PosApp() {
 
       {connectionError && (
         <div className="bg-red-500/15 border-b border-red-500/40 text-red-300 text-sm px-5 py-3 flex items-center justify-between gap-3">
-          <span>⚠ {connectionError}</span>
+          <span className="inline-flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 shrink-0" /> {connectionError}</span>
           <button onClick={() => window.location.reload()} className="shrink-0 text-xs font-bold underline">
             Recharger
           </button>
@@ -2911,20 +2976,20 @@ export default function PosApp() {
           <div className="flex items-center gap-1.5 flex-wrap p-1 rounded-full pos-surface border border-[#F3ECDD]/10">
             {(['tables', 'live', 'kitchen', 'history', 'reports', 'menu', 'tv'] as Tab[]).map((t) => {
               const needsAttention = t === 'kitchen' && kitchenOrderCount > 0;
-              const icon =
+              const TabIcon =
                 t === 'tables'
-                  ? '🪑'
+                  ? Armchair
                   : t === 'live'
-                  ? '🧾'
+                  ? Receipt
                   : t === 'kitchen'
-                  ? '🍳'
+                  ? ChefHat
                   : t === 'history'
-                  ? '📜'
+                  ? History
                   : t === 'reports'
-                  ? '📊'
+                  ? BarChart3
                   : t === 'tv'
-                  ? '📺'
-                  : '📋';
+                  ? Tv
+                  : ClipboardList;
               return (
                 <button
                   key={t}
@@ -2938,7 +3003,7 @@ export default function PosApp() {
                   {needsAttention && tab !== t && (
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand-orange animate-pulse-dot" />
                   )}
-                  <span aria-hidden="true">{icon}</span>
+                  <TabIcon aria-hidden="true" className="w-4 h-4" />
                   {t === 'tables'
                     ? `Tables (${occupiedTableCount}/${TABLE_COUNT})`
                     : t === 'live'
@@ -2962,13 +3027,13 @@ export default function PosApp() {
             title="Ouvrir le tiroir-caisse (commande envoyée à l'imprimante à reçus)"
             className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
           >
-            🗄️ Ouvrir le tiroir
+            <Archive className="w-4 h-4" /> Ouvrir le tiroir
           </button>
           <span
             title={
               printerBridgeReady
                 ? 'Pont d\'impression détecté : Ticket/Bar/Cuisine impriment automatiquement, sans aucun clic.'
-                : "Pont d'impression non détecté sur ce pc -- voir l'onglet Cuisine pour l'installer (une seule fois). En attendant, le reçu caisse reste imprimable via le bouton \"🖨️ Imprimer\"."
+                : "Pont d'impression non détecté sur ce pc -- voir l'onglet Cuisine pour l'installer (une seule fois). En attendant, le reçu caisse reste imprimable via le bouton \"Imprimer\"."
             }
             className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border ${
               printerBridgeReady
@@ -2976,7 +3041,7 @@ export default function PosApp() {
                 : 'border-red-500/40 text-red-400 bg-red-500/10'
             }`}
           >
-            🖨️ Impression auto {printerBridgeReady ? 'active' : 'inactive'}
+            <Printer className="w-4 h-4" /> Impression auto {printerBridgeReady ? 'active' : 'inactive'}
           </span>
           <button
             onClick={() => setShowNewOrder(true)}
@@ -3014,7 +3079,7 @@ export default function PosApp() {
                         : 'pos-surface border-[#F3ECDD]/10 text-[#F3ECDD] hover:border-brand-orange/50'
                     }`}
                   >
-                    <span className="text-xs leading-none opacity-80">{allPaid ? '✓' : occupied ? '🕐' : ''}</span>
+                    <span className="text-xs leading-none opacity-80 flex justify-center">{allPaid ? <Check className="w-3 h-3" /> : occupied ? <Clock className="w-3 h-3" /> : ''}</span>
                     <span className="font-display font-black text-xl leading-none">{n}</span>
                     {occupied && <span className="text-[10px] font-bold">{formatMAD(total)}</span>}
                   </button>
@@ -3075,8 +3140,8 @@ export default function PosApp() {
             <div className="flex items-center justify-end gap-2 mb-4 flex-wrap">
               {printerMsg && <span className="text-xs text-[#9A9490]">{printerMsg}</span>}
               {!printerBridgeReady && (
-                <span className="text-xs font-bold text-red-400 border border-red-500/40 bg-red-500/10 rounded-lg px-3 py-1.5">
-                  ⚠️ Pont d'impression non détecté sur ce pc — voir printhost/README.md pour l'installer (une seule fois).
+                <span className="text-xs font-bold text-red-400 border border-red-500/40 bg-red-500/10 rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Pont d'impression non détecté sur ce pc — voir printhost/README.md pour l'installer (une seule fois).
                 </span>
               )}
               {([
@@ -3095,7 +3160,7 @@ export default function PosApp() {
                   }
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
-                  🖨️ Test {p.label}
+                  <Printer className="w-3.5 h-3.5" /> Test {p.label}
                 </button>
               ))}
             </div>
@@ -3105,8 +3170,8 @@ export default function PosApp() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {kitchenByStation.map(([station, stOrders]) => (
                 <div key={station} className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
-                  <h3 className="font-display font-black text-lg text-brand-orange mb-3">
-                    {station === 'Bar' ? '🍹 Bar' : '🍳 Cuisine'}
+                  <h3 className="font-display font-black text-lg text-brand-orange mb-3 flex items-center gap-1.5">
+                    {station === 'Bar' ? <><CupSoda className="w-4 h-4" /> Bar</> : <><ChefHat className="w-4 h-4" /> Cuisine</>}
                   </h3>
                   <div className="space-y-3">
                     {stOrders.map((o) => {
@@ -3126,8 +3191,8 @@ export default function PosApp() {
                               </p>
                             ))}
                           {o.note && (
-                            <p className="text-xs text-brand-orange font-bold bg-brand-orange/10 border border-brand-orange/25 rounded-lg px-2 py-1 mt-1.5 ms-2">
-                              📝 {o.note}
+                            <p className="text-xs text-brand-orange font-bold bg-brand-orange/10 border border-brand-orange/25 rounded-lg px-2 py-1 mt-1.5 ms-2 flex items-start gap-1">
+                              <NotebookPen className="w-3.5 h-3.5 shrink-0" /> {o.note}
                             </p>
                           )}
                           <button
@@ -3170,7 +3235,7 @@ export default function PosApp() {
                       onChange={(e) => setCustomStart(e.target.value)}
                       className="bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-2 py-1.5 text-sm text-[#F3ECDD] focus:outline-none focus:border-brand-orange"
                     />
-                    <span className="text-[#7A736C] text-xs">→</span>
+                    <span className="text-[#7A736C] text-xs"><ArrowRight className="inline-block w-3 h-3" /></span>
                     <input
                       type="date"
                       value={customEnd}
@@ -3183,9 +3248,9 @@ export default function PosApp() {
               <button
                 onClick={wipeAllHistory}
                 title="Supprimer définitivement tout l'historique (toutes périodes)"
-                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-red-500/30 text-red-400/80 hover:text-red-400 hover:border-red-500/60 hover:bg-red-500/10 transition-all"
+                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-red-500/30 text-red-400/80 hover:text-red-400 hover:border-red-500/60 hover:bg-red-500/10 transition-all flex items-center gap-1.5"
               >
-                🗑️ Vider tout l'historique
+                <Trash2 className="w-4 h-4" /> Vider tout l'historique
               </button>
             </div>
             <input
@@ -3209,7 +3274,7 @@ export default function PosApp() {
                         {o.createdAt?.toDate().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ·{' '}
                         {o.status === 'cancelled' ? 'Annulé' : o.paid ? `Payé (${paymentMethodLabel(o)})` : 'Non payé'}
                       </p>
-                      {o.note && <p className="text-xs text-brand-orange font-medium mt-0.5">📝 {o.note}</p>}
+                      {o.note && <p className="text-xs text-brand-orange font-medium mt-0.5 flex items-center gap-1"><NotebookPen className="w-3.5 h-3.5 shrink-0" /> {o.note}</p>}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="text-brand-orange font-black">{formatMAD(o.total)}</span>
@@ -3218,14 +3283,14 @@ export default function PosApp() {
                         title="Réimprimer le reçu"
                         className="text-[#7A736C] hover:text-[#F3ECDD] hover:bg-white/5 text-sm w-7 h-7 rounded-full flex items-center justify-center transition-colors"
                       >
-                        🖨️
+                        <Printer className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => deleteOrder(o)}
                         title="Supprimer définitivement (serveur inclus)"
                         className="text-[#7A736C] hover:text-red-400 hover:bg-red-400/10 text-sm w-7 h-7 rounded-full flex items-center justify-center transition-colors"
                       >
-                        🗑️
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -3258,7 +3323,7 @@ export default function PosApp() {
                       onChange={(e) => setCustomStart(e.target.value)}
                       className="bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-2 py-1.5 text-sm text-[#F3ECDD] focus:outline-none focus:border-brand-orange"
                     />
-                    <span className="text-[#7A736C] text-xs">→</span>
+                    <span className="text-[#7A736C] text-xs"><ArrowRight className="inline-block w-3 h-3" /></span>
                     <input
                       type="date"
                       value={customEnd}
@@ -3284,26 +3349,26 @@ export default function PosApp() {
                     ]),
                   ])
                 }
-                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40"
+                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 flex items-center gap-1.5"
               >
-                ⬇ Exporter en CSV
+                <ArrowDown className="w-4 h-4" /> Exporter en CSV
               </button>
             </div>
 
             <div className="flex gap-2 flex-wrap mb-5">
               <button
                 onClick={() => setShowXReport(true)}
-                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#F3ECDD] hover:border-brand-orange/60 transition-all"
+                className="px-3 py-1.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#F3ECDD] hover:border-brand-orange/60 transition-all flex items-center gap-1.5"
               >
-                📊 Rapport X
+                <BarChart3 className="w-4 h-4" /> Rapport X
               </button>
               <button
                 onClick={() => setShowZReport(true)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all flex items-center gap-1.5 ${
                   todayClosure ? 'border-[#8FBF8A]/40 text-[#8FBF8A]' : 'border-[#F3ECDD]/20 text-[#F3ECDD] hover:border-brand-orange/60'
                 }`}
               >
-                🔒 Rapport Z{todayClosure ? ' (clôturé)' : ''}
+                <Lock className="w-4 h-4" /> Rapport Z{todayClosure ? ' (clôturé)' : ''}
               </button>
             </div>
 
@@ -3332,9 +3397,9 @@ export default function PosApp() {
               <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
                 <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Mode de paiement</h3>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-[#9A9490]">💵 Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.cash)}</span></div>
-                  <div className="flex justify-between"><span className="text-[#9A9490]">💳 Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.card)}</span></div>
-                  <div className="flex justify-between"><span className="text-[#9A9490]">🛵 Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.glovo)}</span></div>
+                  <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Banknote className="inline-block w-3.5 h-3.5" /> Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.cash)}</span></div>
+                  <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><CreditCard className="inline-block w-3.5 h-3.5" /> Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.card)}</span></div>
+                  <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Bike className="inline-block w-3.5 h-3.5" /> Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.glovo)}</span></div>
                   {reportStats.unspecified > 0 && (
                     <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.unspecified)}</span></div>
                   )}
@@ -3424,7 +3489,7 @@ export default function PosApp() {
           <div className="max-w-4xl mx-auto">
             {!menuUnlocked ? (
               <div className="text-center py-24">
-                <p className="text-2xl mb-2">🔒</p>
+                <p className="mb-2 flex justify-center"><Lock className="w-6 h-6" /></p>
                 <p className="text-[#9A9490] mb-4">Le code manager est nécessaire pour ouvrir le menu.</p>
                 <button
                   onClick={unlockMenu}
@@ -3435,10 +3500,11 @@ export default function PosApp() {
               </div>
             ) : (
               <>
-                <div className="pos-surface border border-brand-orange/25 rounded-xl p-3 mb-4 text-xs text-[#9A9490] leading-relaxed">
-                  ⚠️ Les changements ici (prix, nom, catégorie, station, actif) ne s'appliquent qu'à cet écran caisse.
+                <div className="pos-surface border border-brand-orange/25 rounded-xl p-3 mb-4 text-xs text-[#9A9490] leading-relaxed flex gap-1.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Les changements ici (prix, nom, catégorie, station, actif) ne s'appliquent qu'à cet écran caisse.
                   Le site de commande client garde les fiches complètes (3 langues, description, photo) du code tant
-                  qu'il n'est pas mis à jour séparément.
+                  qu'il n'est pas mis à jour séparément.</span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap mb-4">
                   <input
@@ -3498,9 +3564,9 @@ export default function PosApp() {
                             <span className="text-brand-orange font-black">{formatMAD(it.price)}</span>
                             <button
                               onClick={() => setEditingMenuItem(it)}
-                              className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+                              className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all flex items-center gap-1"
                             >
-                              ✏️ Modifier
+                              <Pencil className="w-3.5 h-3.5" /> Modifier
                             </button>
                           </div>
                         </div>
@@ -3516,7 +3582,7 @@ export default function PosApp() {
           <div className="max-w-2xl mx-auto">
             {!tvUnlocked ? (
               <div className="text-center py-24">
-                <p className="text-2xl mb-2">🔒</p>
+                <p className="mb-2 flex justify-center"><Lock className="w-6 h-6" /></p>
                 <p className="text-[#9A9490] mb-4">Le code manager est nécessaire pour ouvrir l'écran TV.</p>
                 <button onClick={unlockTv} className="px-5 py-2.5 rounded-xl bg-brand-orange text-[#1A1208] font-display font-black">
                   Déverrouiller
@@ -3524,10 +3590,11 @@ export default function PosApp() {
               </div>
             ) : (
               <>
-                <div className="pos-surface border border-brand-orange/25 rounded-xl p-3 mb-4 text-xs text-[#9A9490] leading-relaxed">
-                  📺 Ces slides tournent en boucle sur <span className="font-bold text-[#F3ECDD]">/tv.html</span>, à ouvrir en plein
+                <div className="pos-surface border border-brand-orange/25 rounded-xl p-3 mb-4 text-xs text-[#9A9490] leading-relaxed flex gap-1.5">
+                  <Tv className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Ces slides tournent en boucle sur <span className="font-bold text-[#F3ECDD]">/tv.html</span>, à ouvrir en plein
                   écran dans le navigateur de la Smart TV. Les changements ici apparaissent automatiquement sur l'écran, pas besoin
-                  de le rafraîchir manuellement. Ajoute une photo à un slide pour qu'elle s'affiche plein cadre sur l'écran.
+                  de le rafraîchir manuellement. Ajoute une photo à un slide pour qu'elle s'affiche plein cadre sur l'écran.</span>
                 </div>
                 <div className="flex items-center justify-between gap-2 mb-4">
                   <p className="text-sm text-[#9A9490]">{tvSlides.length} slide{tvSlides.length !== 1 ? 's' : ''}</p>
@@ -3571,22 +3638,22 @@ export default function PosApp() {
                           <button
                             onClick={() => moveTvSlide(s.id, -1)}
                             disabled={i === 0}
-                            className="text-xs font-bold w-7 h-7 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-30 transition-all"
+                            className="text-xs font-bold w-7 h-7 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-30 transition-all flex items-center justify-center"
                           >
-                            ↑
+                            <ArrowUp className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => moveTvSlide(s.id, 1)}
                             disabled={i === tvSlides.length - 1}
-                            className="text-xs font-bold w-7 h-7 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-30 transition-all"
+                            className="text-xs font-bold w-7 h-7 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-30 transition-all flex items-center justify-center"
                           >
-                            ↓
+                            <ArrowDown className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setEditingTvSlide(s)}
-                            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+                            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all flex items-center gap-1"
                           >
-                            ✏️ Modifier
+                            <Pencil className="w-3.5 h-3.5" /> Modifier
                           </button>
                         </div>
                       </div>

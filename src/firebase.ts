@@ -240,7 +240,6 @@ export const initialCategories: FirestoreCategory[] = [
   // should be the first thing people can filter to, ahead of drinks.
   { id: 'pizzas', name: { fr: "Pizzas", en: "Pizzas", ar: "بيتزا" }, emoji: "🍕", displayOrder: 1 },
   { id: 'boissons_chaudes', name: { fr: "Boissons Chaudes", en: "Hot Drinks", ar: "مشروبات ساخنة" }, emoji: "☕", displayOrder: 2 },
-  { id: 'boissons_fraiches', name: { fr: "Boissons Fraîches", en: "Cold Drinks", ar: "مشروبات باردة" }, emoji: "🥤", displayOrder: 3 },
   { id: 'jus_cocktails', name: { fr: "Jus & Cocktails", en: "Cocktails & Juices", ar: "عصائر و كوكتيلات" }, emoji: "🍹", displayOrder: 4 },
   { id: 'breakfasts', name: { fr: "Petits-Déjeuners", en: "Breakfast", ar: "إفطار" }, emoji: "🍳", displayOrder: 5 },
   { id: 'omelettes', name: { fr: "Omelettes", en: "Omelettes", ar: "أومليت" }, emoji: "🥚", displayOrder: 5 },
@@ -250,10 +249,7 @@ export const initialCategories: FirestoreCategory[] = [
   { id: 'crepes_salees', name: { fr: "Crêpes Salées", en: "Savory Crêpes", ar: "كريب مالح" }, emoji: "🌯", displayOrder: 9 },
   { id: 'sandwiches', name: { fr: "Sandwiches", en: "Sandwiches", ar: "ساندويتشات" }, emoji: "🥪", displayOrder: 10 },
   { id: 'tacos', name: { fr: "Tacos", en: "Tacos", ar: "تاكو" }, emoji: "🌮", displayOrder: 11 },
-  { id: 'pasticcie', name: { fr: "Pasticcies", en: "Pasticcie", ar: "باستيشيو" }, emoji: "🍲", displayOrder: 12 },
-  { id: 'burgers', name: { fr: "Burgers", en: "Burgers", ar: "برغر" }, emoji: "🍔", displayOrder: 13 },
   { id: 'salades', name: { fr: "Salades", en: "Salads", ar: "سلطات" }, emoji: "🥗", displayOrder: 14 },
-  { id: 'pates', name: { fr: "Pâtes", en: "Pasta", ar: "باستا" }, emoji: "🍝", displayOrder: 15 },
   { id: 'desserts', name: { fr: "Desserts", en: "Desserts", ar: "حلويات" }, emoji: "🍰", displayOrder: 16 },
   // Snooker (billard) -- pas un plat, une prestation facturable à 30 MAD la
   // partie ; pas listé dans PosApp.tsx's CATEGORY_GROUPS donc elle tombe
@@ -406,15 +402,20 @@ export const migrateMenuDataToFirestore = async (
       }
     }
 
-    // Sync any missing or new menu items from data.ts to Firestore
+    // Sync every menu item from data.ts to Firestore every load. There is no
+    // separate live menu-editing UI anywhere in the app -- data.ts is the
+    // single source of truth -- so it's always safe (and, since prices and
+    // descriptions can change in data.ts without the item's id changing, as
+    // with the 13/09/2026 menu update, necessary) to overwrite rather than
+    // only add brand-new ids. `force` is now effectively always true.
     for (const item of menuItems) {
-      if (force || !existingMenuMap.has(item.id) || item.id === 'bf-soda') {
-        await saveOrUpdateMenuItemToFirestore(item, restaurantId);
+      await saveOrUpdateMenuItemToFirestore(item, restaurantId);
+      if (force || !existingMenuMap.has(item.id)) {
         itemsMigrated++;
       }
     }
 
-    // Ensure all initial categories (including new 'boissons_fraiches') exist in Firestore with updated displayOrder
+    // Ensure all initial categories exist in Firestore with updated displayOrder
     for (const cat of initialCategories) {
       const catWithMeta = {
         restaurantId,
@@ -424,6 +425,22 @@ export const migrateMenuDataToFirestore = async (
       await setDoc(doc(db, "categories", cat.id), cleaned, { merge: true });
       if (!existingCatMap.has(cat.id)) {
         categoriesMigrated++;
+      }
+    }
+
+    // Remove stale category docs no longer present in initialCategories (e.g.
+    // 'pasticcie', 'burgers', 'pates', 'boissons_fraiches' retired with the
+    // 13/09/2026 menu update) -- otherwise their filter pill would keep
+    // showing on the live site forever, now permanently empty.
+    const currentCatIds = new Set(initialCategories.map(c => c.id));
+    for (const d of catSnap.docs) {
+      const data = d.data();
+      if ((data.restaurantId || "doms-cafe") === restaurantId && !currentCatIds.has(d.id)) {
+        try {
+          await deleteDoc(doc(db, "categories", d.id));
+        } catch (e) {
+          console.log("Failed to delete stale category:", d.id, e);
+        }
       }
     }
 

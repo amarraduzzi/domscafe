@@ -9,7 +9,7 @@ export interface MenuItemVariant {
 export interface MenuItem {
   id: string;
   name: Record<'en' | 'fr' | 'ar', string>;
-  category: 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'pasticcie' | 'burgers' | 'salades' | 'pates' | 'boissons_chaudes' | 'jus_cocktails' | 'boissons_fraiches' | 'desserts' | string;
+  category: 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'salades' | 'boissons_chaudes' | 'jus_cocktails' | 'desserts' | string;
   price: number;
   description: Record<'en' | 'fr' | 'ar', string>;
   image: string;
@@ -25,7 +25,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'b-express',
     category: 'breakfasts',
-    price: 27,
+    price: 33,
     name: { fr: "L'Express", en: "The Express", ar: "الإكسبريس" },
     description: {
       fr: "Boisson chaude, jus d'orange, œufs (précisez la cuisson), bouteille d'eau",
@@ -37,7 +37,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'b-continental',
     category: 'breakfasts',
-    price: 29,
+    price: 36,
     name: { fr: "Continental", en: "Continental", ar: "كونتيننتال" },
     description: {
       fr: "Boisson chaude, jus d'orange, toast brûlé, viennoiserie, confiture, beurre, miel, bouteille d'eau",
@@ -49,7 +49,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'b-doms',
     category: 'breakfasts',
-    price: 37,
+    price: 42,
     name: { fr: "Dom's", en: "Dom's Breakfast", ar: "دومز" },
     description: {
       fr: "Boisson chaude, jus d'orange, toasts, œufs, fromage, charcuterie, bouteille d'eau",
@@ -62,7 +62,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'b-jebli',
     category: 'breakfasts',
-    price: 38,
+    price: 48,
     name: { fr: "Jebli", en: "Jebli", ar: "جبلي" },
     description: {
       fr: "Boisson chaude, jus d'orange, balboula, khlii aux œufs, bouteille d'eau",
@@ -74,7 +74,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'b-chamalli',
     category: 'breakfasts',
-    price: 48,
+    price: 58,
     name: { fr: "Chamalli", en: "Chamalli", ar: "شمالي" },
     description: {
       fr: "Boisson chaude, jus d'orange, œufs au plat, mortadelle, jbane, olives noires, huile d'olive, edam, charcuterie, bouteille d'eau",
@@ -207,7 +207,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cs-miel',
     category: 'crepes_sucrees',
-    price: 18,
+    price: 22,
     name: { fr: "Crêpe Miel", en: "Honey Crêpe", ar: "كريب بالعسل" },
     description: { fr: "Crêpe douce au miel pur", en: "Thin sweet crêpe with pure honey", ar: "كريب حلو بالعسل الصافي" },
     image: ""
@@ -215,7 +215,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cs-confiture',
     category: 'crepes_sucrees',
-    price: 16,
+    price: 22,
     name: { fr: "Crêpe Confiture", en: "Jam Crêpe", ar: "كريب بالمربى" },
     description: { fr: "Crêpe douce nappée de confiture", en: "Thin sweet crêpe with jam", ar: "كريب حلو بالمربى" },
     image: ""
@@ -223,7 +223,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cs-nutella',
     category: 'crepes_sucrees',
-    price: 22,
+    price: 24,
     name: { fr: "Crêpe Nutella", en: "Nutella Crêpe", ar: "كريب بالنوتيلا" },
     description: { fr: "Crêpe douce au Nutella onctueux", en: "Thin sweet crêpe with Nutella", ar: "كريب حلو بنوتيلا الغنية" },
     image: "",
@@ -232,7 +232,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cs-banane-nutella',
     category: 'crepes_sucrees',
-    price: 24,
+    price: 26,
     name: { fr: "Crêpe Banane Nutella", en: "Banana Nutella Crêpe", ar: "كريب بالموز والنوتيلا" },
     description: { fr: "Crêpe douce avec banane fraîche et Nutella", en: "Thin sweet crêpe with fresh bananas and Nutella", ar: "كريب حلو بشرائح الموز الشوكولاتة" },
     image: ""
@@ -240,7 +240,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cs-nutella-noix',
     category: 'crepes_sucrees',
-    price: 26,
+    price: 28,
     name: { fr: "Crêpe Nutella Noix", en: "Nutella & Walnut Crêpe", ar: "كريب بالنوتيلا والجوز" },
     description: { fr: "Crêpe douce avec Nutella et éclats de noix", en: "Thin sweet crêpe with Nutella and walnuts", ar: "كريب حلو بنوتيلا وحبات الجوز" },
     image: ""
@@ -250,7 +250,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cl-3fromages',
     category: 'crepes_salees',
-    price: 27,
+    price: 30,
     name: { fr: "Crêpe 3 Fromages", en: "3 Cheese Crêpe", ar: "كريب ثلاثة أجبان" },
     description: {
       fr: "Bleu, mozzarella, brie, béchamel",
@@ -262,7 +262,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cl-charcuterie',
     category: 'crepes_salees',
-    price: 29,
+    price: 32,
     name: { fr: "Crêpe Charcuterie", en: "Cold Cuts Crêpe", ar: "كريب بالمرتديلا" },
     description: {
       fr: "Fromage, béchamel, charcuterie",
@@ -274,7 +274,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cl-poulet',
     category: 'crepes_salees',
-    price: 32,
+    price: 36,
     name: { fr: "Crêpe Poulet", en: "Chicken Crêpe", ar: "كريب بالدجاج" },
     description: {
       fr: "Champignon, fromage, béchamel, poulet",
@@ -287,7 +287,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'cl-viande',
     category: 'crepes_salees',
-    price: 35,
+    price: 38,
     name: { fr: "Crêpe Viande Hachée", en: "Minced Beef Crêpe", ar: "كريب باللحم المفروم" },
     description: {
       fr: "Champignon, fromage, sauce blanche, viande hachée",
@@ -297,145 +297,124 @@ export const menuItems: MenuItem[] = [
     image: ""
   },
 
-  // 7. Pizzas
+  // 7. Pizzas (menu 13/09/2026 -- seules pizzas du système, les anciennes
+  // pizzas "développées maison" ont été entièrement retirées)
   {
-    id: 'p-margherita-superiore',
+    id: 'p-margarita',
     category: 'pizzas',
-    price: 45,
-    name: { fr: "Margherita Superiore", en: "Margherita Superiore", ar: "مارغريتا سوبيريوري" },
+    price: 36,
+    name: { fr: "Margarita", en: "Margarita", ar: "مارغريتا" },
     description: {
-      fr: "Mozzarella fondante, sauce tomate, basilic frais, filet d'huile d'olive",
-      en: "Melted mozzarella, tomato sauce, fresh basil, olive oil drizzle",
-      ar: "موزاريلا ذائبة، صلصة طماطم، ريحان طازج، زيت الزيتون"
+      fr: "Mozzarella, sauce tomate, olives noires, basilic",
+      en: "Mozzarella, tomato sauce, black olives, basil",
+      ar: "موزاريلا، صلصة طماطم، زيتون أسود، ريحان"
     },
-    image: "/pizzas/margherita-superiore.webp",
-    variants: [
-      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 45 },
-      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 7 }
-    ]
+    image: "/pizzas/margarita.webp",
+    popular: true
   },
   {
-    id: 'p-manzo-ricco',
+    id: 'p-vegetarienne',
     category: 'pizzas',
-    price: 75,
-    name: { fr: "Manzo Ricco", en: "Manzo Ricco", ar: "مانزو ريكو" },
+    price: 42,
+    name: { fr: "Végétarienne", en: "Vegetarian", ar: "نباتية" },
     description: {
-      fr: "Mozzarella, bœuf braisé effiloché, oignons caramélisés, copeaux de parmesan",
-      en: "Mozzarella, braised pulled beef, caramelized onions, parmesan shavings",
-      ar: "موزاريلا، لحم بقري مطهو ببطء، بصل مكرمل، رقائق البارميزان"
+      fr: "Mozzarella, sauce tomate, légumes de saison",
+      en: "Mozzarella, tomato sauce, seasonal vegetables",
+      ar: "موزاريلا، صلصة طماطم، خضار موسمية"
     },
-    image: "/pizzas/manzo-ricco.webp",
-    variants: [
-      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 75 },
-      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 12 }
-    ]
+    image: "/pizzas/vegetarienne.webp"
   },
   {
-    id: 'p-tuna-riviera',
+    id: 'p-thons',
+    category: 'pizzas',
+    price: 46,
+    name: { fr: "Thons", en: "Tuna", ar: "تونة" },
+    description: {
+      fr: "Mozzarella, thon, poivrons, olives noires",
+      en: "Mozzarella, tuna, bell peppers, black olives",
+      ar: "موزاريلا، تونة، فلفل حلو، زيتون أسود"
+    },
+    image: "/pizzas/thons.webp"
+  },
+  {
+    id: 'p-pollo',
+    category: 'pizzas',
+    price: 48,
+    name: { fr: "Pollo", en: "Pollo (Chicken)", ar: "بولو (دجاج)" },
+    description: {
+      fr: "Mozzarella, poulet, poivrons, champignons, sauce tomate",
+      en: "Mozzarella, chicken, bell peppers, mushrooms, tomato sauce",
+      ar: "موزاريلا، دجاج، فلفل حلو، فطر، صلصة طماطم"
+    },
+    image: "/pizzas/pollo.webp",
+    popular: true
+  },
+  {
+    id: 'p-americaine',
+    category: 'pizzas',
+    price: 48,
+    name: { fr: "Américaine", en: "American", ar: "أمريكية" },
+    description: {
+      fr: "Mozzarella, pepperoni, sauce tomate, olives noires",
+      en: "Mozzarella, pepperoni, tomato sauce, black olives",
+      ar: "موزاريلا، ببروني، صلصة طماطم، زيتون أسود"
+    },
+    image: "/pizzas/americaine.webp"
+  },
+  {
+    id: 'p-vivanda',
     category: 'pizzas',
     price: 52,
-    name: { fr: "Tuna Riviera", en: "Tuna Riviera", ar: "تونة ريفييرا" },
+    name: { fr: "Vivanda", en: "Vivanda (Minced Beef)", ar: "فيفاندا (لحم مفروم)" },
     description: {
-      fr: "Mozzarella, thon émietté, oignon rouge, câpres, olives kalamata, zeste de citron",
-      en: "Mozzarella, flaked tuna, red onion, capers, kalamata olives, lemon zest",
-      ar: "موزاريلا، تونة مفتتة، بصل أحمر، كبر، زيتون كالاماتا، قشر ليمون"
+      fr: "Mozzarella, viande hachée, champignons, poivrons, sauce tomate, olives noires",
+      en: "Mozzarella, minced beef, mushrooms, bell peppers, tomato sauce, black olives",
+      ar: "موزاريلا، لحم مفروم، فطر، فلفل حلو، صلصة طماطم، زيتون أسود"
     },
-    image: "/pizzas/tuna-riviera.webp",
-    variants: [
-      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 52 },
-      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 8 }
-    ]
+    image: "/pizzas/vivanda.webp"
   },
   {
-    id: 'p-poulet-chermoula',
+    id: 'p-quatre-fromages',
     category: 'pizzas',
-    price: 58,
-    name: { fr: "Poulet Chermoula", en: "Poulet Chermoula", ar: "بولي شرمولة" },
+    price: 55,
+    name: { fr: "Quatre Fromages", en: "Four Cheese", ar: "أربعة أجبان" },
     description: {
-      fr: "Mozzarella, poulet grillé façon chermoula, oignons caramélisés, poivrons, coriandre fraîche",
-      en: "Mozzarella, chermoula-spiced grilled chicken, caramelized onions, bell peppers, fresh coriander",
-      ar: "موزاريلا، دجاج مشوي بالشرمولة، بصل مكرمل، فلفل حلو، كزبرة طازجة"
+      fr: "Edam, bleu, brie, mozzarella, crème fraîche, sauce tomate",
+      en: "Edam, blue cheese, brie, mozzarella, fresh cream, tomato sauce",
+      ar: "إيدام، جبن أزرق، بري، موزاريلا، قشدة طرية، صلصة طماطم"
     },
-    image: "/pizzas/poulet-chermoula.webp",
-    popular: true,
-    variants: [
-      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 58 },
-      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 9 }
-    ]
+    image: "/pizzas/quattro-formaggi.webp"
   },
   {
-    id: 'p-merguez-piquante',
+    id: 'p-quatre-saisons',
     category: 'pizzas',
-    price: 60,
-    name: { fr: "Merguez Piquante", en: "Merguez Piquante", ar: "مرقاز حار" },
+    price: 65,
+    name: { fr: "Quatre Saisons", en: "Four Seasons (Build Your Own)", ar: "الفصول الأربعة (تركيبتك الخاصة)" },
     description: {
-      fr: "Mozzarella, merguez grillée, poivrons rôtis, huile de harissa, œuf au plat",
-      en: "Mozzarella, grilled merguez, roasted peppers, harissa oil, fried egg",
-      ar: "موزاريلا، مرقاز مشوي، فلفل مشوي، زيت الهريسة، بيضة مقلية"
+      fr: "Composez votre pizza",
+      en: "Compose your own pizza",
+      ar: "قم بتركيب البيتزا الخاصة بك"
     },
-    image: "/pizzas/merguez-piquante.webp",
-    spicy: true,
-    variants: [
-      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 60 },
-      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 9 }
-    ]
+    image: ""
   },
   {
-    id: 'p-el-reto',
+    id: 'p-fisherman',
     category: 'pizzas',
     price: 75,
-    name: { fr: "El Reto", en: "El Reto", ar: "الريتو" },
+    name: { fr: "Fisherman", en: "Fisherman", ar: "صياد السمك" },
     description: {
-      fr: "Mozzarella, sauce tomate au harissa, jalapeños, piments doux, viande épicée, sauce piquante",
-      en: "Mozzarella, harissa-spiced tomato sauce, jalapeños, sweet chili peppers, spiced beef, hot sauce",
-      ar: "موزاريلا، صلصة طماطم بالهريسة، هالبينو، فلفل حار خفيف، لحم متبل، صلصة حارة"
+      fr: "Mozzarella, crevettes, calamars, surimi, sauce tomate, olives noires",
+      en: "Mozzarella, shrimp, squid, surimi, tomato sauce, black olives",
+      ar: "موزاريلا، جمبري، كالمار، سوريمي، صلصة طماطم، زيتون أسود"
     },
-    image: "/pizzas/el-reto.webp",
-    spicy: true,
-    variants: [
-      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 75 },
-      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 12 }
-    ]
-  },
-  {
-    id: 'p-quattro-formaggi',
-    category: 'pizzas',
-    price: 80,
-    name: { fr: "Quattro Formaggi Nobile", en: "Quattro Formaggi Nobile", ar: "كواترو فورماجي نوبيلي" },
-    description: {
-      fr: "Mozzarella, gorgonzola, chèvre, copeaux de parmesan, filet de miel",
-      en: "Mozzarella, gorgonzola, goat cheese, parmesan shavings, honey drizzle",
-      ar: "موزاريلا، جبن غورغونزولا، جبن الماعز، رقائق البارميزان، صلصة العسل"
-    },
-    image: "/pizzas/quattro-formaggi.webp",
-    variants: [
-      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 80 },
-      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 13 }
-    ]
-  },
-  {
-    id: 'p-rabat-nights',
-    category: 'pizzas',
-    price: 90,
-    name: { fr: "Signature « Rabat Nights »", en: "Signature \"Rabat Nights\"", ar: "التوقيع \"ليالي الرباط\"" },
-    description: {
-      fr: "Mozzarella, khlea effilochée, oignons caramélisés, olives noires, œuf au plat, filet d'amlou",
-      en: "Mozzarella, shredded khlea (confit beef), caramelized onions, black olives, fried egg, amlou drizzle",
-      ar: "موزاريلا، خليع مفروم، بصل مكرمل، زيتون أسود، بيضة مقلية، صلصة أملو"
-    },
-    image: "/pizzas/rabat-nights.webp",
-    popular: true,
-    variants: [
-      { id: 'entiere', name: { fr: "Pizza entière", en: "Whole Pizza", ar: "بيتزا كاملة" }, price: 90 },
-      { id: 'part', name: { fr: "Par part", en: "Per Slice", ar: "بالقطعة" }, price: 14 }
-    ]
+    image: "/pizzas/fisherman.webp"
   },
 
   // 8. Sandwichs
   {
     id: 's-thon',
     category: 'sandwiches',
-    price: 32,
+    price: 38,
     name: { fr: "Sandwich Thon", en: "Tuna Sandwich", ar: "سندويش تونة" },
     description: {
       fr: "Thon, fromage, tomates, laitue, cornichons, oignons, sauce cocktail",
@@ -447,12 +426,12 @@ export const menuItems: MenuItem[] = [
   {
     id: 's-doms',
     category: 'sandwiches',
-    price: 34,
+    price: 38,
     name: { fr: "Sandwich Dom's", en: "Dom's Special Sandwich", ar: "سندويش دومز" },
     description: {
-      fr: "Thon, salami, jambon de bœuf, fromage, tomates, laitue, cornichons",
-      en: "Tuna, salami, beef ham, cheese, tomatoes, lettuce, pickles",
-      ar: "تونة، سلامي، لحم بقر مقدد، جبن، طماطم، خس، خيار مخلل"
+      fr: "Thon, jambon de bœuf, fromage, tomates, laitue, cornichons",
+      en: "Tuna, beef ham, cheese, tomatoes, lettuce, pickles",
+      ar: "تونة، لحم بقر مقدد، جبن، طماطم، خس، خيار مخلل"
     },
     image: "",
     popular: true
@@ -460,7 +439,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 's-poulet',
     category: 'sandwiches',
-    price: 36,
+    price: 40,
     name: { fr: "Sandwich Poulet", en: "Chicken Sandwich", ar: "سندويش دجاج" },
     description: {
       fr: "Poulet, fromage, tomates, laitue, cornichons, poivrons, sauce au choix",
@@ -469,14 +448,14 @@ export const menuItems: MenuItem[] = [
     },
     image: "",
     variants: [
-      { id: 'ail', name: { fr: "Sauce à l'ail", en: "Garlic Sauce", ar: "صلصة الثوم" }, price: 36 },
-      { id: 'blanche', name: { fr: "Sauce blanche", en: "White Sauce", ar: "صلصة بيضاء" }, price: 36 }
+      { id: 'ail', name: { fr: "Sauce à l'ail", en: "Garlic Sauce", ar: "صلصة الثوم" }, price: 40 },
+      { id: 'blanche', name: { fr: "Sauce blanche", en: "White Sauce", ar: "صلصة بيضاء" }, price: 40 }
     ]
   },
   {
     id: 's-kefta',
     category: 'sandwiches',
-    price: 38,
+    price: 42,
     name: { fr: "Sandwich Kefta", en: "Kefta Sandwich", ar: "سندويش كفتة" },
     description: {
       fr: "Viande hachée, fromage, tomates, laitue, cornichons, oignons, sauce au choix",
@@ -485,8 +464,8 @@ export const menuItems: MenuItem[] = [
     },
     image: "",
     variants: [
-      { id: 'ail', name: { fr: "Sauce à l'ail", en: "Garlic Sauce", ar: "صلصة الثوم" }, price: 38 },
-      { id: 'blanche', name: { fr: "Sauce blanche", en: "White Sauce", ar: "صلصة بيضاء" }, price: 38 }
+      { id: 'ail', name: { fr: "Sauce à l'ail", en: "Garlic Sauce", ar: "صلصة الثوم" }, price: 42 },
+      { id: 'blanche', name: { fr: "Sauce blanche", en: "White Sauce", ar: "صلصة بيضاء" }, price: 42 }
     ]
   },
   {
@@ -515,9 +494,9 @@ export const menuItems: MenuItem[] = [
     },
     image: "",
     variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 38 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 38 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 38 }
+      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
+      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
+      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
     ]
   },
   {
@@ -532,9 +511,9 @@ export const menuItems: MenuItem[] = [
     },
     image: "",
     variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 38 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 38 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 38 }
+      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
+      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
+      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
     ]
   },
   {
@@ -549,9 +528,9 @@ export const menuItems: MenuItem[] = [
     },
     image: "",
     variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 38 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 38 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 38 }
+      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
+      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
+      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
     ]
   },
   {
@@ -566,9 +545,9 @@ export const menuItems: MenuItem[] = [
     },
     image: "",
     variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 38 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 38 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 38 }
+      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
+      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
+      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
     ]
   },
   {
@@ -589,113 +568,11 @@ export const menuItems: MenuItem[] = [
     ]
   },
 
-  // 10. Pasticcie
-  {
-    id: 'ps-poulet',
-    category: 'pasticcie',
-    price: 42,
-    name: { fr: "Poulet", en: "Chicken Pasticcio", ar: "باستيشيو دجاج" },
-    description: {
-      fr: "Poulet, fromage, sauce blanche gratinée",
-      en: "Chicken, cheese, oven-baked white sauce",
-      ar: "دجاج، جبن، صلصة بيضاء محمرة في الفرن"
-    },
-    image: "",
-    popular: true
-  },
-  {
-    id: 'ps-jambon',
-    category: 'pasticcie',
-    price: 42,
-    name: { fr: "Jambon", en: "Ham Pasticcio", ar: "باستيشيو مرتديلا" },
-    description: {
-      fr: "Jambon, fromage, sauce blanche gratinée",
-      en: "Ham, cheese, oven-baked white sauce",
-      ar: "مرتديلا، جبن، صلصة بيضاء محمرة في الفرن"
-    },
-    image: ""
-  },
-  {
-    id: 'ps-viande',
-    category: 'pasticcie',
-    price: 45,
-    name: { fr: "Viande Hachée", en: "Minced Beef Pasticcio", ar: "باستيشيو لحم مفروم" },
-    description: {
-      fr: "Viande hachée, fromage, sauce blanche gratinée",
-      en: "Minced beef, cheese, oven-baked white sauce",
-      ar: "لحم مفروم، جبن، صلصة بيضاء محمرة في الفرن"
-    },
-    image: ""
-  },
-  {
-    id: 'ps-mixte',
-    category: 'pasticcie',
-    price: 45,
-    name: { fr: "Mixte", en: "Mixed Pasticcio", ar: "باستيشيو مشكل" },
-    description: {
-      fr: "Poulet, viande hachée, jambon, fromage, sauce blanche gratinée",
-      en: "Chicken, beef, ham, cheese, and white sauce",
-      ar: "دجاج، لحم مفروم، مرتديلا، جبن، صلصة بيضاء"
-    },
-    image: ""
-  },
-
-  // 11. Burgers
-  {
-    id: 'bg-chicken',
-    category: 'burgers',
-    price: 38,
-    name: { fr: "Chicken", en: "Chicken Burger", ar: "برجر دجاج" },
-    description: {
-      fr: "Chicken, cheddar, tomate, oignon, laitue, cornichons",
-      en: "Chicken, cheddar, tomato, onion, lettuce, pickles",
-      ar: "دجاج، جبن شيدر، طماطم، بصل، خس، خيار مخلل"
-    },
-    image: ""
-  },
-  {
-    id: 'bg-beef',
-    category: 'burgers',
-    price: 40,
-    name: { fr: "Beef", en: "Beef Burger", ar: "برجر لحم بقري" },
-    description: {
-      fr: "Viande hachée, cheddar, tomate, oignon, laitue, cornichons",
-      en: "Minced beef, cheddar, tomato, onion, lettuce, pickles",
-      ar: "لحم بقري مفروم، جبن شيدر، طماطم، بصل، خس، خيار مخلل"
-    },
-    image: "",
-    popular: true
-  },
-  {
-    id: 'bg-eggs',
-    category: 'burgers',
-    price: 40,
-    name: { fr: "Eggs", en: "Eggs Burger", ar: "برجر بيض" },
-    description: {
-      fr: "Nuggets, cheddar, frites, sauce béchamel",
-      en: "Nuggets, cheddar, fries, béchamel sauce",
-      ar: "ناجتس، جبن شيدر، بطاطس مقلية، بشاميل"
-    },
-    image: ""
-  },
-  {
-    id: 'bg-cheese',
-    category: 'burgers',
-    price: 42,
-    name: { fr: "Cheese", en: "Double Cheese Burger", ar: "تشيز برجر مضاعف" },
-    description: {
-      fr: "Viande hachée, double cheddar, tomate, oignon, laitue, cornichons",
-      en: "Minced beef, double cheddar, tomato, onion, lettuce, pickles",
-      ar: "لحم بقري مفروم، جبن شيدر مضاعف، طماطم، بصل، خس، مخلل"
-    },
-    image: ""
-  },
-
   // 12. Salades
   {
     id: 'sl-marocaine',
     category: 'salades',
-    price: 27,
+    price: 33,
     name: { fr: "Marocaine", en: "Moroccan Salad", ar: "سلطة مغربية" },
     description: {
       fr: "Laitue, tomate, oignons, thon, olives noires, vinaigrette",
@@ -707,7 +584,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'sl-nicoise',
     category: 'salades',
-    price: 33,
+    price: 38,
     name: { fr: "Niçoise", en: "Niçoise Salad", ar: "سلطة نيسواز" },
     description: {
       fr: "Thon, pommes de terre, betteraves, carottes, concombre, tomates, laitue, olives noires, œuf dur, sauce au choix",
@@ -716,14 +593,14 @@ export const menuItems: MenuItem[] = [
     },
     image: "",
     variants: [
-      { id: 'blanche', name: { fr: "Sauce blanche", en: "White Sauce", ar: "صلصة بيضاء" }, price: 33 },
-      { id: 'vinaigrette', name: { fr: "Vinaigrette", en: "Vinaigrette", ar: "صلصة الخل" }, price: 33 }
+      { id: 'blanche', name: { fr: "Sauce blanche", en: "White Sauce", ar: "صلصة بيضاء" }, price: 38 },
+      { id: 'vinaigrette', name: { fr: "Vinaigrette", en: "Vinaigrette", ar: "صلصة الخل" }, price: 38 }
     ]
   },
   {
     id: 'sl-doms',
     category: 'salades',
-    price: 36,
+    price: 39,
     name: { fr: "Dom's", en: "Dom's Salad", ar: "سلطة دومز" },
     description: {
       fr: "Riz, poulet, thon, tomates, maïs, laitue, edam, sauce au thon",
@@ -748,75 +625,12 @@ export const menuItems: MenuItem[] = [
   {
     id: 'sl-fisherman',
     category: 'salades',
-    price: 55,
+    price: 60,
     name: { fr: "Fisherman", en: "Fisherman Salad", ar: "سلطة صياد السمك" },
     description: {
       fr: "Crevettes, calamar, surimi, avocat, tomates, laitue, cornichons, olives noires, sauce cocktail",
       en: "Shrimp, squid, surimi, avocado, tomatoes, lettuce, pickles, black olives, cocktail sauce",
       ar: "جمبري، كالمار، سوريمي، أفوكادو، طماطم، خس، مخلل، زيتون، صلصة كوكتيل"
-    },
-    image: ""
-  },
-
-  // 13. Pâtes
-  {
-    id: 'pt-poulet',
-    category: 'pates',
-    price: 45,
-    name: { fr: "Poulet", en: "Chicken Pasta", ar: "معكرونة دجاج" },
-    description: {
-      fr: "Poulet, champignon, parmesan, sauce blanche",
-      en: "Chicken, mushroom, parmesan, rich white sauce",
-      ar: "دجاج، فطر، جبنة بارميزان، صلصة بيضاء"
-    },
-    image: ""
-  },
-  {
-    id: 'pt-bolognaise',
-    category: 'pates',
-    price: 50,
-    name: { fr: "Bolognaise", en: "Bolognese Pasta", ar: "معكرونة بولونيز" },
-    description: {
-      fr: "Viande hachée, basilic, parmesan, sauce bolognaise",
-      en: "Minced beef, fresh basil, parmesan, bolognese sauce",
-      ar: "لحم مفروم، ريحان، جبنة بارميزان، صلصة بولونيز"
-    },
-    image: ""
-  },
-  {
-    id: 'pt-carbonara',
-    category: 'pates',
-    price: 55,
-    name: { fr: "Carbonara", en: "Carbonara Pasta", ar: "معكرونة كربونيرا" },
-    description: {
-      fr: "Jambon, champignon, parmesan, crème fraîche",
-      en: "Ham, mushroom, parmesan, fresh cream",
-      ar: "مرتديلا، فطر، جبنة بارميزان، قشدة طرية"
-    },
-    image: "",
-    popular: true
-  },
-  {
-    id: 'pt-fisherman',
-    category: 'pates',
-    price: 60,
-    name: { fr: "Fisherman", en: "Fisherman Pasta", ar: "معكرونة الصياد" },
-    description: {
-      fr: "Crevettes, calamars, moules, pesto, tomates cerises",
-      en: "Shrimp, squid, mussels, basil pesto, cherry tomatoes",
-      ar: "جمبري، كالمار، بلح البحر، ريحان بيستو، طماطم كرزية"
-    },
-    image: ""
-  },
-  {
-    id: 'pt-emince-poulet',
-    category: 'pates',
-    price: 65,
-    name: { fr: "Émincé Poulet", en: "Sliced Chicken Breast", ar: "شرائح صدر الدجاج" },
-    description: {
-      fr: "Émincé de poulet cuisiné façon traditionnelle",
-      en: "Sliced chicken breast cooked in traditional style",
-      ar: "شرائح صدر الدجاج المطهوة على الطريقة التقليدية"
     },
     image: ""
   },
@@ -859,15 +673,6 @@ export const menuItems: MenuItem[] = [
     station: "Bar"
   },
   {
-    id: 'bc-nespresso',
-    category: 'boissons_chaudes',
-    price: 19,
-    name: { fr: "Nespresso", en: "Nespresso", ar: "نسبريسو" },
-    description: { fr: "Expresso Premium Nespresso", en: "Premium Nespresso espresso", ar: "إسبريسو ممتازة من نسبريسو" },
-    image: "",
-    station: "Bar"
-  },
-  {
     id: 'bc-double-expresso',
     category: 'boissons_chaudes',
     price: 24,
@@ -901,15 +706,6 @@ export const menuItems: MenuItem[] = [
     price: 26,
     name: { fr: "Mocaccino", en: "Mocaccino", ar: "موكاشينو" },
     description: { fr: "Mélange d'expresso, chocolat et lait chaud", en: "Espresso, hot chocolate and steamed milk", ar: "إسبريسو، شوكولاتة ساخنة وحليب" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'bc-chocolat-ancienne',
-    category: 'boissons_chaudes',
-    price: 28,
-    name: { fr: "Chocolat chaud à l'ancienne", en: "Old-school Hot Chocolate", ar: "شوكولاتة ساخنة تقليدية" },
-    description: { fr: "Chocolat épais et onctueux à l'ancienne", en: "Thick traditional-style rich cocoa", ar: "شوكولاتة غليظة على الطريقة التقليدية" },
     image: "",
     station: "Bar"
   },
@@ -966,18 +762,9 @@ export const menuItems: MenuItem[] = [
     station: "Bar"
   },
   {
-    id: 'bc-lait-froid',
-    category: 'boissons_chaudes',
-    price: 12,
-    name: { fr: "Lait chaud", en: "Hot Milk", ar: "حليب ساخن" },
-    description: { fr: "Lait chaud réconfortant", en: "Warm comforting milk", ar: "حليب ساخن دافئ" },
-    image: "",
-    station: "Bar"
-  },
-  {
     id: 'bc-lait-chaud',
     category: 'boissons_chaudes',
-    price: 14,
+    price: 16,
     name: { fr: "Lait chaud", en: "Hot Milk", ar: "حليب ساخن" },
     description: { fr: "Lait chaud réconfortant", en: "Warm comforting milk", ar: "حليب ساخن دافئ" },
     image: "",
@@ -988,7 +775,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'jc-jardin',
     category: 'jus_cocktails',
-    price: 28,
+    price: 32,
     name: { fr: "Jardin de fruits", en: "Fruit Garden", ar: "حديقة الفواكه" },
     description: {
       fr: "Citron, orange, pomme, banane, fruits de saison",
@@ -1001,7 +788,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'jc-exotique',
     category: 'jus_cocktails',
-    price: 29,
+    price: 32,
     name: { fr: "Exotique", en: "Exotic Cocktail", ar: "الكوكتيل الاستوائي" },
     description: {
       fr: "Orange, kiwi, mangue, ananas",
@@ -1012,23 +799,9 @@ export const menuItems: MenuItem[] = [
     station: "Bar"
   },
   {
-    id: 'jc-amandine',
-    category: 'jus_cocktails',
-    price: 29,
-    name: { fr: "Amandine", en: "Amandine", ar: "أماندين" },
-    description: {
-      fr: "Lait, avocat, amande, noix, raisins secs",
-      en: "Milk, avocado, almond, walnut, raisins",
-      ar: "حليب، أفوكادو، لوز، جوز، زبيب"
-    },
-    image: "",
-    popular: true,
-    station: "Bar"
-  },
-  {
     id: 'jc-pina',
     category: 'jus_cocktails',
-    price: 30,
+    price: 34,
     name: { fr: "Piña colada", en: "Piña Colada (Virgin)", ar: "بينا كولادا" },
     description: {
       fr: "Jus d'ananas, orange, vanille, lait de coco, ananas frais, citron",
@@ -1068,7 +841,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'jc-banane',
     category: 'jus_cocktails',
-    price: 22,
+    price: 24,
     name: { fr: "Banane", en: "Banana Juice", ar: "عصير موز" },
     description: { fr: "Jus de banane onctueux préparé au lait", en: "Smooth banana milkshake", ar: "عصير موز مخفوق بالحليب" },
     image: "",
@@ -1077,7 +850,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'jc-fraise',
     category: 'jus_cocktails',
-    price: 22,
+    price: 24,
     name: { fr: "Fraise", en: "Strawberry Juice", ar: "عصير فراولة" },
     description: { fr: "Jus de fraises fraîches pulpeux", en: "Fresh pulp strawberry juice", ar: "عصير فراولة طازج ومنعش" },
     image: "",
@@ -1095,7 +868,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'jc-ananas',
     category: 'jus_cocktails',
-    price: 24,
+    price: 26,
     name: { fr: "Ananas", en: "Pineapple Juice", ar: "عصير أناناس" },
     description: { fr: "Jus d'ananas frais savoureux", en: "Sweet fresh pineapple juice", ar: "عصير أناناس طازج ولذيذ" },
     image: "",
@@ -1113,7 +886,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'jc-mangue',
     category: 'jus_cocktails',
-    price: 26,
+    price: 28,
     name: { fr: "Mangue", en: "Mango Juice", ar: "عصير مانجو" },
     description: { fr: "Jus de mangue onctueux et fruité", en: "Smooth pure exotic mango juice", ar: "عصير مانجو استوائي غني" },
     image: "",
@@ -1122,7 +895,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'jc-panache',
     category: 'jus_cocktails',
-    price: 28,
+    price: 32,
     name: { fr: "Panaché", en: "Panaché", ar: "باناشي" },
     description: { fr: "Cocktail onctueux de fruits mélangés au lait", en: "Creamy mixed fruit juice with milk", ar: "كوكتيل فواكه مشكلة بالحليب" },
     image: "",
@@ -1140,25 +913,88 @@ export const menuItems: MenuItem[] = [
   {
     id: 'jc-eau',
     category: 'jus_cocktails',
-    price: 10,
+    price: 12,
     name: { fr: "Eau minérale", en: "Mineral Water", ar: "مياه معدنية" },
     description: { fr: "Bouteille d'eau minérale de table", en: "Chilled table mineral water bottle", ar: "زجاجة مياه معدنية طبيعية" },
     image: "",
     station: "Bar"
   },
   {
-    id: 'jc-soda',
+    id: 'jc-coca',
     category: 'jus_cocktails',
     price: 16,
-    name: { fr: "Soda", en: "Soda", ar: "صودا غازية" },
-    description: { fr: "Canette de soda bien fraîche (Coca, Fanta, Sprite...)", en: "Ice-cold can of soda of choice", ar: "علبة مشروب غازي بارد" },
+    name: { fr: "Coca Cola / Zero", en: "Coca Cola / Zero", ar: "كوكاكولا / زيرو" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-sprite',
+    category: 'jus_cocktails',
+    price: 16,
+    name: { fr: "Sprite", en: "Sprite", ar: "سبرايت" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-hawaii',
+    category: 'jus_cocktails',
+    price: 16,
+    name: { fr: "Hawaii", en: "Hawaii", ar: "هاواي" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-poms',
+    category: 'jus_cocktails',
+    price: 16,
+    name: { fr: "Poms", en: "Poms", ar: "بومز" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-schweppes-citron',
+    category: 'jus_cocktails',
+    price: 16,
+    name: { fr: "Schweppes Citron", en: "Schweppes Lemon", ar: "شويبس ليمون" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-schweppes-mojito',
+    category: 'jus_cocktails',
+    price: 16,
+    name: { fr: "Schweppes Mojito", en: "Schweppes Mojito", ar: "شويبس موهيتو" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-schweppes-tonic',
+    category: 'jus_cocktails',
+    price: 16,
+    name: { fr: "Schweppes Tonic", en: "Schweppes Tonic", ar: "شويبس تونيك" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-lait-froid',
+    category: 'jus_cocktails',
+    price: 14,
+    name: { fr: "Lait froid", en: "Cold Milk", ar: "حليب بارد" },
+    description: { fr: "Verre de lait bien frais", en: "Glass of chilled cold milk", ar: "كأس حليب بارد" },
     image: "",
     station: "Bar"
   },
   {
     id: 'jc-oulmes',
     category: 'jus_cocktails',
-    price: 12,
+    price: 14,
     name: { fr: "Oulmes", en: "Oulmès Sparkling", ar: "والماس" },
     description: { fr: "Eau minérale naturellement gazeuse", en: "Naturally carbonated sparkling water", ar: "مياه معدنية غازية طبيعية" },
     image: "",
@@ -1190,16 +1026,6 @@ export const menuItems: MenuItem[] = [
     description: { fr: "Boisson énergisante bien fraîche", en: "Chilled energy drink can", ar: "علبة مشروب طاقة بارد" },
     image: "",
     station: "Bar"
-  },
-  {
-    id: 'bf-soda',
-    category: 'boissons_fraiches',
-    price: 16,
-    name: { fr: "Soda", en: "Soda", ar: "مشروب غازي" },
-    description: { fr: "Coca-Cola, Fanta, Sprite, Hawai", en: "Coca-Cola, Fanta, Sprite, Hawai", ar: "كوكاكولا، فانتا، سبرايت، هاواي" },
-    image: "/src/assets/images/soda_menu_item_1786017801846.jpg",
-    station: "Bar",
-    available: true
   },
 
   // 16. Desserts
@@ -1287,13 +1113,9 @@ export const translations = {
     menu_filter_pizzas: "Pizzas",
     menu_filter_sandwiches: "Sandwiches",
     menu_filter_tacos: "Tacos",
-    menu_filter_pasticcie: "Pasticcie",
-    menu_filter_burgers: "Burgers",
     menu_filter_salades: "Salads",
-    menu_filter_pates: "Pasta",
     menu_filter_boissons_chaudes: "Hot Drinks",
     menu_filter_jus_cocktails: "Cocktails & Juices",
-    menu_filter_boissons_fraiches: "Cold Drinks",
     menu_filter_desserts: "Desserts",
     menu_spicy: "Spicy",
     menu_popular: "Popular",
@@ -1427,13 +1249,9 @@ export const translations = {
     menu_filter_pizzas: "Pizzas",
     menu_filter_sandwiches: "Sandwichs",
     menu_filter_tacos: "Tacos",
-    menu_filter_pasticcie: "Pasticcio",
-    menu_filter_burgers: "Burgers",
     menu_filter_salades: "Salades",
-    menu_filter_pates: "Pâtes",
     menu_filter_boissons_chaudes: "Boissons Chaudes",
     menu_filter_jus_cocktails: "Jus & Cocktails",
-    menu_filter_boissons_fraiches: "Boissons Fraîches",
     menu_filter_desserts: "Desserts",
     menu_spicy: "Épicé",
     menu_popular: "Populaire",
@@ -1567,13 +1385,9 @@ export const translations = {
     menu_filter_pizzas: "بيتزا",
     menu_filter_sandwiches: "سندويشات",
     menu_filter_tacos: "تاكو",
-    menu_filter_pasticcie: "باستيشيو",
-    menu_filter_burgers: "برجر",
     menu_filter_salades: "سلطات",
-    menu_filter_pates: "معكرونة",
     menu_filter_boissons_chaudes: "مشروبات ساخنة",
     menu_filter_jus_cocktails: "عصائر وكوكتيل",
-    menu_filter_boissons_fraiches: "مشروبات باردة",
     menu_filter_desserts: "حلويات",
     menu_spicy: "حار",
     menu_popular: "محبوب",
@@ -2089,53 +1903,8 @@ if (bContinentalItem) {
   bContinentalItem.image = 'https://i.ibb.co/d0mdvdN9/Chat-GPT-Image-21-jul-2026-11-38-10.webp';
 }
 
-// Explicitly override image for Pizza Margherita Superiore
-const pMargheritaSuperioreItem = menuItems.find(item => item.id === 'p-margherita-superiore');
-if (pMargheritaSuperioreItem) {
-  pMargheritaSuperioreItem.image = '/pizzas/margherita-superiore.webp';
-}
-
-// Explicitly override image for Pizza Manzo Ricco
-const pManzoRiccoItem = menuItems.find(item => item.id === 'p-manzo-ricco');
-if (pManzoRiccoItem) {
-  pManzoRiccoItem.image = '/pizzas/manzo-ricco.webp';
-}
-
-// Explicitly override image for Pizza Tuna Riviera
-const pTunaRivieraItem = menuItems.find(item => item.id === 'p-tuna-riviera');
-if (pTunaRivieraItem) {
-  pTunaRivieraItem.image = '/pizzas/tuna-riviera.webp';
-}
-
-// Explicitly override image for Pizza Poulet Chermoula
-const pPouletChermoulaItem = menuItems.find(item => item.id === 'p-poulet-chermoula');
-if (pPouletChermoulaItem) {
-  pPouletChermoulaItem.image = '/pizzas/poulet-chermoula.webp';
-}
-
-// Explicitly override image for Pizza Merguez Piquante
-const pMerguezPiquanteItem = menuItems.find(item => item.id === 'p-merguez-piquante');
-if (pMerguezPiquanteItem) {
-  pMerguezPiquanteItem.image = '/pizzas/merguez-piquante.webp';
-}
-
-// Explicitly override image for Pizza El Reto
-const pElRetoItem = menuItems.find(item => item.id === 'p-el-reto');
-if (pElRetoItem) {
-  pElRetoItem.image = '/pizzas/el-reto.webp';
-}
-
-// Explicitly override image for Pizza Quattro Formaggi Nobile
-const pQuattroFormaggiItem = menuItems.find(item => item.id === 'p-quattro-formaggi');
-if (pQuattroFormaggiItem) {
-  pQuattroFormaggiItem.image = '/pizzas/quattro-formaggi.webp';
-}
-
-// Explicitly override image for Pizza Signature Rabat Nights
-const pRabatNightsItem = menuItems.find(item => item.id === 'p-rabat-nights');
-if (pRabatNightsItem) {
-  pRabatNightsItem.image = '/pizzas/rabat-nights.webp';
-}
+// Pizza images are set directly on each item above (menu 13/09/2026) --
+// no override needed.
 
 // Explicitly override image for Sandwich Thon
 const sThonItem = menuItems.find(item => item.id === 's-thon');
@@ -2197,37 +1966,6 @@ if (tcFormuleItem) {
   tcFormuleItem.image = 'https://i.ibb.co/9mszh048/Chat-GPT-Image-21-jul-2026-16-01-08.webp';
 }
 
-// Explicitly override image for all Pasticcie category dishes
-menuItems.forEach(item => {
-  if (item.category === 'pasticcie') {
-    item.image = 'https://i.ibb.co/hFHD7mdN/Chat-GPT-Image-21-jul-2026-16-05-34.webp';
-  }
-});
-
-// Explicitly override image for Chicken Burger
-const bgChickenItem = menuItems.find(item => item.id === 'bg-chicken');
-if (bgChickenItem) {
-  bgChickenItem.image = 'https://i.ibb.co/JwpqsmFm/Chat-GPT-Image-21-jul-2026-16-09-40.webp';
-}
-
-// Explicitly override image for Beef Burger
-const bgBeefItem = menuItems.find(item => item.id === 'bg-beef');
-if (bgBeefItem) {
-  bgBeefItem.image = 'https://i.ibb.co/5WVxdKk5/Chat-GPT-Image-21-jul-2026-16-12-30.webp';
-}
-
-// Explicitly override image for Eggs Burger
-const bgEggsItem = menuItems.find(item => item.id === 'bg-eggs');
-if (bgEggsItem) {
-  bgEggsItem.image = 'https://i.ibb.co/ymLTSn5G/Chat-GPT-Image-21-jul-2026-16-14-46.webp';
-}
-
-// Explicitly override image for Double Cheese Burger to match Beef Burger
-const bgCheeseItem = menuItems.find(item => item.id === 'bg-cheese');
-if (bgCheeseItem) {
-  bgCheeseItem.image = 'https://i.ibb.co/5WVxdKk5/Chat-GPT-Image-21-jul-2026-16-12-30.webp';
-}
-
 // Explicitly override image for Marocaine Salad
 const slMarocaineItem = menuItems.find(item => item.id === 'sl-marocaine');
 if (slMarocaineItem) {
@@ -2256,42 +1994,6 @@ if (slRioItem) {
 const slFishermanItem = menuItems.find(item => item.id === 'sl-fisherman');
 if (slFishermanItem) {
   slFishermanItem.image = 'https://i.ibb.co/5g0xxmfB/Chat-GPT-Image-21-jul-2026-16-50-17.webp';
-}
-
-// Explicitly override image for Chicken Pasta
-const ptPouletItem = menuItems.find(item => item.id === 'pt-poulet');
-if (ptPouletItem) {
-  ptPouletItem.image = 'https://i.ibb.co/HD4zG20v/Chat-GPT-Image-21-jul-2026-16-53-19.webp';
-}
-
-// Explicitly override image for Bolognaise Pasta
-const ptBolognaiseItem = menuItems.find(item => item.id === 'pt-bolognaise');
-if (ptBolognaiseItem) {
-  ptBolognaiseItem.image = 'https://i.ibb.co/60r28V4J/Chat-GPT-Image-21-jul-2026-16-56-48.webp';
-}
-
-// Explicitly override image for Carbonara Pasta
-const ptCarbonaraItem = menuItems.find(item => item.id === 'pt-carbonara');
-if (ptCarbonaraItem) {
-  ptCarbonaraItem.image = 'https://i.ibb.co/My1TZkS7/Chat-GPT-Image-21-jul-2026-17-01-30.webp';
-}
-
-// Explicitly override image for Fisherman Pasta
-const ptFishermanItem = menuItems.find(item => item.id === 'pt-fisherman');
-if (ptFishermanItem) {
-  ptFishermanItem.image = 'https://i.ibb.co/RGsz10MJ/Chat-GPT-Image-21-jul-2026-17-05-46.webp';
-}
-
-// Explicitly override image for Sliced Chicken Pasta (Émincé Poulet)
-const ptEmincePouletItem = menuItems.find(item => item.id === 'pt-emince-poulet');
-if (ptEmincePouletItem) {
-  ptEmincePouletItem.image = 'https://i.ibb.co/chMyfFMm/Chat-GPT-Image-21-jul-2026-17-11-14.webp';
-}
-
-// Explicitly override image for Lait chaud (previously Lait froid)
-const bcLaitFroidItem = menuItems.find(item => item.id === 'bc-lait-froid');
-if (bcLaitFroidItem) {
-  bcLaitFroidItem.image = 'https://i.ibb.co/N62MV5St/Chat-GPT-Image-21-jul-2026-17-18-06.webp';
 }
 
 // Explicitly override image for Lait chaud (standard item)
@@ -2323,7 +2025,6 @@ const coffeeIds = [
   'bc-cafe-noir',
   'bc-cafe-americain',
   'bc-cafe-lait',
-  'bc-nespresso',
   'bc-double-expresso',
   'bc-cappuccino',
   'bc-frappuccino',
@@ -2348,10 +2049,9 @@ menuItems.forEach(item => {
   }
 });
 
-// Explicitly override image for chocolate-based hot drinks (Chocolat chaud, Chocolat chaud à l'ancienne)
+// Explicitly override image for chocolate-based hot drinks
 const chocolateIds = [
-  'bc-chocolat',
-  'bc-chocolat-ancienne'
+  'bc-chocolat'
 ];
 menuItems.forEach(item => {
   if (chocolateIds.includes(item.id)) {

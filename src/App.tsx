@@ -91,7 +91,6 @@ interface Particle {
 const categories = [
   { id: 'all', icon: '🍽️', translationKey: 'menu_filter_all' },
   { id: 'boissons_chaudes', icon: '☕', translationKey: 'menu_filter_boissons_chaudes' },
-  { id: 'boissons_fraiches', icon: '🥤', translationKey: 'menu_filter_boissons_fraiches' },
   { id: 'jus_cocktails', icon: '🍹', translationKey: 'menu_filter_jus_cocktails' },
   { id: 'breakfasts', icon: '🍳', translationKey: 'menu_filter_breakfasts' },
   { id: 'omelettes', icon: '🥚', translationKey: 'menu_filter_omelettes' },
@@ -102,10 +101,7 @@ const categories = [
   { id: 'pizzas', icon: '🍕', translationKey: 'menu_filter_pizzas' },
   { id: 'sandwiches', icon: '🥪', translationKey: 'menu_filter_sandwiches' },
   { id: 'tacos', icon: '🌮', translationKey: 'menu_filter_tacos' },
-  { id: 'pasticcie', icon: '🍲', translationKey: 'menu_filter_pasticcie' },
-  { id: 'burgers', icon: '🍔', translationKey: 'menu_filter_burgers' },
   { id: 'salades', icon: '🥗', translationKey: 'menu_filter_salades' },
-  { id: 'pates', icon: '🍝', translationKey: 'menu_filter_pates' },
   { id: 'desserts', icon: '🍰', translationKey: 'menu_filter_desserts' }
 ] as const;
 
@@ -116,7 +112,7 @@ const categories = [
 // #menu and applies a filter; 'lunch' is a synthetic id grouping several
 // existing categories (see LUNCH_CATEGORIES below) purely for this band —
 // the real category pills and their data are untouched.
-const LUNCH_CATEGORIES = ['sandwiches', 'tacos', 'burgers', 'pasticcie', 'salades', 'pates'];
+const LUNCH_CATEGORIES = ['sandwiches', 'tacos', 'salades'];
 const occasions = [
   {
     id: 'boissons_chaudes',
@@ -134,7 +130,7 @@ const occasions = [
     id: 'lunch',
     icon: '🥪',
     title: { fr: 'Le Déjeuner', en: 'Lunch', ar: 'الغداء' },
-    tag: { fr: 'Sandwichs, tacos, pâtes, salades', en: 'Sandwiches, tacos, pasta, salads', ar: 'سندويشات وتاكو ومعكرونة وسلطات' },
+    tag: { fr: 'Sandwichs, tacos, salades', en: 'Sandwiches, tacos, salads', ar: 'سندويشات وتاكو وسلطات' },
   },
   {
     id: 'pizzas',
