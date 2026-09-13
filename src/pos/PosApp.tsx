@@ -559,6 +559,11 @@ function buildReceiptHTML(opts: {
   total: number;
   paidLine?: string;
   note?: string;
+  // false une fois la commande réellement payée -- le reçu imprimé à ce
+  // moment-là EST le document officiel, plus un brouillon. Par défaut
+  // (undefined) = provisoire, pour tout appelant qui ne le précise pas
+  // encore. Voir la note du 13/09/2026 plus bas (printReceiptSmart).
+  provisional?: boolean;
 }): string {
   const itemRows = opts.items
     .map(
@@ -600,7 +605,7 @@ function buildReceiptHTML(opts: {
   <div class="label">${escapeHtml(opts.label)}</div>
   ${opts.employeeName ? `<div class="server">Servi par: ${escapeHtml(opts.employeeName.toUpperCase())}</div>` : ''}
   <div class="rule"></div>
-  <div class="doctype">Document provisoire</div>
+  ${opts.provisional === false ? '' : '<div class="doctype">Document provisoire</div>'}
   <div class="cols"><span>Qté Article</span><span>Prix total</span></div>
   ${itemRows}
   ${opts.note ? `<div class="note">${escapeHtml(opts.note)}</div>` : ''}
@@ -753,6 +758,9 @@ function buildReceiptTicketLines(opts: {
   total: number;
   paidLine?: string;
   note?: string;
+  // Voir la note à côté de buildReceiptHTML : false = document officiel,
+  // le "Document provisoire" ne s'imprime plus dessus.
+  provisional?: boolean;
 }): TicketLine[] {
   // Tout en gras (bold: true partout) -- demandé le 13/09/2026, le ticket
   // était jugé difficilement lisible imprimé en maigre.
@@ -765,7 +773,9 @@ function buildReceiptTicketLines(opts: {
   lines.push({ text: opts.label, bold: true });
   if (opts.employeeName) lines.push({ text: `Servi par: ${opts.employeeName.toUpperCase()}`, bold: true, size: 'small' });
   lines.push({ text: '--------------------------------' });
-  lines.push({ text: 'Document provisoire', bold: true, align: 'center', size: 'small' });
+  if (opts.provisional !== false) {
+    lines.push({ text: 'Document provisoire', bold: true, align: 'center', size: 'small' });
+  }
   opts.items.forEach((it) =>
     lines.push({ text: `${it.quantity} ${it.name.toUpperCase()}  ${formatReceiptPrice(it.lineTotal)}`, bold: true })
   );
@@ -790,6 +800,7 @@ async function printReceiptSmart(opts: {
   total: number;
   paidLine?: string;
   note?: string;
+  provisional?: boolean;
 }): Promise<void> {
   const dataBase64 = buildTicketEscPosBase64(buildReceiptTicketLines(opts));
   const res = await printEscPosViaBridge(PRINTER_NAMES.ticket, 'Reçu caisse', dataBase64);
@@ -807,6 +818,9 @@ async function printOrderReceipt(order: OrderDoc): Promise<void> {
     total: order.total,
     paidLine: order.paid ? `Payé${order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}` : 'Non payé',
     note: order.note,
+    // Officiel dès que c'est payé -- plus de "Document provisoire" sur un
+    // reçu qui reflète déjà l'encaissement réel.
+    provisional: !order.paid,
   });
 }
 
@@ -827,6 +841,7 @@ async function printTableReceipt(table: string, orders: OrderDoc[]): Promise<voi
     total,
     paidLine: allPaid ? 'Payé' : 'Non payé',
     note: notes.length > 0 ? notes.join(' / ') : undefined,
+    provisional: !allPaid,
   });
 }
 
@@ -2749,7 +2764,6 @@ export default function PosApp() {
   const [printerBridgeReady, setPrinterBridgeReady] = useState(false);
   const [printerMsg, setPrinterMsg] = useState<string | null>(null);
   const kitchenPrintInFlight = useRef<Set<string>>(new Set());
-  const receiptPrintInFlight = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!unlocked) return;
@@ -2798,28 +2812,18 @@ export default function PosApp() {
     });
   }, [orders, printerBridgeReady, unlocked]);
 
-  // Reçu caisse auto -- même principe, une seule fois par commande (drapeau
-  // receiptPrinted, jamais réémis même si des articles sont ajoutés ensuite
-  // -- le bouton "🖨️ Imprimer" manuel reste là pour un reçu à jour). Gardé
-  // par `printerBridgeReady` : tant que le pont n'est pas détecté, cette
-  // commande unique tourne sur un seul pc, donc pas de risque de déclencher
-  // une impression ailleurs -- mais sans le pont, ouvrir une boîte de
-  // dialogue toute seule à chaque commande serait quand même intrusif, donc
-  // on attend explicitement que le pont soit prêt avant d'imprimer sans
-  // bouton.
-  useEffect(() => {
-    if (!unlocked || !printerBridgeReady) return;
-    orders.forEach((o) => {
-      if (o.status === 'cancelled') return;
-      if (o.receiptPrinted) return;
-      if (receiptPrintInFlight.current.has(o.id)) return;
-      receiptPrintInFlight.current.add(o.id);
-      printOrderReceipt(o)
-        .then(() => updateDoc(doc(db, 'orders', o.id), { receiptPrinted: true }))
-        .catch((err) => console.warn('Reçu auto : échec impression', err))
-        .finally(() => receiptPrintInFlight.current.delete(o.id));
-    });
-  }, [orders, printerBridgeReady, unlocked]);
+  // Reçu caisse auto A LA COMMANDE -- retiré le 13/09/2026 sur demande
+  // explicite d'Amar : imprimer le reçu client dès l'arrivée de la commande
+  // n'a de sens que pour un encaissement immédiat, alors qu'ici le client
+  // peut encore ajouter des articles, partir plus tôt (Départ anticipé) ou
+  // payer en plusieurs fois -- imprimer trop tôt forçait le "Document
+  // provisoire" sur un ticket qui n'était pas encore la note finale. Les
+  // tickets bar/cuisine (juste au-dessus) restent, eux, imprimés
+  // immédiatement : la préparation ne doit jamais attendre l'encaissement.
+  // Le reçu caisse officiel s'imprime maintenant automatiquement au moment
+  // de l'encaissement (voir choosePayment plus bas) et via splitPayTable
+  // pour un Départ anticipé -- plus besoin du drapeau receiptPrinted ici
+  // (resté dans le schéma OrderDoc pour compat, mais plus écrit).
 
   useEffect(() => {
     if (!unlocked) return;
@@ -3015,6 +3019,7 @@ export default function PosApp() {
         items: splitItems,
         total: splitTotal,
         paidLine: 'Payé (cash)',
+        provisional: false,
       });
     } catch (err) {
       reportWriteError(err);
@@ -3141,6 +3146,46 @@ export default function PosApp() {
           )
         : updateDoc(doc(db, 'orders', target.order.id), { paid: true, ...paymentFields(target.order.total) });
     write.catch((err) => reportWriteError(err));
+    // Reçu caisse officiel -- imprimé ICI, au moment réel de l'encaissement,
+    // plutôt qu'à la création de la commande (voir la note plus haut,
+    // 13/09/2026) : c'est LE document définitif, jamais un "Document
+    // provisoire" puisque le paiement vient d'avoir lieu. Fire-and-forget,
+    // comme l'ouverture du tiroir ci-dessus : un souci d'imprimante ne doit
+    // jamais bloquer l'encaissement lui-même (le bouton "Imprimer" manuel
+    // reste disponible pour réimprimer si besoin).
+    let paidLine: string;
+    if (payment.method === 'mixed') {
+      paidLine = `Payé (cash ${formatMAD(payment.cash)} / carte ${formatMAD(payment.card)})`;
+    } else {
+      paidLine = payment.method === 'cash' ? 'Payé (cash)' : 'Payé (carte)';
+    }
+    if (target.kind === 'table') {
+      const items = target.orders.flatMap((o) => o.items);
+      const total = target.orders.reduce((s, o) => s + o.total, 0);
+      const employeeName = target.orders.length > 0 ? target.orders[target.orders.length - 1].employeeName : undefined;
+      const notes = target.orders.map((o) => o.note).filter((n): n is string => !!n);
+      printReceiptSmart({
+        label: `Table ${target.table}`,
+        employeeName,
+        dateLine: receiptDateLine(),
+        items,
+        total,
+        paidLine,
+        note: notes.length > 0 ? notes.join(' / ') : undefined,
+        provisional: false,
+      }).catch((err) => console.warn('Reçu encaissement : échec impression', err));
+    } else {
+      printReceiptSmart({
+        label: kindLabel(target.order),
+        employeeName: target.order.employeeName,
+        dateLine: receiptDateLine(target.order.createdAt?.toMillis()),
+        items: target.order.items,
+        total: target.order.total,
+        paidLine,
+        note: target.order.note,
+        provisional: false,
+      }).catch((err) => console.warn('Reçu encaissement : échec impression', err));
+    }
     if (target.kind === 'table' && selectedTable === target.table) {
       setSelectedTable(null);
     }
