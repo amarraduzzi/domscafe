@@ -2142,6 +2142,7 @@ function TablePanel({
   onEditNote,
   onRemoveItem,
   onApplyDiscount,
+  onSplitPay,
 }: {
   menuItems: MenuItem[];
   table: string;
@@ -2155,12 +2156,59 @@ function TablePanel({
   onEditNote: (order: OrderDoc) => void | Promise<void>;
   onRemoveItem: (order: OrderDoc, index: number) => void | Promise<void>;
   onApplyDiscount: (order: OrderDoc) => void | Promise<void>;
+  onSplitPay: (table: string, orders: OrderDoc[], selection: { orderId: string; itemIndex: number; qty: number }[]) => Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const { draft, addItem, changeQty, total, asOrderItems, reset } = useDraft();
 
   const billTotal = orders.reduce((s, o) => s + o.total, 0);
   const allPaid = orders.length > 0 && orders.every((o) => o.paid);
+
+  // Départ anticipé -- un client de la table veut partir et payer sa part
+  // tout de suite, avant les autres (voir capture de l'ancien logiciel
+  // PointeX envoyée par Amar : deux "tickets" côte à côte, un article qu'on
+  // détache dans l'un ou l'autre). Volontairement plus simple que l'ancien
+  // système (pas de partage 50/50 d'un même article) : on sélectionne
+  // combien d'unités de chaque ligne partent avec cette personne, cette
+  // part est encaissée cash immédiatement et son propre petit ticket
+  // s'imprime, le reste de l'addition continue normalement pour la table.
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitSelection, setSplitSelection] = useState<Record<string, number>>({});
+  const [splitSubmitting, setSplitSubmitting] = useState(false);
+
+  const splitKey = (orderId: string, itemIndex: number) => `${orderId}:${itemIndex}`;
+  const setSplitQty = (orderId: string, itemIndex: number, max: number, qty: number) => {
+    const clamped = Math.max(0, Math.min(max, qty));
+    setSplitSelection((prev) => {
+      const next = { ...prev };
+      const key = splitKey(orderId, itemIndex);
+      if (clamped === 0) delete next[key];
+      else next[key] = clamped;
+      return next;
+    });
+  };
+  const splitTotal = orders.reduce(
+    (sum, o) =>
+      sum +
+      o.items.reduce((s, it, i) => s + it.unitPrice * (splitSelection[splitKey(o.id, i)] || 0), 0),
+    0
+  );
+  const splitCount = Object.values(splitSelection).reduce((s, q) => s + q, 0);
+  const exitSplitMode = () => {
+    setSplitMode(false);
+    setSplitSelection({});
+  };
+  const confirmSplitPay = async () => {
+    if (splitCount === 0 || splitSubmitting) return;
+    setSplitSubmitting(true);
+    const selection = Object.entries(splitSelection).map(([key, qty]) => {
+      const [orderId, itemIndex] = key.split(':');
+      return { orderId, itemIndex: Number(itemIndex), qty };
+    });
+    await onSplitPay(table, orders, selection);
+    setSplitSubmitting(false);
+    exitSplitMode();
+  };
 
   const submitAdd = async () => {
     if (draft.length === 0 || submitting) return;
@@ -2230,23 +2278,48 @@ function TablePanel({
                       <p className="text-xs text-brand-orange font-medium leading-snug">{o.note}</p>
                     </div>
                   )}
-                  {o.items.map((it, i) => (
-                    <div key={i} className="flex justify-between items-center gap-1.5 text-sm text-[#E3DCCB]">
-                      <span>
-                        <span className="font-bold text-brand-orange">{it.quantity}×</span> {it.name}
-                      </span>
-                      <span className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[#9A9490]">{formatMAD(it.lineTotal)}</span>
-                        <button
-                          onClick={() => onRemoveItem(o, i)}
-                          title="Retirer cet article (code manager)"
-                          className="text-[#5a5148] hover:text-red-400 text-xs w-4 h-4 rounded-full flex items-center justify-center transition-colors"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    </div>
-                  ))}
+                  {o.items.map((it, i) => {
+                    const selQty = splitSelection[splitKey(o.id, i)] || 0;
+                    return (
+                      <div key={i} className="flex justify-between items-center gap-1.5 text-sm text-[#E3DCCB]">
+                        <span>
+                          <span className="font-bold text-brand-orange">{it.quantity}×</span> {it.name}
+                        </span>
+                        {splitMode ? (
+                          <span className="flex items-center gap-2 shrink-0">
+                            <span className="flex items-center gap-1.5 pos-surface rounded-full px-1 py-0.5">
+                              <button
+                                onClick={() => setSplitQty(o.id, i, it.quantity, selQty - 1)}
+                                disabled={selQty === 0}
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-[#F3ECDD] disabled:opacity-30 hover:bg-white/10 transition-colors"
+                              >
+                                −
+                              </button>
+                              <span className={`w-4 text-center text-xs font-black ${selQty > 0 ? 'text-brand-orange' : 'text-[#7A736C]'}`}>{selQty}</span>
+                              <button
+                                onClick={() => setSplitQty(o.id, i, it.quantity, selQty + 1)}
+                                disabled={selQty >= it.quantity}
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-[#F3ECDD] disabled:opacity-30 hover:bg-white/10 transition-colors"
+                              >
+                                +
+                              </button>
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[#9A9490]">{formatMAD(it.lineTotal)}</span>
+                            <button
+                              onClick={() => onRemoveItem(o, i)}
+                              title="Retirer cet article (code manager)"
+                              className="text-[#5a5148] hover:text-red-400 text-xs w-4 h-4 rounded-full flex items-center justify-center transition-colors"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                   {!!o.discount && (
                     <div className="flex justify-between text-xs text-brand-orange font-bold mt-1">
                       <span className="inline-flex items-center gap-1"><Tag className="w-3 h-3" /> Remise</span>
@@ -2256,24 +2329,54 @@ function TablePanel({
                 </div>
               );
             })}
-            <div className="flex items-center justify-between pt-2 border-t border-[#F3ECDD]/10">
-              <span className="font-display font-black text-brand-orange text-2xl">{formatMAD(billTotal)}</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => printTableReceipt(table, orders)}
-                  title="Imprimer le reçu"
-                  className="text-sm font-bold px-3.5 py-2.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all flex items-center gap-1.5"
-                >
-                  <Printer className="w-4 h-4" /> Imprimer
-                </button>
-                <button
-                  onClick={onCheckout}
-                  className="text-sm font-black px-5 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.97] text-[#1A1208] shadow-lg shadow-brand-orange/20 transition-all"
-                >
-                  {allPaid ? 'Clôturer la table' : 'Encaisser'}
-                </button>
+            {splitMode ? (
+              <div className="flex items-center justify-between pt-2 border-t border-[#F3ECDD]/10">
+                <div>
+                  <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold">Départ anticipé -- part sélectionnée</p>
+                  <span className="font-display font-black text-brand-orange text-2xl">{formatMAD(splitTotal)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={exitSplitMode} className="text-sm font-bold px-3.5 py-2.5 rounded-lg text-[#9A9490] hover:text-[#F3ECDD] transition-all">
+                    Annuler
+                  </button>
+                  <button
+                    onClick={confirmSplitPay}
+                    disabled={splitCount === 0 || splitSubmitting}
+                    className="text-sm font-black px-5 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] shadow-lg shadow-brand-orange/20 transition-all"
+                  >
+                    {splitSubmitting ? 'Encaissement…' : `Encaisser cette part — ${formatMAD(splitTotal)}`}
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between pt-2 border-t border-[#F3ECDD]/10">
+                <span className="font-display font-black text-brand-orange text-2xl">{formatMAD(billTotal)}</span>
+                <div className="flex items-center gap-2">
+                  {!allPaid && (
+                    <button
+                      onClick={() => setSplitMode(true)}
+                      title="Un client part plus tôt et paie sa part en cash tout de suite"
+                      className="text-sm font-bold px-3.5 py-2.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all flex items-center gap-1.5"
+                    >
+                      <ArrowRight className="w-4 h-4" /> Départ anticipé
+                    </button>
+                  )}
+                  <button
+                    onClick={() => printTableReceipt(table, orders)}
+                    title="Imprimer le reçu"
+                    className="text-sm font-bold px-3.5 py-2.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all flex items-center gap-1.5"
+                  >
+                    <Printer className="w-4 h-4" /> Imprimer
+                  </button>
+                  <button
+                    onClick={onCheckout}
+                    className="text-sm font-black px-5 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.97] text-[#1A1208] shadow-lg shadow-brand-orange/20 transition-all"
+                  >
+                    {allPaid ? 'Clôturer la table' : 'Encaisser'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2844,6 +2947,75 @@ export default function PosApp() {
     const newTotal = Math.max(0, order.total - amount);
     try {
       await updateDoc(doc(db, 'orders', order.id), { total: newTotal, discount: (order.discount || 0) + amount });
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+  // Départ anticipé -- voir le commentaire au-dessus de splitMode dans
+  // TablePanel pour le pourquoi. `selection` dit combien d'unités de quelle
+  // ligne (par commande + index) partent avec cette personne : on les
+  // retire des commandes actives de la table (au prorata, en réduisant la
+  // quantité plutôt qu'en supprimant la ligne si tout n'est pas pris), et on
+  // crée une commande séparée déjà payée cash + servie pour cette part --
+  // elle apparaît dans l'Historique/Rapports comme n'importe quelle vente,
+  // simplement horodatée à part. Pas de code manager ici : c'est un
+  // encaissement normal, pas une correction/suppression.
+  const splitPayTable = async (
+    table: string,
+    tableOrders: OrderDoc[],
+    selection: { orderId: string; itemIndex: number; qty: number }[]
+  ) => {
+    if (selection.length === 0) return;
+    const splitItems: OrderItem[] = [];
+    const orderUpdates: { id: string; items: OrderItem[]; total: number }[] = [];
+    for (const o of tableOrders) {
+      const forThisOrder = selection.filter((s) => s.orderId === o.id);
+      if (forThisOrder.length === 0) continue;
+      const items: (OrderItem | null)[] = [...o.items];
+      let total = o.total;
+      for (const s of forThisOrder) {
+        const it = items[s.itemIndex];
+        if (!it) continue;
+        const takeQty = Math.min(s.qty, it.quantity);
+        if (takeQty <= 0) continue;
+        const takeAmount = Math.round(it.unitPrice * takeQty * 100) / 100;
+        splitItems.push({ name: it.name, quantity: takeQty, unitPrice: it.unitPrice, lineTotal: takeAmount, station: it.station });
+        total = Math.max(0, Math.round((total - takeAmount) * 100) / 100);
+        items[s.itemIndex] =
+          takeQty >= it.quantity
+            ? null
+            : { ...it, quantity: it.quantity - takeQty, lineTotal: Math.round(it.unitPrice * (it.quantity - takeQty) * 100) / 100 };
+      }
+      orderUpdates.push({ id: o.id, items: items.filter((it): it is OrderItem => it !== null), total });
+    }
+    if (splitItems.length === 0) return;
+    const splitTotal = Math.round(splitItems.reduce((s, it) => s + it.lineTotal, 0) * 100) / 100;
+    try {
+      await Promise.all(orderUpdates.map((u) => updateDoc(doc(db, 'orders', u.id), { items: u.items, total: u.total })));
+      await addDoc(collection(db, 'orders'), {
+        tableNumber: table,
+        orderType: 'dine_in',
+        source: 'manual',
+        items: splitItems,
+        total: splitTotal,
+        status: 'served',
+        paid: true,
+        paymentMethod: 'cash',
+        note: 'Départ anticipé',
+        ...(currentEmployee ? { employeeName: currentEmployee.name } : {}),
+        createdAt: serverTimestamp(),
+      });
+      openCashDrawer().then((res) => {
+        if (res.ok === false) console.warn('Ouverture auto du tiroir (départ anticipé) : ', res.message);
+      });
+      await printReceiptSmart({
+        label: `Table ${table} — Départ anticipé`,
+        employeeName: currentEmployee?.name,
+        dateLine: receiptDateLine(),
+        items: splitItems,
+        total: splitTotal,
+        paidLine: 'Payé (cash)',
+      });
     } catch (err) {
       reportWriteError(err);
     }
@@ -3940,6 +4112,7 @@ export default function PosApp() {
           onEditNote={editNote}
           onRemoveItem={removeItemFromOrder}
           onApplyDiscount={applyDiscount}
+          onSplitPay={splitPayTable}
         />
       )}
 
