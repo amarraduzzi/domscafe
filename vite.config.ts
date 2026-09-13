@@ -22,6 +22,9 @@ export default defineConfig(() => {
           main: path.resolve(__dirname, 'index.html'),
           pos: path.resolve(__dirname, 'pos.html'),
           tv: path.resolve(__dirname, 'tv.html'),
+          // Écran propriétaire, mobile -- domscafe.pages.dev/owner.html, voir
+          // src/owner/OwnerApp.tsx.
+          owner: path.resolve(__dirname, 'owner.html'),
         },
       },
     },
