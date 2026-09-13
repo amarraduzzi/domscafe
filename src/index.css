@@ -67,6 +67,24 @@
   }
 }
 
+/* Compat fix (13/09/2026) -- Tailwind v4's bg-gradient-to-b/-t utilities set
+   --tw-gradient-position to "to bottom in oklab" / "to top in oklab": that
+   "in <color-space>" interpolation hint is CSS Color Level 4 syntax, only
+   understood from ~Chrome 111 onward. On an older browser that doesn't
+   recognize it (confirmed: the counter's kiosk PC is stuck on Windows 7 ->
+   Chrome 109, the last version Google ever shipped for Windows 7, so it can
+   never update past this), the whole linear-gradient(...) becomes invalid
+   and the element renders with NO background at all -- which is why an
+   "occupied" table on that screen showed up black instead of orange. This
+   override keeps the interpolation space unspecified (plain "to bottom" /
+   "to top"), which every browser -- including this old one -- can parse.
+   The visual difference vs. true oklab interpolation is not visible to the
+   eye for our two-stop gradients. */
+@layer utilities {
+  .bg-gradient-to-b { --tw-gradient-position: to bottom; }
+  .bg-gradient-to-t { --tw-gradient-position: to top; }
+}
+
 /* Screen POS: real depth on top of the flat brand-dark-card surfaces, used
    throughout PosApp.tsx (points requested: "diepte en textuur" +
    "high end" look) instead of hand-rolled inline gradients everywhere. */

@@ -3140,7 +3140,11 @@ export default function PosApp() {
         <div className="bg-[#F3ECDD]/10 text-[#9A9490] text-sm px-5 py-2 text-center">Connexion à Firestore…</div>
       )}
 
-      <header className="sticky top-0 z-40 bg-gradient-to-b from-brand-dark to-[#1f160c]/98 backdrop-blur border-b border-[#F3ECDD]/10 shadow-lg shadow-black/30 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
+      {/* to-[#1f160c] sans opacité (13/09/2026) -- une couleur arbitraire
+          "/98" dans un gradient compile en oklab(...), non supporté sur le
+          pc caisse (Chrome 109, coincé sur Windows 7). #1f160c uni est visuellement
+          indiscernable du 98% d'opacité d'origine sur ce fond déjà sombre. */}
+      <header className="sticky top-0 z-40 bg-gradient-to-b from-brand-dark to-[#1f160c] backdrop-blur border-b border-[#F3ECDD]/10 shadow-lg shadow-black/30 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <img src="/logo.webp" alt="Dom's Café" className="h-9 w-auto object-contain" />
           <div>
@@ -3288,8 +3292,14 @@ export default function PosApp() {
                     key={n}
                     onClick={() => setSelectedTable(n)}
                     className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all hover:-translate-y-0.5 ${
+                      // #536048/#414333 uni (13/09/2026) -- équivalent visuel de
+                      // #8FBF8A a 35%/15% d'opacite sur le fond sombre de la
+                      // tuile, mais sans opacite : une couleur arbitraire "/nn"
+                      // dans un gradient compile en oklab(...), non supporte sur
+                      // le pc caisse (Chrome 109, coince sur Windows 7) -- la
+                      // tuile "Payee" y apparaissait sans fond du tout (noire).
                       allPaid
-                        ? 'bg-gradient-to-b from-[#8FBF8A]/35 to-[#8FBF8A]/15 border-[#8FBF8A]/60 text-[#F3ECDD] shadow-md shadow-[#8FBF8A]/10'
+                        ? 'bg-gradient-to-b from-[#536048] to-[#414333] border-[#8FBF8A]/60 text-[#F3ECDD] shadow-md shadow-[#8FBF8A]/10'
                         : occupied
                         ? 'bg-gradient-to-b from-brand-orange to-brand-orange-hover border-brand-orange text-[#1A1208] shadow-lg shadow-brand-orange/25'
                         : 'pos-surface border-[#F3ECDD]/10 text-[#F3ECDD] hover:border-brand-orange/50'
