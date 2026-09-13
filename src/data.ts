@@ -1070,6 +1070,21 @@ export const menuItems: MenuItem[] = [
     description: { fr: "Partie de snooker (billard)", en: "Snooker (billiards) game", ar: "لعبة سنوكر (بيلياردو)" },
     image: "",
     station: "Bar"
+  },
+  // Ajouté le 13/09/2026 -- deuxième prestation "billard" à côté du snooker
+  // ci-dessus, tarif plus bas (10 DH au lieu de 30 DH). Article séparé plutôt
+  // qu'une variante du snooker : la caisse (PosApp.tsx) ajoute toujours au
+  // prix de base d'un article et ne gère pas les variantes, donc un article
+  // à part est le seul moyen de le rendre sélectionnable au comptoir avec son
+  // propre prix.
+  {
+    id: 'biljart',
+    category: 'snooker',
+    price: 10,
+    name: { fr: "Billard", en: "Billiards", ar: "بلياردو" },
+    description: { fr: "Partie de billard", en: "Billiards game", ar: "لعبة بلياردو" },
+    image: "",
+    station: "Bar"
   }
 ];
 
@@ -2071,3 +2086,5 @@ menuItems.forEach(item => {
 
 
 
+
+// menu redeploy trigger: 13/09/2026

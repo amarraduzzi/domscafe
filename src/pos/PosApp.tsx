@@ -225,6 +225,26 @@ interface DailyClosure {
   orderCount: number;
   closedAt: number;
   closedByEmployee: string;
+  // Total des sorties de caisse (voir CashPayout ci-dessous) sur la journée,
+  // figé au moment de la clôture -- absent sur les clôtures faites avant le
+  // 13/09/2026, traité comme 0 partout où c'est lu.
+  payoutsTotal?: number;
+}
+
+// Une sortie d'argent liquide de la caisse pour autre chose qu'une commande
+// -- typiquement payer un fournisseur sur place, en cash, comme c'est
+// l'usage courant au Maroc ("er worden gewoon leveranciers uit de kassa
+// betaald"). Collection Firestore séparée ("cashPayouts") plutôt qu'un champ
+// sur les commandes : ce n'est pas une commande, ça ne doit jamais apparaître
+// dans le chiffre d'affaires, seulement venir en déduction du cash physique
+// disponible en tiroir. `reason` est obligatoire (voir CashPayoutModal) --
+// c'est le point du brief : on doit toujours savoir pour quoi et combien.
+interface CashPayout {
+  id: string;
+  amount: number;
+  reason: string;
+  employeeName?: string;
+  createdAt?: Timestamp;
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -431,6 +451,14 @@ function computeStats(rangeOrders: OrderDoc[]) {
     byEmployee,
     hourly,
   };
+}
+
+// Total des sorties de caisse d'un lot de CashPayout -- utilisé partout où
+// le rapport doit déduire les sorties du cash encaissé (X, Z, onglet
+// Rapports) pour donner "ce qu'il doit rester dans le tiroir" plutôt que
+// juste "ce qui a été encaissé en cash".
+function computePayoutsTotal(payouts: CashPayout[]): number {
+  return payouts.reduce((s, p) => s + p.amount, 0);
 }
 
 function minutesSince(ts?: Timestamp): number {
@@ -993,17 +1021,34 @@ function buildReportReceiptHTML(opts: { title: string; lines: [string, string][]
 </html>`;
 }
 
-function XReportModal({ stats, onClose }: { stats: ReturnType<typeof computeStats>; onClose: () => void }) {
+function XReportModal({
+  stats,
+  payouts,
+  onClose,
+}: {
+  stats: ReturnType<typeof computeStats>;
+  payouts: CashPayout[];
+  onClose: () => void;
+}) {
+  const payoutsTotal = computePayoutsTotal(payouts);
+  const cashInDrawer = stats.cash - payoutsTotal;
   const print = () =>
     printReceipt(
       buildReportReceiptHTML({
         title: 'RAPPORT X (en cours)',
         lines: [
           ['Chiffre d’affaires', formatMAD(stats.revenue)],
-          ['Cash', formatMAD(stats.cash)],
+          ['Cash encaissé', formatMAD(stats.cash)],
           ['Carte', formatMAD(stats.card)],
           ['Glovo', formatMAD(stats.glovo)],
           ...(stats.unspecified > 0 ? ([['Non précisé', formatMAD(stats.unspecified)]] as [string, string][]) : []),
+          ...(payoutsTotal > 0
+            ? ([
+                ['Sorties de caisse', `- ${formatMAD(payoutsTotal)}`],
+                ...payouts.map((p) => [`  · ${p.reason}`, `- ${formatMAD(p.amount)}`] as [string, string]),
+                ['Cash en tiroir', formatMAD(cashInDrawer)],
+              ] as [string, string][])
+            : []),
           ['Commandes', String(stats.orderCount)],
           ['Panier moyen', formatMAD(stats.avg)],
         ],
@@ -1021,11 +1066,21 @@ function XReportModal({ stats, onClose }: { stats: ReturnType<typeof computeStat
         </p>
         <div className="space-y-1.5 text-sm mb-5">
           <div className="flex justify-between"><span className="text-[#9A9490]">Chiffre d'affaires</span><span className="font-bold text-brand-orange">{formatMAD(stats.revenue)}</span></div>
-          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Banknote className="inline-block w-3.5 h-3.5" /> Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.cash)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Banknote className="inline-block w-3.5 h-3.5" /> Cash encaissé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.cash)}</span></div>
           <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><CreditCard className="inline-block w-3.5 h-3.5" /> Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.card)}</span></div>
           <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Bike className="inline-block w-3.5 h-3.5" /> Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.glovo)}</span></div>
           {stats.unspecified > 0 && (
             <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(stats.unspecified)}</span></div>
+          )}
+          {payoutsTotal > 0 && (
+            <>
+              <div className="pt-1.5 border-t border-[#F3ECDD]/10" />
+              <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><ArrowDown className="inline-block w-3.5 h-3.5" /> Sorties de caisse</span><span className="font-bold text-red-400">- {formatMAD(payoutsTotal)}</span></div>
+              {payouts.map((p) => (
+                <div key={p.id} className="flex justify-between pl-4 text-xs"><span className="text-[#7A736C]">{p.reason}</span><span className="text-[#9A9490]">- {formatMAD(p.amount)}</span></div>
+              ))}
+              <div className="flex justify-between"><span className="text-[#9A9490]">Cash en tiroir</span><span className="font-bold text-[#F3ECDD]">{formatMAD(cashInDrawer)}</span></div>
+            </>
           )}
           <div className="flex justify-between pt-1.5 border-t border-[#F3ECDD]/10"><span className="text-[#9A9490]">Commandes</span><span className="font-bold text-[#F3ECDD]">{stats.orderCount}</span></div>
         </div>
@@ -1045,11 +1100,13 @@ function XReportModal({ stats, onClose }: { stats: ReturnType<typeof computeStat
 
 function ZReportModal({
   stats,
+  payouts,
   closure,
   onClose,
   onConfirmClose,
 }: {
   stats: ReturnType<typeof computeStats>;
+  payouts: CashPayout[];
   closure: DailyClosure | null;
   onClose: () => void;
   onConfirmClose: () => void;
@@ -1057,6 +1114,13 @@ function ZReportModal({
   const display = closure
     ? { revenue: closure.revenue, cash: closure.cash, card: closure.card, glovo: closure.glovo, unspecified: closure.unspecified, orderCount: closure.orderCount }
     : stats;
+  // Une fois clôturée, la journée affiche le total des sorties tel que figé
+  // dans le doc de clôture (`payoutsTotal`, 0 pour une clôture d'avant le
+  // 13/09/2026) ; tant que non clôturée, la liste live `payouts` -- avec le
+  // détail motif par motif, absent du doc de clôture qui ne garde que le
+  // total.
+  const payoutsTotal = closure ? closure.payoutsTotal || 0 : computePayoutsTotal(payouts);
+  const cashInDrawer = display.cash - payoutsTotal;
 
   const print = () =>
     printReceipt(
@@ -1064,10 +1128,17 @@ function ZReportModal({
         title: closure ? 'RAPPORT Z (clôturé)' : 'RAPPORT Z',
         lines: [
           ['Chiffre d’affaires', formatMAD(display.revenue)],
-          ['Cash', formatMAD(display.cash)],
+          ['Cash encaissé', formatMAD(display.cash)],
           ['Carte', formatMAD(display.card)],
           ['Glovo', formatMAD(display.glovo)],
           ...(display.unspecified > 0 ? ([['Non précisé', formatMAD(display.unspecified)]] as [string, string][]) : []),
+          ...(payoutsTotal > 0
+            ? ([
+                ['Sorties de caisse', `- ${formatMAD(payoutsTotal)}`],
+                ...(!closure ? payouts.map((p) => [`  · ${p.reason}`, `- ${formatMAD(p.amount)}`] as [string, string]) : []),
+                ['Cash en tiroir', formatMAD(cashInDrawer)],
+              ] as [string, string][])
+            : []),
           ['Commandes', String(display.orderCount)],
         ],
         footer: closure
@@ -1092,11 +1163,22 @@ function ZReportModal({
         )}
         <div className="space-y-1.5 text-sm mb-5">
           <div className="flex justify-between"><span className="text-[#9A9490]">Chiffre d'affaires</span><span className="font-bold text-brand-orange">{formatMAD(display.revenue)}</span></div>
-          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Banknote className="inline-block w-3.5 h-3.5" /> Cash</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.cash)}</span></div>
+          <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Banknote className="inline-block w-3.5 h-3.5" /> Cash encaissé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.cash)}</span></div>
           <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><CreditCard className="inline-block w-3.5 h-3.5" /> Carte</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.card)}</span></div>
           <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><Bike className="inline-block w-3.5 h-3.5" /> Glovo</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.glovo)}</span></div>
           {display.unspecified > 0 && (
             <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(display.unspecified)}</span></div>
+          )}
+          {payoutsTotal > 0 && (
+            <>
+              <div className="pt-1.5 border-t border-[#F3ECDD]/10" />
+              <div className="flex justify-between"><span className="text-[#9A9490] inline-flex items-center gap-1"><ArrowDown className="inline-block w-3.5 h-3.5" /> Sorties de caisse</span><span className="font-bold text-red-400">- {formatMAD(payoutsTotal)}</span></div>
+              {!closure &&
+                payouts.map((p) => (
+                  <div key={p.id} className="flex justify-between pl-4 text-xs"><span className="text-[#7A736C]">{p.reason}</span><span className="text-[#9A9490]">- {formatMAD(p.amount)}</span></div>
+                ))}
+              <div className="flex justify-between"><span className="text-[#9A9490]">Cash en tiroir</span><span className="font-bold text-[#F3ECDD]">{formatMAD(cashInDrawer)}</span></div>
+            </>
           )}
           <div className="flex justify-between pt-1.5 border-t border-[#F3ECDD]/10"><span className="text-[#9A9490]">Commandes</span><span className="font-bold text-[#F3ECDD]">{display.orderCount}</span></div>
         </div>
@@ -1366,6 +1448,12 @@ function TvSlideEditModal({
 
 type PaymentChoice = { method: 'cash' | 'card' } | { method: 'mixed'; cash: number; card: number };
 
+// Tout se paie en cash pour l'instant ("bank betalen" retiré le 13/09/2026 --
+// voir le brief) : ce modal ne demande donc plus le mode de paiement, il ne
+// fait plus que confirmer le montant avant d'encaisser. `onChoose` garde sa
+// forme { method: 'cash' } pour ne pas toucher au reste de la logique de
+// paiement (choosePayment, computeStats...) qui sait déjà gérer 'card' /
+// 'mixed' -- utile si le paiement carte revient un jour.
 function PaymentMethodModal({
   label,
   total,
@@ -1377,77 +1465,87 @@ function PaymentMethodModal({
   onChoose: (payment: PaymentChoice) => void;
   onCancel: () => void;
 }) {
-  // "Paiement partagé" -- masqué par défaut derrière un lien, pour ne pas
-  // alourdir le cas courant (un seul mode, un seul tap). Une fois ouvert,
-  // le champ carte se déduit automatiquement du champ cash (et vice versa)
-  // pour toujours totaliser `total` sans calcul mental côté caissier.
-  const [splitting, setSplitting] = useState(false);
-  const [cashPart, setCashPart] = useState(total);
-
-  const cardPart = Math.max(0, Math.round((total - cashPart) * 100) / 100);
-  const splitValid = cashPart >= 0 && cashPart <= total;
-
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center px-4 animate-fade-in">
       <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 text-center animate-pop">
         <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1">{label}</h3>
-        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Mode de paiement ?</p>
+        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Encaisser ce montant ?</p>
         <p className="font-display font-black text-2xl text-brand-orange mb-5">{formatMAD(total)}</p>
 
-        {!splitting ? (
-          <>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <button
-                onClick={() => onChoose({ method: 'cash' })}
-                className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all flex items-center justify-center gap-2"
-              >
-                <Banknote className="w-5 h-5" /> Cash
-              </button>
-              <button
-                onClick={() => onChoose({ method: 'card' })}
-                className="py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all flex items-center justify-center gap-2"
-              >
-                <CreditCard className="w-5 h-5" /> Carte
-              </button>
-            </div>
-            <button
-              onClick={() => setSplitting(true)}
-              className="text-[#9A9490] text-xs font-bold hover:text-[#F3ECDD] underline underline-offset-2 transition-colors mb-4"
-            >
-              Paiement partagé (cash + carte)
-            </button>
-          </>
-        ) : (
-          <div className="mb-4 text-start">
-            <label className="block text-[10px] font-bold text-[#7A736C] mb-1 uppercase tracking-wider">Cash (MAD)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              max={total}
-              step="0.01"
-              value={cashPart}
-              onChange={(e) => setCashPart(Math.max(0, Math.min(total, parseFloat(e.target.value) || 0)))}
-              className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 mb-3 text-base text-[#F3ECDD] focus:outline-none focus:border-brand-orange transition-shadow"
-            />
-            <label className="block text-[10px] font-bold text-[#7A736C] mb-1 uppercase tracking-wider">Carte (MAD) — calculé automatiquement</label>
-            <div className="w-full bg-black/20 border border-[#F3ECDD]/10 rounded-lg px-3 py-2.5 mb-4 text-base text-[#9A9490]">
-              {formatMAD(cardPart)}
-            </div>
-            <button
-              onClick={() => splitValid && onChoose({ method: 'mixed', cash: cashPart, card: cardPart })}
-              disabled={!splitValid}
-              className="w-full py-3.5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black shadow-lg shadow-brand-orange/20 transition-all mb-2"
-            >
-              Confirmer le paiement partagé
-            </button>
-            <button onClick={() => setSplitting(false)} className="text-[#9A9490] text-xs font-bold hover:text-[#F3ECDD] underline underline-offset-2 transition-colors mb-2">
-              Retour
-            </button>
-          </div>
-        )}
+        <button
+          onClick={() => onChoose({ method: 'cash' })}
+          className="w-full py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all flex items-center justify-center gap-2 mb-4"
+        >
+          <Banknote className="w-5 h-5" /> Cash
+        </button>
 
         <button onClick={onCancel} className="text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+// Sortie de caisse -- payer un fournisseur (ou toute autre dépense) en cash
+// directement depuis le tiroir. Motif + montant sont tous les deux
+// obligatoires : c'est tout le point de ce modal ("waarvoor er betaald is en
+// wat voor bedrag" doit toujours être su). Protégé par le code manager côté
+// appelant (voir handleConfirmCashPayout), comme les autres actions qui
+// touchent à l'argent (remise, annulation).
+function CashPayoutModal({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: (reason: string, amount: number) => void;
+  onCancel: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [amountRaw, setAmountRaw] = useState('');
+  const amount = parseFloat(amountRaw.replace(',', '.'));
+  const valid = reason.trim().length > 0 && isFinite(amount) && amount > 0;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center px-4 animate-fade-in">
+      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 animate-pop">
+        <p className="mb-1 flex justify-center"><Banknote className="w-6 h-6 text-brand-orange" /></p>
+        <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1 text-center">Sortie de caisse</h3>
+        <p className="text-[#9A9490] text-xs mb-5 text-center">
+          Argent qui sort du tiroir pour autre chose qu'une commande -- payer un fournisseur, une course, etc. Le motif et le montant restent dans les rapports.
+        </p>
+        <div className="text-start mb-3">
+          <label className="block text-[10px] font-bold text-[#7A736C] mb-1 uppercase tracking-wider">Motif (obligatoire)</label>
+          <input
+            type="text"
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="ex. Fournisseur légumes"
+            className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-base text-[#F3ECDD] focus:outline-none focus:border-brand-orange transition-shadow"
+          />
+        </div>
+        <div className="text-start mb-5">
+          <label className="block text-[10px] font-bold text-[#7A736C] mb-1 uppercase tracking-wider">Montant (MAD)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.01"
+            value={amountRaw}
+            onChange={(e) => setAmountRaw(e.target.value)}
+            className="w-full bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-base text-[#F3ECDD] focus:outline-none focus:border-brand-orange transition-shadow"
+          />
+        </div>
+        <button
+          onClick={() => valid && onConfirm(reason.trim(), Math.round(amount * 100) / 100)}
+          disabled={!valid}
+          className="w-full py-3.5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A1208] font-display font-black shadow-lg shadow-brand-orange/20 transition-all mb-2"
+        >
+          Confirmer la sortie
+        </button>
+        <button onClick={onCancel} className="w-full text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
           Annuler
         </button>
       </div>
@@ -2336,6 +2434,22 @@ export default function PosApp() {
     return () => unsub();
   }, [unlocked]);
 
+  // Sorties de caisse (paiement fournisseur en cash, etc.) -- même principe
+  // que le listener "orders" ci-dessous : toute la collection, filtrée par
+  // période plus loin (todayPayouts / rangePayouts) exactement comme pour
+  // les commandes, pour que "aujourd'hui" et "la période Rapports" restent
+  // cohérents entre commandes et sorties.
+  const [cashPayouts, setCashPayouts] = useState<CashPayout[]>([]);
+  const [showCashPayout, setShowCashPayout] = useState(false);
+  useEffect(() => {
+    if (!unlocked) return;
+    const q = query(collection(db, 'cashPayouts'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setCashPayouts(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+    });
+    return () => unsub();
+  }, [unlocked]);
+
   const closeToday = async () => {
     const ok = await requestManagerAuth();
     if (!ok) return;
@@ -2350,9 +2464,33 @@ export default function PosApp() {
       orderCount: stats.orderCount,
       closedAt: Date.now(),
       closedByEmployee: currentEmployee?.name || 'Inconnu',
+      payoutsTotal: computePayoutsTotal(todayPayouts),
     };
     try {
       await setDoc(doc(db, 'dailyClosures', payload.date), payload);
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+
+  // Enregistre une sortie de caisse -- protégé par le code manager comme les
+  // autres actions qui touchent à l'argent (remise, annulation). Ouvre aussi
+  // le tiroir automatiquement puisque c'est justement pour en sortir de
+  // l'argent liquide.
+  const addCashPayout = async (reason: string, amount: number) => {
+    const ok = await requestManagerAuth();
+    if (!ok) return;
+    try {
+      await addDoc(collection(db, 'cashPayouts'), {
+        reason,
+        amount,
+        employeeName: currentEmployee?.name || 'Inconnu',
+        createdAt: serverTimestamp(),
+      });
+      setShowCashPayout(false);
+      openCashDrawer().then((res) => {
+        if (res.ok === false) console.warn('Ouverture auto du tiroir (sortie caisse) : ', res.message);
+      });
     } catch (err) {
       reportWriteError(err);
     }
@@ -2846,6 +2984,21 @@ export default function PosApp() {
   // retrievable instead of only ever seeing "today".
   const reportStats = useMemo(() => computeStats(rangeOrders), [rangeOrders]);
 
+  // Sorties de caisse pour la même période que rangeOrders/reportStats --
+  // même logique de filtrage par date, pour que l'onglet Rapports montre
+  // toujours "cash encaissé" et "sorties de caisse" pour exactement la même
+  // fenêtre de temps.
+  const rangePayouts = useMemo(() => {
+    const start = rangeStart(reportRange, customStart);
+    const end = rangeEnd(reportRange, customEnd);
+    return cashPayouts.filter((p) => {
+      const t = p.createdAt?.toMillis() || 0;
+      return t >= start && t <= end;
+    });
+  }, [cashPayouts, reportRange, customStart, customEnd]);
+
+  const rangePayoutsTotal = useMemo(() => computePayoutsTotal(rangePayouts), [rangePayouts]);
+
   // Toujours la journée civile en cours, indépendamment de la période
   // sélectionnée dans l'onglet Rapports -- c'est la base des Rapports X et Z
   // ("l'omzet sinds de laatste kassa-opening" devient, sans compteur de
@@ -2859,6 +3012,14 @@ export default function PosApp() {
     });
   }, [orders]);
   const todayStats = useMemo(() => computeStats(todayOrders), [todayOrders]);
+  const todayPayouts = useMemo(() => {
+    const start = rangeStart('today');
+    const end = rangeEnd('today');
+    return cashPayouts.filter((p) => {
+      const t = p.createdAt?.toMillis() || 0;
+      return t >= start && t <= end;
+    });
+  }, [cashPayouts]);
 
   // Kitchen view: everything still to prepare (new/preparing), grouped by
   // station instead of by table/order, so the kitchen sees a prep list
@@ -3028,6 +3189,13 @@ export default function PosApp() {
             className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
           >
             <Archive className="w-4 h-4" /> Ouvrir le tiroir
+          </button>
+          <button
+            onClick={() => setShowCashPayout(true)}
+            title="Sortie de caisse -- payer un fournisseur ou une dépense en cash depuis le tiroir"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border border-red-500/30 text-red-400 hover:text-red-300 hover:border-red-400/50 transition-all"
+          >
+            <ArrowDown className="w-4 h-4" /> Sortie de caisse
           </button>
           <span
             title={
@@ -3403,6 +3571,12 @@ export default function PosApp() {
                   {reportStats.unspecified > 0 && (
                     <div className="flex justify-between"><span className="text-[#9A9490]">— Non précisé</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.unspecified)}</span></div>
                   )}
+                  {rangePayoutsTotal > 0 && (
+                    <>
+                      <div className="flex justify-between pt-1 border-t border-[#F3ECDD]/10"><span className="text-[#9A9490] inline-flex items-center gap-1"><ArrowDown className="inline-block w-3.5 h-3.5" /> Sorties de caisse</span><span className="font-bold text-red-400">- {formatMAD(rangePayoutsTotal)}</span></div>
+                      <div className="flex justify-between"><span className="text-[#9A9490] font-bold">Cash net (tiroir)</span><span className="font-bold text-[#F3ECDD]">{formatMAD(reportStats.cash - rangePayoutsTotal)}</span></div>
+                    </>
+                  )}
                 </div>
                 <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3 mt-5">Par type de commande</h3>
                 <div className="space-y-2 text-sm">
@@ -3482,6 +3656,28 @@ export default function PosApp() {
                 </div>
               </div>
             </div>
+
+            {rangePayouts.length > 0 && (
+              <div className="pos-surface border border-red-500/20 rounded-xl p-4 mt-5">
+                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3 inline-flex items-center gap-1.5">
+                  <ArrowDown className="w-4 h-4 text-red-400" /> Sorties de caisse ({formatMAD(rangePayoutsTotal)})
+                </h3>
+                <div className="space-y-2 text-sm">
+                  {rangePayouts.map((p) => (
+                    <div key={p.id} className="flex justify-between items-center gap-3">
+                      <span className="text-[#E3DCCB] truncate">
+                        {p.reason}
+                        {p.employeeName && <span className="text-[#7A736C]"> · {p.employeeName}</span>}
+                        {p.createdAt && (
+                          <span className="text-[#7A736C]"> · {p.createdAt.toDate().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                        )}
+                      </span>
+                      <span className="font-bold text-red-400 shrink-0">- {formatMAD(p.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3717,10 +3913,14 @@ export default function PosApp() {
         />
       )}
 
-      {showXReport && <XReportModal stats={todayStats} onClose={() => setShowXReport(false)} />}
+      {showXReport && <XReportModal stats={todayStats} payouts={todayPayouts} onClose={() => setShowXReport(false)} />}
 
       {showZReport && (
-        <ZReportModal stats={todayStats} closure={todayClosure} onClose={() => setShowZReport(false)} onConfirmClose={closeToday} />
+        <ZReportModal stats={todayStats} closure={todayClosure} payouts={todayPayouts} onClose={() => setShowZReport(false)} onConfirmClose={closeToday} />
+      )}
+
+      {showCashPayout && (
+        <CashPayoutModal onConfirm={addCashPayout} onCancel={() => setShowCashPayout(false)} />
       )}
 
       {editingMenuItem && (
