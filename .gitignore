@@ -5,4 +5,5 @@ coverage/
 .DS_Store
 *.log
 .env*
-!.env.example
+!.env.examp
+# redeploy trigger 2026-09-13le
