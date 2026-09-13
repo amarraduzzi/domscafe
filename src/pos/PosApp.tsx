@@ -54,6 +54,29 @@ import { menuItems as staticMenuItems, type MenuItem } from '../data';
 import { initialCategories } from '../firebase';
 import { pingPrinterBridge, printEscPosViaBridge } from '../printerBridge';
 import { buildTicketEscPosBase64, bytesToBase64, type TicketLine } from '../escpos';
+// Types + logique métier partagés avec l'écran propriétaire (OwnerApp.tsx) --
+// voir src/shared/posData.ts pour pourquoi c'est extrait plutôt que dupliqué.
+import {
+  type OrderStatus,
+  type OrderSource,
+  type OrderKind,
+  type PaymentMethod,
+  type OrderItem,
+  type OrderDoc,
+  type MenuOverride,
+  type DailyClosure,
+  type CashPayout,
+  STATUS_LABEL,
+  kindOf,
+  kindLabel,
+  buildMenu,
+  computeStats,
+  computePayoutsTotal,
+  minutesSince,
+  elapsedStyle,
+  elapsedLabel,
+  formatMAD,
+} from '../shared/posData';
 
 // ---------------------------------------------------------------------------
 // Dom's Café — order hub / POS screen (domscafe.pages.dev/pos.html)
@@ -115,82 +138,6 @@ const IDLE_LOCK_MS = 5 * 60 * 1000;
 const TABLE_COUNT = 25;
 const TABLE_NUMBERS = Array.from({ length: TABLE_COUNT }, (_, i) => String(i + 1));
 
-type OrderStatus = 'new' | 'preparing' | 'ready' | 'served' | 'cancelled';
-type OrderSource = 'site' | 'manual' | 'glovo';
-type OrderKind = 'dine_in' | 'takeaway' | 'delivery' | 'glovo';
-type PaymentMethod = 'cash' | 'card' | 'mixed';
-
-interface OrderItem {
-  name: string;
-  quantity: number;
-  note?: string;
-  unitPrice: number;
-  lineTotal: number;
-  station?: string;
-}
-
-interface OrderDoc {
-  id: string;
-  restaurantId?: string;
-  tableNumber?: string;
-  items: OrderItem[];
-  total: number;
-  createdAt?: Timestamp;
-  status?: OrderStatus;
-  source?: OrderSource;
-  orderType?: OrderKind;
-  paid?: boolean;
-  paymentMethod?: PaymentMethod;
-  // Rempli uniquement pour un paiement partagé (paymentMethod === 'mixed') --
-  // les deux montants doivent totaliser `total` au moment du paiement.
-  paymentSplit?: { cash: number; card: number };
-  // Employé qui a créé la commande depuis ce comptoir (Tables /
-  // Emporter-Livraison-Glovo) -- absent pour les commandes "source: site"
-  // puisque c'est le client qui les passe lui-même. Alimente le rapport
-  // "omzet per medewerker".
-  employeeName?: string;
-  customerName?: string;
-  address?: string;
-  glovoRef?: string;
-  // Order-level "special request" -- from the customer's cart note, or
-  // typed in directly by the cashier here. Kept visible everywhere an order
-  // is displayed, including the kitchen view: this screen may end up
-  // physically in the kitchen later, so a note has to survive that move.
-  note?: string;
-  // Cumulative amount (MAD) deducted from `total` via applyDiscount() below.
-  // `total` itself already reflects the discount (reports/payment just read
-  // `total`) -- this field only exists so the receipt and order card can
-  // show that a discount was applied, and how much.
-  discount?: number;
-  // Combien d'éléments de `items` (en partant du début) ont déjà été
-  // envoyés à l'imprimante cuisine -- permet de n'imprimer que les articles
-  // ajoutés depuis le dernier ticket au lieu de réimprimer toute
-  // l'addition à chaque ajout sur une table déjà en cours.
-  kitchenPrintedCount?: number;
-  // Le reçu caisse (bon client, window.print()) a-t-il déjà été envoyé à
-  // l'impression automatiquement ? Mis à `true` une seule fois, dès la
-  // création de la commande -- voir l'effet d'auto-impression du reçu plus
-  // bas, qui n'imprime chaque commande qu'une seule fois même si des
-  // articles y sont ajoutés ensuite (ces ajouts restent visibles au prochain
-  // "🖨️ Imprimer" manuel).
-  receiptPrinted?: boolean;
-}
-
-// Un override par article, clé = l'id de l'article dans data.ts pour un
-// article existant, ou un id Firestore auto-généré pour un article créé
-// entièrement depuis l'écran "Menu" (isCustom: true). Volontairement
-// minimal (prix/nom/catégorie/station/actif) -- les fiches complètes
-// (3 langues, description, photo, variantes) restent gérées dans data.ts,
-// voir la note dans l'onglet Menu.
-interface MenuOverride {
-  name?: string;
-  price?: number;
-  category?: string;
-  station?: string;
-  active?: boolean;
-  isCustom?: boolean;
-}
-
 // Un slide de l'écran TV (collection Firestore "tvSlides"), géré depuis
 // l'onglet "TV" ci-dessous et affiché en boucle sur tv.html -- écran promo
 // séparé, à ouvrir en plein écran sur la Smart TV de la salle (pas besoin de
@@ -212,49 +159,6 @@ interface TvSlide {
   order: number;
   active: boolean;
 }
-
-// Un doc par jour civil clôturé (Rapport Z), clé = dateStr() ("YYYY-MM-DD").
-// Écrit une seule fois par jour via closeToday() ; sa seule présence signale
-// "journée clôturée" et fige les chiffres au moment de la clôture.
-interface DailyClosure {
-  date: string;
-  revenue: number;
-  cash: number;
-  card: number;
-  glovo: number;
-  unspecified: number;
-  orderCount: number;
-  closedAt: number;
-  closedByEmployee: string;
-  // Total des sorties de caisse (voir CashPayout ci-dessous) sur la journée,
-  // figé au moment de la clôture -- absent sur les clôtures faites avant le
-  // 13/09/2026, traité comme 0 partout où c'est lu.
-  payoutsTotal?: number;
-}
-
-// Une sortie d'argent liquide de la caisse pour autre chose qu'une commande
-// -- typiquement payer un fournisseur sur place, en cash, comme c'est
-// l'usage courant au Maroc ("er worden gewoon leveranciers uit de kassa
-// betaald"). Collection Firestore séparée ("cashPayouts") plutôt qu'un champ
-// sur les commandes : ce n'est pas une commande, ça ne doit jamais apparaître
-// dans le chiffre d'affaires, seulement venir en déduction du cash physique
-// disponible en tiroir. `reason` est obligatoire (voir CashPayoutModal) --
-// c'est le point du brief : on doit toujours savoir pour quoi et combien.
-interface CashPayout {
-  id: string;
-  amount: number;
-  reason: string;
-  employeeName?: string;
-  createdAt?: Timestamp;
-}
-
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  new: 'Nouveau',
-  preparing: 'En préparation',
-  ready: 'Prêt',
-  served: 'Servi',
-  cancelled: 'Annulé',
-};
 
 const STATUS_ICON: Record<OrderStatus, typeof Sparkles> = {
   new: Sparkles,
@@ -297,186 +201,6 @@ const SOURCE_STYLE: Record<OrderSource, { label: string; className: string }> = 
   glovo: { label: 'Glovo', className: 'bg-teal-500/15 text-teal-300 border-teal-500/40' },
 };
 
-function kindOf(order: OrderDoc): OrderKind {
-  if (order.orderType) return order.orderType;
-  if (order.source === 'glovo') return 'glovo';
-  if (order.tableNumber && order.tableNumber !== '?') return 'dine_in';
-  if (order.address) return 'delivery';
-  return 'takeaway';
-}
-
-function kindLabel(order: OrderDoc): string {
-  const kind = kindOf(order);
-  if (kind === 'dine_in') return `Table ${order.tableNumber}`;
-  if (kind === 'delivery') return order.customerName ? `Livraison — ${order.customerName}` : 'Livraison';
-  if (kind === 'glovo') return order.glovoRef ? `Glovo — ${order.glovoRef}` : 'Glovo';
-  return order.customerName ? `À emporter — ${order.customerName}` : 'À emporter';
-}
-
-// Fusionne le menu de base (data.ts, complet : 3 langues, description,
-// photo, variantes -- toujours la source pour le site client) avec les
-// overrides Firestore (menuOverrides) que l'onglet Menu écrit : prix, nom
-// (une seule langue, uniquement pour l'écran caisse), catégorie, station et
-// actif/épuisé. Un article "isCustom" n'existe que dans Firestore (ajouté
-// depuis l'écran Menu) et est ajouté à la fin. Le nom overridé remplace les
-// 3 langues à l'identique -- volontairement : ça ne touche que ce que le
-// personnel voit ici, jamais le site client (voir la note dans l'onglet
-// Menu).
-function buildMenu(overrides: Map<string, MenuOverride>): MenuItem[] {
-  const merged = staticMenuItems.map((it) => {
-    const o = overrides.get(it.id);
-    if (!o) return it;
-    return {
-      ...it,
-      name: o.name ? { fr: o.name, en: o.name, ar: o.name } : it.name,
-      price: o.price ?? it.price,
-      category: o.category ?? it.category,
-      station: o.station ?? it.station,
-      available: o.active === false ? false : it.available,
-    };
-  });
-  const customs: MenuItem[] = [];
-  overrides.forEach((o, id) => {
-    if (!o.isCustom) return;
-    const name = o.name || '(sans nom)';
-    customs.push({
-      id,
-      name: { fr: name, en: name, ar: name },
-      category: o.category || 'Autres',
-      price: o.price || 0,
-      station: o.station || 'Kitchen',
-      available: o.active !== false,
-      description: { fr: '', en: '', ar: '' },
-      image: '',
-    });
-  });
-  return [...merged, ...customs];
-}
-
-// Chiffre d'affaires, ventilé cash / carte / Glovo, pour un lot de commandes
-// donné -- utilisé aussi bien pour le Rapport (période choisie) que pour les
-// Rapports X/Z (toujours la journée civile en cours, quelle que soit la
-// période sélectionnée dans l'onglet Rapports). Les commandes Glovo vont
-// dans leur propre colonne quel que soit leur `paymentMethod` (Glovo paie le
-// resto par facture, pas en cash/carte au comptoir) ; un paiement partagé
-// (mixed) répartit son montant entre cash et carte via `paymentSplit`.
-function computeStats(rangeOrders: OrderDoc[]) {
-  const valid = rangeOrders.filter((o) => o.status !== 'cancelled');
-  const paid = valid.filter((o) => o.paid);
-  const revenue = paid.reduce((s, o) => s + o.total, 0);
-
-  let cash = 0;
-  let card = 0;
-  let glovo = 0;
-  let unspecified = 0;
-  paid.forEach((o) => {
-    if (kindOf(o) === 'glovo') {
-      glovo += o.total;
-    } else if (o.paymentMethod === 'cash') {
-      cash += o.total;
-    } else if (o.paymentMethod === 'card') {
-      card += o.total;
-    } else if (o.paymentMethod === 'mixed' && o.paymentSplit) {
-      cash += o.paymentSplit.cash;
-      card += o.paymentSplit.card;
-    } else {
-      unspecified += o.total;
-    }
-  });
-
-  const cancelledCount = rangeOrders.length - valid.length;
-  const unpaidCount = valid.filter((o) => !o.paid).length;
-
-  const byType: Record<OrderKind, { count: number; revenue: number }> = {
-    dine_in: { count: 0, revenue: 0 },
-    takeaway: { count: 0, revenue: 0 },
-    delivery: { count: 0, revenue: 0 },
-    glovo: { count: 0, revenue: 0 },
-  };
-  valid.forEach((o) => {
-    const k = kindOf(o);
-    byType[k].count++;
-    byType[k].revenue += o.total;
-  });
-
-  const itemMap = new Map<string, { qty: number; revenue: number }>();
-  valid.forEach((o) =>
-    o.items.forEach((it) => {
-      const cur = itemMap.get(it.name) || { qty: 0, revenue: 0 };
-      cur.qty += it.quantity;
-      cur.revenue += it.lineTotal;
-      itemMap.set(it.name, cur);
-    })
-  );
-  const topItems = Array.from(itemMap.entries())
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.qty - a.qty)
-    .slice(0, 10);
-
-  // Omzet per medewerker -- "Site" regroupe les commandes du site client
-  // (jamais de caissier associé), "Inconnu" les vieilles commandes d'avant
-  // l'ajout du login par employé.
-  const employeeMap = new Map<string, { count: number; revenue: number }>();
-  paid.forEach((o) => {
-    const key = o.employeeName || (o.source === 'site' ? 'Site (en ligne)' : 'Inconnu');
-    const cur = employeeMap.get(key) || { count: 0, revenue: 0 };
-    cur.count++;
-    cur.revenue += o.total;
-    employeeMap.set(key, cur);
-  });
-  const byEmployee = Array.from(employeeMap.entries())
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.revenue - a.revenue);
-
-  // Omzet per uur van de dag (0-23), toutes dates confondues dans la
-  // période -- sert à repérer les heures de pointe.
-  const hourly = Array.from({ length: 24 }, () => 0);
-  paid.forEach((o) => {
-    const t = o.createdAt?.toMillis();
-    if (!t) return;
-    hourly[new Date(t).getHours()] += o.total;
-  });
-
-  return {
-    revenue,
-    cash,
-    card,
-    glovo,
-    unspecified,
-    orderCount: valid.length,
-    avg: paid.length ? revenue / paid.length : 0,
-    unpaidCount,
-    cancelledCount,
-    byType,
-    topItems,
-    byEmployee,
-    hourly,
-  };
-}
-
-// Total des sorties de caisse d'un lot de CashPayout -- utilisé partout où
-// le rapport doit déduire les sorties du cash encaissé (X, Z, onglet
-// Rapports) pour donner "ce qu'il doit rester dans le tiroir" plutôt que
-// juste "ce qui a été encaissé en cash".
-function computePayoutsTotal(payouts: CashPayout[]): number {
-  return payouts.reduce((s, p) => s + p.amount, 0);
-}
-
-function minutesSince(ts?: Timestamp): number {
-  if (!ts) return 0;
-  return Math.max(0, Math.floor((Date.now() - ts.toMillis()) / 60000));
-}
-
-function elapsedStyle(mins: number): string {
-  if (mins >= 15) return 'text-red-400';
-  if (mins >= 6) return 'text-amber-400';
-  return 'text-[#8FBF8A]';
-}
-
-function elapsedLabel(mins: number): string {
-  return mins === 0 ? "à l'instant" : `il y a ${mins} min`;
-}
-
 // Short two-tone beep via the Web Audio API — no asset file to ship, no
 // autoplay-policy issue since it only ever fires after the PIN unlock click.
 function playChime() {
@@ -498,10 +222,6 @@ function playChime() {
   } catch {
     // Web Audio unsupported/blocked — silently skip, the visual flash still fires.
   }
-}
-
-function formatMAD(n: number): string {
-  return `${n.toFixed(0)} MAD`;
 }
 
 // Format spécifique au reçu papier (virgule décimale + "DH", ex. "16,00 DH")
