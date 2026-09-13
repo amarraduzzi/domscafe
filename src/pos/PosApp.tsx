@@ -45,6 +45,7 @@ import {
   doc,
   addDoc,
   setDoc,
+  getDocs,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
@@ -2873,22 +2874,36 @@ export default function PosApp() {
       reportWriteError(err);
     }
   };
-  // Wipe every order ever recorded, permanently -- "de historie helemaal
-  // kunnen wissen". `orders` already holds the entire collection (the
-  // listener above has no date filter), so this clears everything, not just
-  // the currently selected date range. Guarded by a type-to-confirm prompt
-  // since there is no undo for a Firestore batch delete.
+  // Wipe every order, cash payout and daily closure ever recorded,
+  // permanently -- "helemaal opnieuw beginnen" avant la mise en service
+  // réelle (13/09/2026), pour repartir sans les commandes/tests de la phase
+  // de mise en place. `orders` et `cashPayouts` sont déjà tenus à jour en
+  // mémoire (listeners sans filtre de date -- voir plus haut), donc ça
+  // couvre tout l'historique, pas seulement la période affichée dans
+  // l'onglet Rapports/Historique. `dailyClosures` n'a pas d'équivalent en
+  // mémoire (seul le doc du jour est écouté), d'où le getDocs() dédié.
+  // menuOverrides et tvSlides ne sont volontairement pas touchés : ce sont
+  // des réglages du menu/TV, pas des données de commandes de test.
+  // Guarded by a type-to-confirm prompt since there is no undo for a
+  // Firestore batch delete.
   const wipeAllHistory = async () => {
-    if (orders.length === 0) return;
+    const closuresSnap = await getDocs(collection(db, 'dailyClosures'));
+    const totalCount = orders.length + cashPayouts.length + closuresSnap.size;
+    if (totalCount === 0) return;
     const typed = window.prompt(
-      `Ceci va supprimer DÉFINITIVEMENT les ${orders.length} commande(s) enregistrées (tout l'historique, pas seulement la période affichée). Cette action est irréversible.\n\nTape SUPPRIMER pour confirmer.`
+      `Ceci va supprimer DÉFINITIVEMENT ${orders.length} commande(s), ${cashPayouts.length} sortie(s) de caisse et ${closuresSnap.size} clôture(s) (rapports Z) -- tout l'historique, pas seulement la période affichée. Le menu et les réglages TV ne sont PAS touchés. Cette action est irréversible.\n\nTape SUPPRIMER pour confirmer.`
     );
     if (typed !== 'SUPPRIMER') return;
     try {
-      for (let i = 0; i < orders.length; i += 450) {
-        const chunk = orders.slice(i, i + 450);
+      const allDeletes = [
+        ...orders.map((o) => doc(db, 'orders', o.id)),
+        ...cashPayouts.map((p) => doc(db, 'cashPayouts', p.id)),
+        ...closuresSnap.docs.map((d) => d.ref),
+      ];
+      for (let i = 0; i < allDeletes.length; i += 450) {
+        const chunk = allDeletes.slice(i, i + 450);
         const batch = writeBatch(db);
-        chunk.forEach((o) => batch.delete(doc(db, 'orders', o.id)));
+        chunk.forEach((ref) => batch.delete(ref));
         await batch.commit();
       }
     } catch (err) {
@@ -3448,10 +3463,10 @@ export default function PosApp() {
               </div>
               <button
                 onClick={wipeAllHistory}
-                title="Supprimer définitivement tout l'historique (toutes périodes)"
+                title="Supprimer définitivement tout l'historique : commandes, sorties de caisse et clôtures (rapports Z). Le menu et les réglages TV ne sont pas touchés."
                 className="px-3 py-1.5 rounded-lg text-sm font-bold border border-red-500/30 text-red-400/80 hover:text-red-400 hover:border-red-500/60 hover:bg-red-500/10 transition-all flex items-center gap-1.5"
               >
-                <Trash2 className="w-4 h-4" /> Vider tout l'historique
+                <Trash2 className="w-4 h-4" /> Tout réinitialiser
               </button>
             </div>
             <input
