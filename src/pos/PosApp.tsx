@@ -753,26 +753,28 @@ function buildReceiptTicketLines(opts: {
   paidLine?: string;
   note?: string;
 }): TicketLine[] {
+  // Tout en gras (bold: true partout) -- demandé le 13/09/2026, le ticket
+  // était jugé difficilement lisible imprimé en maigre.
   const lines: TicketLine[] = [];
   lines.push({ text: RECEIPT_BUSINESS.name, bold: true, size: 'large', align: 'center' });
-  RECEIPT_BUSINESS.addressLines.forEach((l) => lines.push({ text: l, align: 'center', size: 'small' }));
-  lines.push({ text: `TEL ${RECEIPT_BUSINESS.phone}`, align: 'center', size: 'small' });
-  lines.push({ text: `ICE:${RECEIPT_BUSINESS.ice}`, align: 'center', size: 'small' });
+  RECEIPT_BUSINESS.addressLines.forEach((l) => lines.push({ text: l, bold: true, align: 'center', size: 'small' }));
+  lines.push({ text: `TEL ${RECEIPT_BUSINESS.phone}`, bold: true, align: 'center', size: 'small' });
+  lines.push({ text: `ICE:${RECEIPT_BUSINESS.ice}`, bold: true, align: 'center', size: 'small' });
   lines.push({ text: '--------------------------------' });
   lines.push({ text: opts.label, bold: true });
-  if (opts.employeeName) lines.push({ text: `Servi par: ${opts.employeeName.toUpperCase()}`, size: 'small' });
+  if (opts.employeeName) lines.push({ text: `Servi par: ${opts.employeeName.toUpperCase()}`, bold: true, size: 'small' });
   lines.push({ text: '--------------------------------' });
-  lines.push({ text: 'Document provisoire', align: 'center', size: 'small' });
+  lines.push({ text: 'Document provisoire', bold: true, align: 'center', size: 'small' });
   opts.items.forEach((it) =>
-    lines.push({ text: `${it.quantity} ${it.name.toUpperCase()}  ${formatReceiptPrice(it.lineTotal)}` })
+    lines.push({ text: `${it.quantity} ${it.name.toUpperCase()}  ${formatReceiptPrice(it.lineTotal)}`, bold: true })
   );
   if (opts.note) lines.push({ text: `NOTE: ${opts.note}`, bold: true });
   lines.push({ text: '--------------------------------' });
   lines.push({ text: `TOTAL  ${formatReceiptPrice(opts.total)}`, bold: true, size: 'large' });
-  if (opts.paidLine) lines.push({ text: `Statut: ${opts.paidLine}` });
+  if (opts.paidLine) lines.push({ text: `Statut: ${opts.paidLine}`, bold: true });
   lines.push({ text: '--------------------------------' });
-  lines.push({ text: opts.dateLine, align: 'center', size: 'small' });
-  lines.push({ text: 'Merci de votre visite, a bientot...', align: 'center', size: 'small' });
+  lines.push({ text: opts.dateLine, bold: true, align: 'center', size: 'small' });
+  lines.push({ text: 'Merci de votre visite, a bientot...', bold: true, align: 'center', size: 'small' });
   return lines;
 }
 
@@ -1003,8 +1005,8 @@ function buildReportReceiptHTML(opts: { title: string; lines: [string, string][]
 <style>
   @page { margin: 4mm; }
   * { box-sizing: border-box; }
-  body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; width: 74mm; margin: 0 auto; padding: 4px 0; }
-  h1 { font-size: 15px; text-align: center; margin: 0 0 2px; letter-spacing: 0.5px; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 13px; font-weight: bold; color: #000; width: 74mm; margin: 0 auto; padding: 4px 0; }
+  h1 { font-size: 16px; text-align: center; margin: 0 0 2px; letter-spacing: 0.5px; }
   .meta { text-align: center; font-size: 11px; margin-bottom: 8px; line-height: 1.5; }
   .rule { border-top: 1px dashed #000; margin: 6px 0; }
   .row { display: flex; justify-content: space-between; gap: 10px; padding: 1.5px 0; }
@@ -1021,6 +1023,41 @@ function buildReportReceiptHTML(opts: { title: string; lines: [string, string][]
 </html>`;
 }
 
+// Version ESC/POS (imprimante thermique "TICKET", tout en gras -- voir
+// printReportReceiptSmart ci-dessous) du même rapport. `bold: true` sur
+// toutes les lignes : demandé le 13/09/2026 suite à un ticket jugé
+// difficilement lisible une fois imprimé.
+function buildReportTicketLines(opts: { title: string; lines: [string, string][]; footer?: string }): TicketLine[] {
+  const out: TicketLine[] = [];
+  out.push({ text: RECEIPT_BUSINESS.name, bold: true, size: 'large', align: 'center' });
+  out.push({ text: opts.title, bold: true, align: 'center' });
+  out.push({ text: new Date().toLocaleString('fr-FR'), bold: true, align: 'center', size: 'small' });
+  out.push({ text: '--------------------------------' });
+  opts.lines.forEach(([label, value]) => {
+    out.push({ text: `${label}  ${value}`, bold: true });
+  });
+  if (opts.footer) {
+    out.push({ text: '--------------------------------' });
+    out.push({ text: opts.footer, bold: true, align: 'center', size: 'small' });
+  }
+  return out;
+}
+
+// Rapports X/Z -- même logique "pont silencieux d'abord, HTML/dialogue en
+// secours" que printReceiptSmart, mais routé explicitement sur
+// PRINTER_NAMES.ticket (l'imprimante principale/reçus, "TICKET"). Avant ce
+// changement (13/09/2026), les rapports partaient uniquement via
+// printReceipt/window.print(), qui imprime sur l'imprimante par défaut de
+// Windows -- laquelle se trouvait être la BAR sur ce pc, d'où le rapport X
+// qui sortait au bar au lieu du comptoir principal.
+async function printReportReceiptSmart(opts: { title: string; lines: [string, string][]; footer?: string }): Promise<void> {
+  const dataBase64 = buildTicketEscPosBase64(buildReportTicketLines(opts));
+  const res = await printEscPosViaBridge(PRINTER_NAMES.ticket, opts.title, dataBase64);
+  if (res.ok === false) {
+    printReceipt(buildReportReceiptHTML(opts));
+  }
+}
+
 function XReportModal({
   stats,
   payouts,
@@ -1033,28 +1070,26 @@ function XReportModal({
   const payoutsTotal = computePayoutsTotal(payouts);
   const cashInDrawer = stats.cash - payoutsTotal;
   const print = () =>
-    printReceipt(
-      buildReportReceiptHTML({
-        title: 'RAPPORT X (en cours)',
-        lines: [
-          ['Chiffre d’affaires', formatMAD(stats.revenue)],
-          ['Cash encaissé', formatMAD(stats.cash)],
-          ['Carte', formatMAD(stats.card)],
-          ['Glovo', formatMAD(stats.glovo)],
-          ...(stats.unspecified > 0 ? ([['Non précisé', formatMAD(stats.unspecified)]] as [string, string][]) : []),
-          ...(payoutsTotal > 0
-            ? ([
-                ['Sorties de caisse', `- ${formatMAD(payoutsTotal)}`],
-                ...payouts.map((p) => [`  · ${p.reason}`, `- ${formatMAD(p.amount)}`] as [string, string]),
-                ['Cash en tiroir', formatMAD(cashInDrawer)],
-              ] as [string, string][])
-            : []),
-          ['Commandes', String(stats.orderCount)],
-          ['Panier moyen', formatMAD(stats.avg)],
-        ],
-        footer: 'Aperçu -- ne clôture rien.',
-      })
-    );
+    printReportReceiptSmart({
+      title: 'RAPPORT X (en cours)',
+      lines: [
+        ['Chiffre d’affaires', formatMAD(stats.revenue)],
+        ['Cash encaissé', formatMAD(stats.cash)],
+        ['Carte', formatMAD(stats.card)],
+        ['Glovo', formatMAD(stats.glovo)],
+        ...(stats.unspecified > 0 ? ([['Non précisé', formatMAD(stats.unspecified)]] as [string, string][]) : []),
+        ...(payoutsTotal > 0
+          ? ([
+              ['Sorties de caisse', `- ${formatMAD(payoutsTotal)}`],
+              ...payouts.map((p) => [`  · ${p.reason}`, `- ${formatMAD(p.amount)}`] as [string, string]),
+              ['Cash en tiroir', formatMAD(cashInDrawer)],
+            ] as [string, string][])
+          : []),
+        ['Commandes', String(stats.orderCount)],
+        ['Panier moyen', formatMAD(stats.avg)],
+      ],
+      footer: 'Aperçu -- ne clôture rien.',
+    });
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
@@ -1123,29 +1158,27 @@ function ZReportModal({
   const cashInDrawer = display.cash - payoutsTotal;
 
   const print = () =>
-    printReceipt(
-      buildReportReceiptHTML({
-        title: closure ? 'RAPPORT Z (clôturé)' : 'RAPPORT Z',
-        lines: [
-          ['Chiffre d’affaires', formatMAD(display.revenue)],
-          ['Cash encaissé', formatMAD(display.cash)],
-          ['Carte', formatMAD(display.card)],
-          ['Glovo', formatMAD(display.glovo)],
-          ...(display.unspecified > 0 ? ([['Non précisé', formatMAD(display.unspecified)]] as [string, string][]) : []),
-          ...(payoutsTotal > 0
-            ? ([
-                ['Sorties de caisse', `- ${formatMAD(payoutsTotal)}`],
-                ...(!closure ? payouts.map((p) => [`  · ${p.reason}`, `- ${formatMAD(p.amount)}`] as [string, string]) : []),
-                ['Cash en tiroir', formatMAD(cashInDrawer)],
-              ] as [string, string][])
-            : []),
-          ['Commandes', String(display.orderCount)],
-        ],
-        footer: closure
-          ? `Clôturé le ${new Date(closure.closedAt).toLocaleString('fr-FR')} par ${closure.closedByEmployee}`
-          : undefined,
-      })
-    );
+    printReportReceiptSmart({
+      title: closure ? 'RAPPORT Z (clôturé)' : 'RAPPORT Z',
+      lines: [
+        ['Chiffre d’affaires', formatMAD(display.revenue)],
+        ['Cash encaissé', formatMAD(display.cash)],
+        ['Carte', formatMAD(display.card)],
+        ['Glovo', formatMAD(display.glovo)],
+        ...(display.unspecified > 0 ? ([['Non précisé', formatMAD(display.unspecified)]] as [string, string][]) : []),
+        ...(payoutsTotal > 0
+          ? ([
+              ['Sorties de caisse', `- ${formatMAD(payoutsTotal)}`],
+              ...(!closure ? payouts.map((p) => [`  · ${p.reason}`, `- ${formatMAD(p.amount)}`] as [string, string]) : []),
+              ['Cash en tiroir', formatMAD(cashInDrawer)],
+            ] as [string, string][])
+          : []),
+        ['Commandes', String(display.orderCount)],
+      ],
+      footer: closure
+        ? `Clôturé le ${new Date(closure.closedAt).toLocaleString('fr-FR')} par ${closure.closedByEmployee}`
+        : undefined,
+    });
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[80] flex items-center justify-center px-4 animate-fade-in">
