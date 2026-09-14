@@ -395,7 +395,7 @@ export const menuItems: MenuItem[] = [
       en: "Compose your own pizza",
       ar: "قم بتركيب البيتزا الخاصة بك"
     },
-    image: ""
+    image: "/pizzas/quatre-saisons.webp"
   },
   {
     id: 'p-fisherman',
@@ -859,7 +859,7 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Hawaii", en: "Hawaii", ar: "هاواي" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
+    image: "/jus/hawaii.webp",
     station: "Bar"
   },
   {
