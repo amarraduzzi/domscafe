@@ -1032,7 +1032,7 @@ export const menuItems: MenuItem[] = [
     price: 30,
     name: { fr: "Snooker", en: "Snooker", ar: "سنوكر" },
     description: { fr: "Partie de snooker (billard)", en: "Snooker (billiards) game", ar: "لعبة سنوكر (بيلياردو)" },
-    image: "",
+    image: "/snooker/snooker.webp",
     station: "Bar"
   },
   // Ajouté le 13/09/2026 -- deuxième prestation "billard" à côté du snooker
@@ -1047,7 +1047,7 @@ export const menuItems: MenuItem[] = [
     price: 10,
     name: { fr: "Billard", en: "Billiards", ar: "بلياردو" },
     description: { fr: "Partie de billard", en: "Billiards game", ar: "لعبة بلياردو" },
-    image: "",
+    image: "/snooker/biljart.webp",
     station: "Bar"
   }
 ];
