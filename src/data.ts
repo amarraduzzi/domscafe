@@ -471,7 +471,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'tc-poulet',
     category: 'tacos',
-    price: 38,
+    price: 42,
     name: { fr: "Tacos Poulet", en: "Chicken Tacos", ar: "تاكو دجاج" },
     description: {
       fr: "Poulet, cheddar, frites, sauce béchamel",
@@ -483,7 +483,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'tc-viande',
     category: 'tacos',
-    price: 38,
+    price: 42,
     name: { fr: "Tacos Viande Hachée", en: "Minced Beef Tacos", ar: "تاكو لحم مفروم" },
     description: {
       fr: "Viande hachée, cheddar, frites, sauce béchamel",
@@ -495,7 +495,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'tc-nuggets',
     category: 'tacos',
-    price: 38,
+    price: 42,
     name: { fr: "Tacos Nuggets", en: "Nuggets Tacos", ar: "تاكو ناجتس" },
     description: {
       fr: "Nuggets, cheddar, frites, sauce béchamel",
@@ -507,7 +507,7 @@ export const menuItems: MenuItem[] = [
   {
     id: 'tc-cordon',
     category: 'tacos',
-    price: 38,
+    price: 42,
     name: { fr: "Tacos Cordon Bleu", en: "Cordon Bleu Tacos", ar: "تاكو كوردون بلو" },
     description: {
       fr: "Cordon bleu, cheddar, frites, sauce béchamel",
