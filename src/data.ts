@@ -760,7 +760,7 @@ export const menuItems: MenuItem[] = [
     price: 22,
     name: { fr: "Orange", en: "Orange Juice", ar: "عصير برتقال" },
     description: { fr: "Jus d'orange frais pressé", en: "Freshly squeezed orange juice", ar: "عصير برتقال معصور طازج" },
-    image: "",
+    image: "/jus/orange.webp",
     station: "Bar"
   },
   {
@@ -841,7 +841,7 @@ export const menuItems: MenuItem[] = [
     price: 32,
     name: { fr: "Panaché", en: "Panaché", ar: "باناشي" },
     description: { fr: "Cocktail onctueux de fruits mélangés au lait", en: "Creamy mixed fruit juice with milk", ar: "كوكتيل فواكه مشكلة بالحليب" },
-    image: "",
+    image: "/jus/panache.webp",
     station: "Bar"
   },
   {
