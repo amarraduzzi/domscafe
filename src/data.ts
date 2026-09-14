@@ -883,7 +883,7 @@ export const menuItems: MenuItem[] = [
     price: 12,
     name: { fr: "Eau minérale", en: "Mineral Water", ar: "مياه معدنية" },
     description: { fr: "Bouteille d'eau minérale de table", en: "Chilled table mineral water bottle", ar: "زجاجة مياه معدنية طبيعية" },
-    image: "",
+    image: "/jus/eau.webp",
     station: "Bar"
   },
   {
