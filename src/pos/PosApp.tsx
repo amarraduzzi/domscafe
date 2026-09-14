@@ -180,6 +180,17 @@ const STATUS_ICON: Record<OrderStatus, typeof Sparkles> = {
 // "menu" complet. Voir le bouton dédié dans MenuGrid plus bas.
 const MENU_SURCHARGE = 8;
 
+// "Emporter" pour les boissons chaudes -- bouton supplémentaire sur la même
+// carte (même mécanique que "+ MENU" ci-dessus), -1 DH par rapport au prix
+// servi sur place. Demandé le 14/09/2026.
+const TAKEAWAY_DISCOUNT = 1;
+
+// Bouton "Extra" -- montant fixe de 6 DH ajouté en un clic, sans passer par
+// le menu catégorisé (comme "Montant libre" mais sans les deux prompts,
+// puisque le prix et le libellé sont toujours les mêmes). Demandé le
+// 14/09/2026.
+const EXTRA_PRICE = 6;
+
 const CATEGORY_GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Boissons', ids: ['boissons_chaudes', 'jus_cocktails', 'soda'] },
   { label: 'Petit-déj', ids: ['breakfasts', 'omelettes', 'toasts', 'viennoiserie', 'crepes_sucrees', 'crepes_salees'] },
@@ -1632,6 +1643,13 @@ function MenuGrid({
             className="flex-1 bg-black/30 border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-base text-[#F3ECDD] placeholder:text-[#7A736C] focus:outline-none focus:border-brand-orange focus:shadow-[0_0_0_3px_rgba(201,161,90,0.2)] transition-shadow"
           />
           <button
+            onClick={() => handleAdd(`extra-${Date.now()}`, 'Extra', EXTRA_PRICE)}
+            title={`Ajouter "Extra" (${EXTRA_PRICE} DH), sans passer par le menu`}
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" /> Extra ({EXTRA_PRICE} DH)
+          </button>
+          <button
             onClick={handleAddCustomAmount}
             title="Ajouter un article avec un montant et une description libres"
             className="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg text-sm font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all whitespace-nowrap"
@@ -1650,11 +1668,13 @@ function MenuGrid({
             // (s-formule/tc-formule) ont été retirés le 14/09/2026.
             const menuEligible = it.category === 'sandwiches' || it.category === 'tacos';
             const menuAddId = `${it.id}::menu`;
+            const takeawayEligible = it.category === 'boissons_chaudes';
+            const takeawayAddId = `${it.id}::emporter`;
             return (
               <div
                 key={it.id}
                 className={`relative overflow-hidden pos-surface border rounded-xl p-3.5 pt-4 transition-all ${
-                  justAdded === it.id || justAdded === menuAddId
+                  justAdded === it.id || justAdded === menuAddId || justAdded === takeawayAddId
                     ? 'border-brand-orange ring-2 ring-brand-orange/60 animate-pop'
                     : 'border-[#F3ECDD]/10 hover:border-brand-orange/50'
                 }`}
@@ -1674,6 +1694,15 @@ function MenuGrid({
                     className="mt-2 w-full text-xs font-bold py-1.5 rounded-lg border border-brand-orange/40 text-brand-orange bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.96] transition-all"
                   >
                     + MENU (+{MENU_SURCHARGE} DH)
+                  </button>
+                )}
+                {takeawayEligible && (
+                  <button
+                    onClick={() => handleAdd(takeawayAddId, `${it.name.fr} (Emporter)`, it.price - TAKEAWAY_DISCOUNT, it.station)}
+                    title={`Emporter : -${TAKEAWAY_DISCOUNT} DH`}
+                    className="mt-2 w-full text-xs font-bold py-1.5 rounded-lg border border-brand-orange/40 text-brand-orange bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.96] transition-all"
+                  >
+                    Emporter (-{TAKEAWAY_DISCOUNT} DH)
                   </button>
                 )}
               </div>
