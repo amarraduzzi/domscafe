@@ -176,8 +176,14 @@ const STATUS_ICON: Record<OrderStatus, typeof Sparkles> = {
 // "Boissons" listed first -- client feedback: les boissons chaudes sont les
 // commandes les plus fréquentes, elles doivent être en haut de la liste.
 // (Boissons Chaudes is already first within this group, see firebase.ts.)
+// Supplément "+ Boisson" proposé pour tout sandwich/tacos à l'unité -- les
+// frites sont déjà incluses de base dans chaque sandwich/tacos (confirmé le
+// 14/09/2026), donc ce supplément couvre uniquement le soda ajouté, pas un
+// "menu" complet. Voir le bouton dédié dans MenuGrid plus bas.
+const MENU_SURCHARGE = 8;
+
 const CATEGORY_GROUPS: { label: string; ids: string[] }[] = [
-  { label: 'Boissons', ids: ['boissons_chaudes', 'jus_cocktails'] },
+  { label: 'Boissons', ids: ['boissons_chaudes', 'jus_cocktails', 'soda'] },
   { label: 'Petit-déj', ids: ['breakfasts', 'omelettes', 'toasts', 'viennoiserie', 'crepes_sucrees', 'crepes_salees'] },
   { label: 'Plats', ids: ['pizzas', 'sandwiches', 'tacos', 'salades'] },
   { label: 'Desserts', ids: ['desserts'] },
@@ -1639,20 +1645,41 @@ function MenuGrid({
         <div className="grid grid-cols-2 gap-2.5">
           {items.map((it) => {
             const color = GROUP_COLOR[groupLabelByCategoryId.get(it.category) || ''] || '#C9A15A';
+            // "+ Boisson" -- demandé le 14/09/2026 : pour un sandwich/tacos à
+            // l'unité, un bouton séparé ajoute le même article +8 DH avec
+            // "(+ boisson)" dans le nom (visible sur le ticket cuisine et le
+            // reçu). Exclus les deux articles "Formule menu" déjà existants
+            // (s-formule/tc-formule, prix fixe indépendant du sandwich/tacos
+            // choisi) -- leur appliquer +8 DH dessus n'aurait pas de sens.
+            const menuEligible = (it.category === 'sandwiches' || it.category === 'tacos') && it.id !== 's-formule' && it.id !== 'tc-formule';
+            const menuAddId = `${it.id}::menu`;
             return (
-              <button
+              <div
                 key={it.id}
-                onClick={() => handleAdd(it.id, it.name.fr, it.price, it.station)}
-                className={`relative overflow-hidden text-start pos-surface border rounded-xl p-3.5 pt-4 transition-all active:scale-[0.96] ${
-                  justAdded === it.id
+                className={`relative overflow-hidden pos-surface border rounded-xl p-3.5 pt-4 transition-all ${
+                  justAdded === it.id || justAdded === menuAddId
                     ? 'border-brand-orange ring-2 ring-brand-orange/60 animate-pop'
-                    : 'border-[#F3ECDD]/10 hover:border-brand-orange/50 hover:-translate-y-0.5'
+                    : 'border-[#F3ECDD]/10 hover:border-brand-orange/50'
                 }`}
               >
                 <span className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: color }} />
-                <p className="text-base font-bold text-[#F3ECDD] leading-tight">{it.name.fr}</p>
-                <p className="text-base text-brand-orange font-display font-black mt-1">{formatMAD(it.price)}</p>
-              </button>
+                <button
+                  onClick={() => handleAdd(it.id, it.name.fr, it.price, it.station)}
+                  className="w-full text-start active:scale-[0.96]"
+                >
+                  <p className="text-base font-bold text-[#F3ECDD] leading-tight">{it.name.fr}</p>
+                  <p className="text-base text-brand-orange font-display font-black mt-1">{formatMAD(it.price)}</p>
+                </button>
+                {menuEligible && (
+                  <button
+                    onClick={() => handleAdd(menuAddId, `${it.name.fr} (+ boisson)`, it.price + MENU_SURCHARGE, it.station)}
+                    title={`Ajouter avec une boisson : +${MENU_SURCHARGE} DH (les frites sont déjà incluses de base)`}
+                    className="mt-2 w-full text-xs font-bold py-1.5 rounded-lg border border-brand-orange/40 text-brand-orange bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.96] transition-all"
+                  >
+                    + Boisson (+{MENU_SURCHARGE} DH) — {formatMAD(it.price + MENU_SURCHARGE)}
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>

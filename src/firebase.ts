@@ -241,6 +241,10 @@ export const initialCategories: FirestoreCategory[] = [
   { id: 'pizzas', name: { fr: "Pizzas", en: "Pizzas", ar: "بيتزا" }, emoji: "🍕", displayOrder: 1 },
   { id: 'boissons_chaudes', name: { fr: "Boissons Chaudes", en: "Hot Drinks", ar: "مشروبات ساخنة" }, emoji: "☕", displayOrder: 2 },
   { id: 'jus_cocktails', name: { fr: "Jus & Cocktails", en: "Cocktails & Juices", ar: "عصائر و كوكتيلات" }, emoji: "🍹", displayOrder: 4 },
+  // Ajouté le 14/09/2026 : canettes/bouteilles fraîches (à distinguer des
+  // Jus & Cocktails préparés) -- placé juste après pour rester dans le
+  // groupe "Boissons" du rail de catégories (voir CATEGORY_GROUPS, PosApp.tsx).
+  { id: 'soda', name: { fr: "Soda", en: "Soda", ar: "مشروبات غازية" }, emoji: "🥤", displayOrder: 3 },
   { id: 'breakfasts', name: { fr: "Petits-Déjeuners", en: "Breakfast", ar: "إفطار" }, emoji: "🍳", displayOrder: 5 },
   { id: 'omelettes', name: { fr: "Omelettes", en: "Omelettes", ar: "أومليت" }, emoji: "🥚", displayOrder: 5 },
   { id: 'toasts', name: { fr: "Toasts", en: "Toasts", ar: "توست" }, emoji: "🍞", displayOrder: 6 },
@@ -339,7 +343,7 @@ export const saveOrUpdateMenuItemToFirestore = async (
   const itemWithMeta = {
     restaurantId,
     available: item.available ?? true,
-    station: item.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches'].includes(item.category) ? 'Bar' : 'Kitchen'),
+    station: item.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches', 'soda'].includes(item.category) ? 'Bar' : 'Kitchen'),
     ...item
   };
   const cleaned = cleanUndefined(itemWithMeta);
@@ -490,7 +494,7 @@ export const subscribeToMenuItems = (
             spicy: data.spicy,
             popular: data.popular,
             available: data.available !== false,
-            station: data.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches'].includes(data.category) ? 'Bar' : 'Kitchen'),
+            station: data.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches', 'soda'].includes(data.category) ? 'Bar' : 'Kitchen'),
             variants: data.variants
           };
           items.push(item);

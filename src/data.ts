@@ -9,7 +9,7 @@ export interface MenuItemVariant {
 export interface MenuItem {
   id: string;
   name: Record<'en' | 'fr' | 'ar', string>;
-  category: 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'salades' | 'boissons_chaudes' | 'jus_cocktails' | 'desserts' | string;
+  category: 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'salades' | 'boissons_chaudes' | 'jus_cocktails' | 'soda' | 'desserts' | string;
   price: number;
   description: Record<'en' | 'fr' | 'ar', string>;
   image: string;
@@ -911,92 +911,11 @@ export const menuItems: MenuItem[] = [
     station: "Bar"
   },
   {
-    id: 'jc-eau',
-    category: 'jus_cocktails',
-    price: 12,
-    name: { fr: "Eau minérale", en: "Mineral Water", ar: "مياه معدنية" },
-    description: { fr: "Bouteille d'eau minérale de table", en: "Chilled table mineral water bottle", ar: "زجاجة مياه معدنية طبيعية" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'jc-coca',
-    category: 'jus_cocktails',
-    price: 16,
-    name: { fr: "Coca Cola / Zero", en: "Coca Cola / Zero", ar: "كوكاكولا / زيرو" },
-    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'jc-sprite',
-    category: 'jus_cocktails',
-    price: 16,
-    name: { fr: "Sprite", en: "Sprite", ar: "سبرايت" },
-    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
-    station: "Bar"
-  },
-  {
     id: 'jc-hawaii',
     category: 'jus_cocktails',
     price: 16,
     name: { fr: "Hawaii", en: "Hawaii", ar: "هاواي" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'jc-poms',
-    category: 'jus_cocktails',
-    price: 16,
-    name: { fr: "Poms", en: "Poms", ar: "بومز" },
-    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'jc-schweppes-citron',
-    category: 'jus_cocktails',
-    price: 16,
-    name: { fr: "Schweppes Citron", en: "Schweppes Lemon", ar: "شويبس ليمون" },
-    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'jc-schweppes-mojito',
-    category: 'jus_cocktails',
-    price: 16,
-    name: { fr: "Schweppes Mojito", en: "Schweppes Mojito", ar: "شويبس موهيتو" },
-    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'jc-schweppes-tonic',
-    category: 'jus_cocktails',
-    price: 16,
-    name: { fr: "Schweppes Tonic", en: "Schweppes Tonic", ar: "شويبس تونيك" },
-    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'jc-lait-froid',
-    category: 'jus_cocktails',
-    price: 14,
-    name: { fr: "Lait froid", en: "Cold Milk", ar: "حليب بارد" },
-    description: { fr: "Verre de lait bien frais", en: "Glass of chilled cold milk", ar: "كأس حليب بارد" },
-    image: "",
-    station: "Bar"
-  },
-  {
-    id: 'jc-oulmes',
-    category: 'jus_cocktails',
-    price: 14,
-    name: { fr: "Oulmes", en: "Oulmès Sparkling", ar: "والماس" },
-    description: { fr: "Eau minérale naturellement gazeuse", en: "Naturally carbonated sparkling water", ar: "مياه معدنية غازية طبيعية" },
     image: "",
     station: "Bar"
   },
@@ -1009,9 +928,105 @@ export const menuItems: MenuItem[] = [
     image: "",
     station: "Bar"
   },
+
+  // 15b. Soda -- déplacé hors de "Jus & Cocktails" le 14/09/2026 (canettes/
+  // bouteilles prêtes à servir, pas des jus/cocktails préparés) ; mêmes ids,
+  // mêmes prix qu'avant, seule la catégorie change, sauf jc-coca qui devient
+  // "Coca Cola" seul + un nouvel item jc-coca-zero pour "Coca Cola Zero"
+  // (avant un seul item combiné "Coca Cola / Zero").
+  {
+    id: 'jc-eau',
+    category: 'soda',
+    price: 12,
+    name: { fr: "Eau minérale", en: "Mineral Water", ar: "مياه معدنية" },
+    description: { fr: "Bouteille d'eau minérale de table", en: "Chilled table mineral water bottle", ar: "زجاجة مياه معدنية طبيعية" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-coca',
+    category: 'soda',
+    price: 16,
+    name: { fr: "Coca Cola", en: "Coca Cola", ar: "كوكاكولا" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-coca-zero',
+    category: 'soda',
+    price: 16,
+    name: { fr: "Coca Cola Zero", en: "Coca Cola Zero", ar: "كوكاكولا زيرو" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-sprite',
+    category: 'soda',
+    price: 16,
+    name: { fr: "Sprite", en: "Sprite", ar: "سبرايت" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-poms',
+    category: 'soda',
+    price: 16,
+    name: { fr: "Poms", en: "Poms", ar: "بومز" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-schweppes-citron',
+    category: 'soda',
+    price: 16,
+    name: { fr: "Schweppes Citron", en: "Schweppes Lemon", ar: "شويبس ليمون" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-schweppes-mojito',
+    category: 'soda',
+    price: 16,
+    name: { fr: "Schweppes Mojito", en: "Schweppes Mojito", ar: "شويبس موهيتو" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-schweppes-tonic',
+    category: 'soda',
+    price: 16,
+    name: { fr: "Schweppes Tonic", en: "Schweppes Tonic", ar: "شويبس تونيك" },
+    description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-lait-froid',
+    category: 'soda',
+    price: 14,
+    name: { fr: "Lait froid", en: "Cold Milk", ar: "حليب بارد" },
+    description: { fr: "Verre de lait bien frais", en: "Glass of chilled cold milk", ar: "كأس حليب بارد" },
+    image: "",
+    station: "Bar"
+  },
+  {
+    id: 'jc-oulmes',
+    category: 'soda',
+    price: 14,
+    name: { fr: "Oulmes", en: "Oulmès Sparkling", ar: "والماس" },
+    description: { fr: "Eau minérale naturellement gazeuse", en: "Naturally carbonated sparkling water", ar: "مياه معدنية غازية طبيعية" },
+    image: "",
+    station: "Bar"
+  },
   {
     id: 'jc-iced-coffee',
-    category: 'jus_cocktails',
+    category: 'soda',
     price: 25,
     name: { fr: "Iced Coffee", en: "Iced Coffee", ar: "قهوة مثلجة" },
     description: { fr: "Café expresso glacé avec du lait et de la glace", en: "Chilled espresso served on ice with milk", ar: "إسبريسو بارد بالحليب والثلج" },
@@ -1020,7 +1035,7 @@ export const menuItems: MenuItem[] = [
   },
   {
     id: 'jc-redbull',
-    category: 'jus_cocktails',
+    category: 'soda',
     price: 27,
     name: { fr: "Red Bull", en: "Red Bull", ar: "ريد بول" },
     description: { fr: "Boisson énergisante bien fraîche", en: "Chilled energy drink can", ar: "علبة مشروب طاقة بارد" },
