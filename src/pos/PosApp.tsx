@@ -10,7 +10,6 @@ import {
   BarChart3,
   Bike,
   AlertTriangle,
-  ChefHat,
   Tv,
   Pencil,
   Sparkles,
@@ -26,7 +25,6 @@ import {
   ClipboardList,
   Archive,
   Clock,
-  CupSoda,
   ArrowRight,
   ArrowUp,
   ArrowDown,
@@ -2163,7 +2161,7 @@ function TablePanel({
 
 // ---------------------------------------------------------------------------
 
-type Tab = 'tables' | 'live' | 'kitchen' | 'history' | 'reports' | 'menu' | 'tv';
+type Tab = 'tables' | 'live' | 'history' | 'reports' | 'menu' | 'tv';
 type PayTarget = { kind: 'table'; table: string; orders: OrderDoc[] } | { kind: 'order'; order: OrderDoc };
 type ReportRange = 'today' | 'yesterday' | 'week' | 'month' | 'custom' | 'all';
 
@@ -3032,28 +3030,6 @@ export default function PosApp() {
     });
   }, [cashPayouts]);
 
-  // Kitchen view: everything still to prepare (new/preparing), grouped by
-  // station instead of by table/order, so the kitchen sees a prep list
-  // instead of having to mentally filter out payment status and table
-  // numbers that don't matter to them.
-  const kitchenByStation = useMemo(() => {
-    const map = new Map<string, OrderDoc[]>();
-    activeOrders
-      .filter((o) => (o.status || 'new') === 'new' || o.status === 'preparing')
-      .forEach((o) => {
-        const stations = new Set(o.items.map((it) => it.station || 'Kitchen'));
-        stations.forEach((st) => map.set(st, [...(map.get(st) || []), o]));
-      });
-    for (const list of map.values()) {
-      list.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
-    }
-    return Array.from(map.entries());
-  }, [activeOrders]);
-  const kitchenOrderCount = useMemo(
-    () => activeOrders.filter((o) => (o.status || 'new') === 'new' || o.status === 'preparing').length,
-    [activeOrders]
-  );
-
   const addItemsToTable = async (table: string, newItems: OrderItem[], newTotal: number) => {
     try {
       const existing = tablesMap.get(table)?.[0];
@@ -3150,15 +3126,12 @@ export default function PosApp() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap p-1 rounded-full pos-surface border border-[#F3ECDD]/10">
-            {(['tables', 'live', 'kitchen', 'history', 'reports', 'menu', 'tv'] as Tab[]).map((t) => {
-              const needsAttention = t === 'kitchen' && kitchenOrderCount > 0;
+            {(['tables', 'live', 'history', 'reports', 'menu', 'tv'] as Tab[]).map((t) => {
               const TabIcon =
                 t === 'tables'
                   ? Armchair
                   : t === 'live'
                   ? Receipt
-                  : t === 'kitchen'
-                  ? ChefHat
                   : t === 'history'
                   ? History
                   : t === 'reports'
@@ -3176,16 +3149,11 @@ export default function PosApp() {
                       : 'text-[#9A9490] hover:text-[#F3ECDD] hover:bg-white/5'
                   }`}
                 >
-                  {needsAttention && tab !== t && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand-orange animate-pulse-dot" />
-                  )}
                   <TabIcon aria-hidden="true" className="w-4 h-4" />
                   {t === 'tables'
                     ? `Tables (${occupiedTableCount}/${TABLE_COUNT})`
                     : t === 'live'
                     ? `Commandes (${liveOrders.length})`
-                    : t === 'kitchen'
-                    ? `Cuisine (${kitchenOrderCount})`
                     : t === 'history'
                     ? 'Historique'
                     : t === 'reports'
@@ -3216,7 +3184,7 @@ export default function PosApp() {
             title={
               printerBridgeReady
                 ? 'Pont d\'impression détecté : Ticket/Bar/Cuisine impriment automatiquement, sans aucun clic.'
-                : "Pont d'impression non détecté sur ce pc -- voir l'onglet Cuisine pour l'installer (une seule fois). En attendant, le reçu caisse reste imprimable via le bouton \"Imprimer\"."
+                : "Pont d'impression non détecté sur ce pc -- voir printhost/README.md pour l'installer (une seule fois). En attendant, le reçu caisse reste imprimable via le bouton \"Imprimer\"."
             }
             className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-sm font-bold border ${
               printerBridgeReady
@@ -3226,6 +3194,26 @@ export default function PosApp() {
           >
             <Printer className="w-4 h-4" /> Impression auto {printerBridgeReady ? 'active' : 'inactive'}
           </span>
+          {printerMsg && <span className="text-xs text-[#9A9490]">{printerMsg}</span>}
+          {([
+            { key: 'ticket', name: PRINTER_NAMES.ticket, label: 'Ticket' },
+            { key: 'bar', name: PRINTER_NAMES.bar, label: 'Bar' },
+            { key: 'cuisine', name: PRINTER_NAMES.cuisine, label: 'Cuisine' },
+          ] as const).map((p) => (
+            <button
+              key={p.key}
+              onClick={() => handleTestPrinter(p.name, p.label)}
+              disabled={!printerBridgeReady}
+              title={
+                printerBridgeReady
+                  ? `Imprimer un ticket de test sur l'imprimante ${p.label} (${p.name})`
+                  : "Le pont d'impression doit être installé avant de pouvoir tester une imprimante."
+              }
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              <Printer className="w-3.5 h-3.5" /> Test {p.label}
+            </button>
+          ))}
           <button
             onClick={() => setShowNewOrder(true)}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-black border border-brand-orange/40 bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.97] text-brand-orange transition-all shadow-sm shadow-black/20"
@@ -3322,83 +3310,6 @@ export default function PosApp() {
               ))}
             </div>
           )
-        )}
-
-        {tab === 'kitchen' && (
-          <div>
-            <div className="flex items-center justify-end gap-2 mb-4 flex-wrap">
-              {printerMsg && <span className="text-xs text-[#9A9490]">{printerMsg}</span>}
-              {!printerBridgeReady && (
-                <span className="text-xs font-bold text-red-400 border border-red-500/40 bg-red-500/10 rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Pont d'impression non détecté sur ce pc — voir printhost/README.md pour l'installer (une seule fois).
-                </span>
-              )}
-              {([
-                { key: 'ticket', name: PRINTER_NAMES.ticket, label: 'Ticket' },
-                { key: 'bar', name: PRINTER_NAMES.bar, label: 'Bar' },
-                { key: 'cuisine', name: PRINTER_NAMES.cuisine, label: 'Cuisine' },
-              ] as const).map((p) => (
-                <button
-                  key={p.key}
-                  onClick={() => handleTestPrinter(p.name, p.label)}
-                  disabled={!printerBridgeReady}
-                  title={
-                    printerBridgeReady
-                      ? `Imprimer un ticket de test sur l'imprimante ${p.label} (${p.name})`
-                      : "Le pont d'impression doit être installé avant de pouvoir tester une imprimante."
-                  }
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                >
-                  <Printer className="w-3.5 h-3.5" /> Test {p.label}
-                </button>
-              ))}
-            </div>
-            {kitchenByStation.length === 0 ? (
-              <p className="text-[#7A736C] text-center py-20">Rien à préparer.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {kitchenByStation.map(([station, stOrders]) => (
-                <div key={station} className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
-                  <h3 className="font-display font-black text-lg text-brand-orange mb-3 flex items-center gap-1.5">
-                    {station === 'Bar' ? <><CupSoda className="w-4 h-4" /> Bar</> : <><ChefHat className="w-4 h-4" /> Cuisine</>}
-                  </h3>
-                  <div className="space-y-3">
-                    {stOrders.map((o) => {
-                      const mins = minutesSince(o.createdAt);
-                      const status = o.status || 'new';
-                      return (
-                        <div key={o.id} className="border-t border-[#F3ECDD]/10 pt-2 first:border-0 first:pt-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-bold text-[#F3ECDD]">{kindLabel(o)}</span>
-                            <span className={`text-xs font-bold ${elapsedStyle(mins)}`}>{elapsedLabel(mins)}</span>
-                          </div>
-                          {o.items
-                            .filter((it) => (it.station || 'Kitchen') === station)
-                            .map((it, i) => (
-                              <p key={i} className="text-sm text-[#E3DCCB] ps-2">
-                                <span className="font-bold text-brand-orange">{it.quantity}×</span> {it.name}
-                              </p>
-                            ))}
-                          {o.note && (
-                            <p className="text-xs text-brand-orange font-bold bg-brand-orange/10 border border-brand-orange/25 rounded-lg px-2 py-1 mt-1.5 ms-2 flex items-start gap-1">
-                              <NotebookPen className="w-3.5 h-3.5 shrink-0" /> {o.note}
-                            </p>
-                          )}
-                          <button
-                            onClick={() => advance(o)}
-                            className="mt-1.5 text-xs font-black px-2.5 py-1.5 rounded-lg bg-brand-orange text-[#1A1208]"
-                          >
-                            {status === 'preparing' ? 'Marquer prêt' : 'Démarrer'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-            )}
-          </div>
         )}
 
         {tab === 'history' && (
