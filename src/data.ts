@@ -887,8 +887,17 @@ export const menuItems: MenuItem[] = [
     id: 'jc-eau',
     category: 'soda',
     price: 12,
-    name: { fr: "Eau minérale", en: "Mineral Water", ar: "مياه معدنية" },
-    description: { fr: "Bouteille d'eau minérale de table", en: "Chilled table mineral water bottle", ar: "زجاجة مياه معدنية طبيعية" },
+    name: { fr: "Eau minérale 50cl", en: "Mineral Water 50cl", ar: "مياه معدنية 50 سل" },
+    description: { fr: "Bouteille d'eau minérale de table, 50cl", en: "Chilled table mineral water bottle, 50cl", ar: "زجاجة مياه معدنية طبيعية، 50 سل" },
+    image: "/jus/eau.webp",
+    station: "Bar"
+  },
+  {
+    id: 'jc-eau-33',
+    category: 'soda',
+    price: 5,
+    name: { fr: "Eau minérale 33cl", en: "Mineral Water 33cl", ar: "مياه معدنية 33 سل" },
+    description: { fr: "Bouteille d'eau minérale de table, 33cl", en: "Chilled table mineral water bottle, 33cl", ar: "زجاجة مياه معدنية طبيعية، 33 سل" },
     image: "/jus/eau.webp",
     station: "Bar"
   },
