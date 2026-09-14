@@ -892,7 +892,7 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Coca Cola", en: "Coca Cola", ar: "كوكاكولا" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
+    image: "/soda/coca.webp",
     station: "Bar"
   },
   {
@@ -901,7 +901,7 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Coca Cola Zero", en: "Coca Cola Zero", ar: "كوكاكولا زيرو" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
+    image: "/soda/coca-zero.webp",
     station: "Bar"
   },
   {
@@ -910,7 +910,7 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Sprite", en: "Sprite", ar: "سبرايت" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
+    image: "/soda/sprite.webp",
     station: "Bar"
   },
   {
@@ -919,7 +919,7 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Poms", en: "Poms", ar: "بومز" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
+    image: "/soda/poms.webp",
     station: "Bar"
   },
   {
@@ -928,7 +928,7 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Schweppes Citron", en: "Schweppes Lemon", ar: "شويبس ليمون" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
+    image: "/soda/schweppes-citron.webp",
     station: "Bar"
   },
   {
@@ -937,7 +937,7 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Schweppes Mojito", en: "Schweppes Mojito", ar: "شويبس موهيتو" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
+    image: "/soda/schweppes-mojito.webp",
     station: "Bar"
   },
   {
@@ -946,7 +946,7 @@ export const menuItems: MenuItem[] = [
     price: 16,
     name: { fr: "Schweppes Tonic", en: "Schweppes Tonic", ar: "شويبس تونيك" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
-    image: "",
+    image: "/soda/schweppes-tonic.webp",
     station: "Bar"
   },
   {
@@ -955,7 +955,7 @@ export const menuItems: MenuItem[] = [
     price: 14,
     name: { fr: "Lait froid", en: "Cold Milk", ar: "حليب بارد" },
     description: { fr: "Verre de lait bien frais", en: "Glass of chilled cold milk", ar: "كأس حليب بارد" },
-    image: "",
+    image: "/soda/lait-froid.webp",
     station: "Bar"
   },
   {
@@ -964,7 +964,7 @@ export const menuItems: MenuItem[] = [
     price: 14,
     name: { fr: "Oulmes", en: "Oulmès Sparkling", ar: "والماس" },
     description: { fr: "Eau minérale naturellement gazeuse", en: "Naturally carbonated sparkling water", ar: "مياه معدنية غازية طبيعية" },
-    image: "",
+    image: "/soda/oulmes.webp",
     station: "Bar"
   },
   {
@@ -973,7 +973,7 @@ export const menuItems: MenuItem[] = [
     price: 25,
     name: { fr: "Iced Coffee", en: "Iced Coffee", ar: "قهوة مثلجة" },
     description: { fr: "Café expresso glacé avec du lait et de la glace", en: "Chilled espresso served on ice with milk", ar: "إسبريسو بارد بالحليب والثلج" },
-    image: "",
+    image: "/soda/iced-coffee.webp",
     station: "Bar"
   },
   {
@@ -982,7 +982,7 @@ export const menuItems: MenuItem[] = [
     price: 27,
     name: { fr: "Red Bull", en: "Red Bull", ar: "ريد بول" },
     description: { fr: "Boisson énergisante bien fraîche", en: "Chilled energy drink can", ar: "علبة مشروب طاقة بارد" },
-    image: "",
+    image: "/soda/redbull.webp",
     station: "Bar"
   },
 

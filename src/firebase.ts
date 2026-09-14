@@ -244,7 +244,7 @@ export const initialCategories: FirestoreCategory[] = [
   // Ajouté le 14/09/2026 : canettes/bouteilles fraîches (à distinguer des
   // Jus & Cocktails préparés) -- placé juste après pour rester dans le
   // groupe "Boissons" du rail de catégories (voir CATEGORY_GROUPS, PosApp.tsx).
-  { id: 'soda', name: { fr: "Soda", en: "Soda", ar: "مشروبات غازية" }, emoji: "🥤", displayOrder: 3 },
+  { id: 'soda', name: { fr: "Boissons Froides", en: "Cold Drinks", ar: "مشروبات باردة" }, emoji: "🥤", displayOrder: 3 },
   { id: 'breakfasts', name: { fr: "Petits-Déjeuners", en: "Breakfast", ar: "إفطار" }, emoji: "🍳", displayOrder: 5 },
   { id: 'omelettes', name: { fr: "Omelettes", en: "Omelettes", ar: "أومليت" }, emoji: "🥚", displayOrder: 5 },
   { id: 'toasts', name: { fr: "Toasts", en: "Toasts", ar: "توست" }, emoji: "🍞", displayOrder: 6 },
