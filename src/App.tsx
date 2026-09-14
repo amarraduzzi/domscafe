@@ -57,9 +57,8 @@ interface CartItem {
 // Supplément "+ Menu" pour un sandwich/tacos à l'unité -- voir selectedMenu.
 const MENU_SURCHARGE = 8;
 const MENU_ELIGIBLE_CATEGORIES = ['sandwiches', 'tacos'];
-const MENU_EXCLUDED_IDS = ['s-formule', 'tc-formule'];
 function isMenuEligible(item: MenuItem): boolean {
-  return MENU_ELIGIBLE_CATEGORIES.includes(item.category) && !MENU_EXCLUDED_IDS.includes(item.id);
+  return MENU_ELIGIBLE_CATEGORIES.includes(item.category);
 }
 
 // Red Soda Can / Cola Icon component
@@ -208,8 +207,9 @@ export default function App() {
   // base dans chaque sandwich/tacos -- ce supplément couvre uniquement la
   // boisson, jamais les frites (déjà là) pour un sandwich ; pour un tacos,
   // "frites & soda" reste le libellé demandé même si les frites de base y
-  // sont aussi déjà incluses. Exclu pour les deux articles "Formule menu"
-  // fixes (s-formule/tc-formule), qui ont déjà leur propre prix tout compris.
+  // sont aussi déjà incluses. Les deux anciens articles fixes "Formule
+  // menu" (s-formule/tc-formule) ont été retirés le 14/09/2026 : ce
+  // supplément est désormais la seule façon de vendre "avec boisson".
   const [selectedMenu, setSelectedMenu] = useState<Record<string, boolean>>({});
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState<boolean>(false);

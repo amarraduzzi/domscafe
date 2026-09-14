@@ -442,15 +442,11 @@ export const menuItems: MenuItem[] = [
     price: 40,
     name: { fr: "Sandwich Poulet", en: "Chicken Sandwich", ar: "سندويش دجاج" },
     description: {
-      fr: "Poulet, fromage, tomates, laitue, cornichons, poivrons, sauce au choix",
-      en: "Chicken, cheese, tomatoes, lettuce, pickles, bell peppers, sauce of your choice",
-      ar: "دجاج، جبن، طماطم، خس، خيار مخلل، فلفل حلو، صلصة من اختيارك"
+      fr: "Poulet, fromage, tomates, laitue, cornichons, poivrons",
+      en: "Chicken, cheese, tomatoes, lettuce, pickles, bell peppers",
+      ar: "دجاج، جبن، طماطم، خس، خيار مخلل، فلفل حلو"
     },
-    image: "",
-    variants: [
-      { id: 'ail', name: { fr: "Sauce à l'ail", en: "Garlic Sauce", ar: "صلصة الثوم" }, price: 40 },
-      { id: 'blanche', name: { fr: "Sauce blanche", en: "White Sauce", ar: "صلصة بيضاء" }, price: 40 }
-    ]
+    image: ""
   },
   {
     id: 's-kefta',
@@ -458,25 +454,9 @@ export const menuItems: MenuItem[] = [
     price: 42,
     name: { fr: "Sandwich Kefta", en: "Kefta Sandwich", ar: "سندويش كفتة" },
     description: {
-      fr: "Viande hachée, fromage, tomates, laitue, cornichons, oignons, sauce au choix",
-      en: "Minced beef, cheese, tomatoes, lettuce, pickles, onions, sauce of your choice",
-      ar: "لحم مفروم، جبن، طماطم، خس، خيار مخلل، بصل، صلصة من اختيارك"
-    },
-    image: "",
-    variants: [
-      { id: 'ail', name: { fr: "Sauce à l'ail", en: "Garlic Sauce", ar: "صلصة الثوم" }, price: 42 },
-      { id: 'blanche', name: { fr: "Sauce blanche", en: "White Sauce", ar: "صلصة بيضاء" }, price: 42 }
-    ]
-  },
-  {
-    id: 's-formule',
-    category: 'sandwiches',
-    price: 45,
-    name: { fr: "Formule menu (sandwich + frite + soda)", en: "Sandwich Menu (fries + soda)", ar: "وجبة سندويش (بطاطس + صودا)" },
-    description: {
-      fr: "Sandwich de votre choix servi avec frites dorées et soda fraîche",
-      en: "Any sandwich of choice served with golden fries and soda",
-      ar: "سندويش من اختيارك يقدم مع بطاطس مقلية ومشروب غازي"
+      fr: "Viande hachée, fromage, tomates, laitue, cornichons, oignons",
+      en: "Minced beef, cheese, tomatoes, lettuce, pickles, onions",
+      ar: "لحم مفروم، جبن، طماطم، خس، خيار مخلل، بصل"
     },
     image: ""
   },
@@ -488,16 +468,11 @@ export const menuItems: MenuItem[] = [
     price: 38,
     name: { fr: "Tacos Poulet", en: "Chicken Tacos", ar: "تاكو دجاج" },
     description: {
-      fr: "Poulet, cheddar, frites, sauce béchamel et sauce au choix",
-      en: "Chicken, cheddar, fries, béchamel and selected sauce",
-      ar: "دجاج، جبن شيدر، بطاطس مقلية، بشاميل والصلصة المفضلة"
+      fr: "Poulet, cheddar, frites, sauce béchamel",
+      en: "Chicken, cheddar, fries, béchamel",
+      ar: "دجاج، جبن شيدر، بطاطس مقلية، بشاميل"
     },
-    image: "",
-    variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
-    ]
+    image: ""
   },
   {
     id: 'tc-viande',
@@ -505,16 +480,11 @@ export const menuItems: MenuItem[] = [
     price: 38,
     name: { fr: "Tacos Viande Hachée", en: "Minced Beef Tacos", ar: "تاكو لحم مفروم" },
     description: {
-      fr: "Viande hachée, cheddar, frites, sauce béchamel et sauce au choix",
-      en: "Minced beef, cheddar, fries, béchamel and selected sauce",
-      ar: "لحم مفروم، جبن شيدر، بطاطس مقلية، بشاميل والصلصة المفضلة"
+      fr: "Viande hachée, cheddar, frites, sauce béchamel",
+      en: "Minced beef, cheddar, fries, béchamel",
+      ar: "لحم مفروم، جبن شيدر، بطاطس مقلية، بشاميل"
     },
-    image: "",
-    variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
-    ]
+    image: ""
   },
   {
     id: 'tc-nuggets',
@@ -522,16 +492,11 @@ export const menuItems: MenuItem[] = [
     price: 38,
     name: { fr: "Tacos Nuggets", en: "Nuggets Tacos", ar: "تاكو ناجتس" },
     description: {
-      fr: "Nuggets, cheddar, frites, sauce béchamel et sauce au choix",
-      en: "Nuggets, cheddar, fries, béchamel and selected sauce",
-      ar: "ناجتس، جبن شيدر، بطاطس مقلية، بشاميل والصلصة المفضلة"
+      fr: "Nuggets, cheddar, frites, sauce béchamel",
+      en: "Nuggets, cheddar, fries, béchamel",
+      ar: "ناجتس، جبن شيدر، بطاطس مقلية، بشاميل"
     },
-    image: "",
-    variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
-    ]
+    image: ""
   },
   {
     id: 'tc-cordon',
@@ -539,33 +504,11 @@ export const menuItems: MenuItem[] = [
     price: 38,
     name: { fr: "Tacos Cordon Bleu", en: "Cordon Bleu Tacos", ar: "تاكو كوردون بلو" },
     description: {
-      fr: "Cordon bleu, cheddar, frites, sauce béchamel et sauce au choix",
-      en: "Cordon bleu, cheddar, fries, béchamel and selected sauce",
-      ar: "كوردون بلو، جبن شيدر، بطاطس مقلية، بشاميل والصلصة المفضلة"
+      fr: "Cordon bleu, cheddar, frites, sauce béchamel",
+      en: "Cordon bleu, cheddar, fries, béchamel",
+      ar: "كوردون بلو، جبن شيدر، بطاطس مقلية، بشاميل"
     },
-    image: "",
-    variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
-    ]
-  },
-  {
-    id: 'tc-formule',
-    category: 'tacos',
-    price: 42,
-    name: { fr: "Formule menu (tacos + frite + soda)", en: "Tacos Menu (fries + soda)", ar: "وجبة تاكو (بطاطس + صودا)" },
-    description: {
-      fr: "Tacos au choix servi avec frites croustillantes et canette de soda fraîche",
-      en: "Any tacos of choice served with crispy fries and chilled soda",
-      ar: "تاكو من اختيارك يقدم مع بطاطس مقلية ومشروب غازي"
-    },
-    image: "",
-    variants: [
-      { id: 'fromagere', name: { fr: "Sauce Fromagère", en: "Cheese Sauce", ar: "صلصة الجبن" }, price: 42 },
-      { id: 'algerienne', name: { fr: "Sauce Algérienne", en: "Algerian Sauce", ar: "الصلصة الجزائرية" }, price: 42 },
-      { id: 'biggy', name: { fr: "Sauce Biggy", en: "Biggy Sauce", ar: "صلصة بيغي" }, price: 42 }
-    ]
+    image: ""
   },
 
   // 12. Salades
@@ -1972,12 +1915,6 @@ if (sKeftaItem) {
   sKeftaItem.image = 'https://i.ibb.co/TxS979yB/Chat-GPT-Image-21-jul-2026-15-23-54.webp';
 }
 
-// Explicitly override image for Sandwich Formule menu
-const sFormuleItem = menuItems.find(item => item.id === 's-formule');
-if (sFormuleItem) {
-  sFormuleItem.image = 'https://i.ibb.co/5gRDqp7H/Chat-GPT-Image-21-jul-2026-15-37-37.webp';
-}
-
 // Explicitly override image for Tacos Nuggets
 const tcNuggetsItem = menuItems.find(item => item.id === 'tc-nuggets');
 if (tcNuggetsItem) {
@@ -1988,12 +1925,6 @@ if (tcNuggetsItem) {
 const tcCordonItem = menuItems.find(item => item.id === 'tc-cordon');
 if (tcCordonItem) {
   tcCordonItem.image = 'https://i.ibb.co/TCgyhmC/Chat-GPT-Image-21-jul-2026-15-59-02.webp';
-}
-
-// Explicitly override image for Tacos Formule menu
-const tcFormuleItem = menuItems.find(item => item.id === 'tc-formule');
-if (tcFormuleItem) {
-  tcFormuleItem.image = 'https://i.ibb.co/9mszh048/Chat-GPT-Image-21-jul-2026-16-01-08.webp';
 }
 
 // Explicitly override image for Marocaine Salad

@@ -1645,13 +1645,12 @@ function MenuGrid({
         <div className="grid grid-cols-2 gap-2.5">
           {items.map((it) => {
             const color = GROUP_COLOR[groupLabelByCategoryId.get(it.category) || ''] || '#C9A15A';
-            // "+ Boisson" -- demandé le 14/09/2026 : pour un sandwich/tacos à
+            // "+ MENU" -- demandé le 14/09/2026 : pour un sandwich/tacos à
             // l'unité, un bouton séparé ajoute le même article +8 DH avec
-            // "(+ boisson)" dans le nom (visible sur le ticket cuisine et le
-            // reçu). Exclus les deux articles "Formule menu" déjà existants
-            // (s-formule/tc-formule, prix fixe indépendant du sandwich/tacos
-            // choisi) -- leur appliquer +8 DH dessus n'aurait pas de sens.
-            const menuEligible = (it.category === 'sandwiches' || it.category === 'tacos') && it.id !== 's-formule' && it.id !== 'tc-formule';
+            // "(Menu)" dans le nom (visible sur le ticket cuisine et le
+            // reçu). Les deux anciens articles fixes "Formule menu"
+            // (s-formule/tc-formule) ont été retirés le 14/09/2026.
+            const menuEligible = it.category === 'sandwiches' || it.category === 'tacos';
             const menuAddId = `${it.id}::menu`;
             return (
               <div
