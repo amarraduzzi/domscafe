@@ -751,7 +751,7 @@ export const menuItems: MenuItem[] = [
       en: "Pineapple, orange, vanilla, coconut milk, fresh pineapple, lemon",
       ar: "أناناس، برتقال، فانيليا، حليب جوز الهند، أناناس طازج، ليمون"
     },
-    image: "",
+    image: "/jus/pina.webp",
     station: "Bar"
   },
   {
@@ -778,7 +778,7 @@ export const menuItems: MenuItem[] = [
     price: 22,
     name: { fr: "Carotte", en: "Carrot Juice", ar: "عصير جزر" },
     description: { fr: "Jus de carotte frais pressé", en: "Fresh squeezed carrot juice", ar: "عصير جزر مغذ طازج" },
-    image: "",
+    image: "/jus/carotte.webp",
     station: "Bar"
   },
   {
@@ -787,7 +787,7 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Banane", en: "Banana Juice", ar: "عصير موز" },
     description: { fr: "Jus de banane onctueux préparé au lait", en: "Smooth banana milkshake", ar: "عصير موز مخفوق بالحليب" },
-    image: "",
+    image: "/jus/banane.webp",
     station: "Bar"
   },
   {
@@ -823,7 +823,7 @@ export const menuItems: MenuItem[] = [
     price: 26,
     name: { fr: "Avocat au lait", en: "Avocado with Milk", ar: "أفوكادو بالحليب" },
     description: { fr: "Smoothie crémeux à l'avocat et au lait", en: "Creamy avocado smoothie with milk", ar: "أفوكادو كريمي مخفوق بالحليب" },
-    image: "",
+    image: "/jus/avocat-lait.webp",
     station: "Bar"
   },
   {
@@ -850,7 +850,7 @@ export const menuItems: MenuItem[] = [
     price: 32,
     name: { fr: "Avocat fruit sec", en: "Avocado with Dried Fruits", ar: "أفوكادو بالفواكه الجافة" },
     description: { fr: "Smoothie avocat garni de dattes, d'amandes et de noix", en: "Rich avocado smoothie with dates, almonds, walnuts", ar: "أفوكادو مغذ بالتمر واللوز والجوز" },
-    image: "",
+    image: "/jus/avocat-sec.webp",
     station: "Bar"
   },
   {
@@ -868,7 +868,7 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Mojito", en: "Virgin Mojito", ar: "موهيتو" },
     description: { fr: "Citron vert, menthe fraîche et eau gazeuse", en: "Virgin lime and mint carbonated refreshment", ar: "ليمون حامض، نعناع طازج ومياه غازية" },
-    image: "",
+    image: "/jus/mojito.webp",
     station: "Bar"
   },
 
