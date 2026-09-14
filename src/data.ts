@@ -769,7 +769,7 @@ export const menuItems: MenuItem[] = [
     price: 22,
     name: { fr: "Citron", en: "Lemon Juice", ar: "عصير ليمون" },
     description: { fr: "Jus de citron frais pressé", en: "Fresh squeezed lemon juice", ar: "عصير ليمون حامض طازج" },
-    image: "",
+    image: "/jus/citron.webp",
     station: "Bar"
   },
   {
@@ -814,7 +814,7 @@ export const menuItems: MenuItem[] = [
     price: 26,
     name: { fr: "Ananas", en: "Pineapple Juice", ar: "عصير أناناس" },
     description: { fr: "Jus d'ananas frais savoureux", en: "Sweet fresh pineapple juice", ar: "عصير أناناس طازج ولذيذ" },
-    image: "",
+    image: "/jus/ananas.webp",
     station: "Bar"
   },
   {
@@ -832,7 +832,7 @@ export const menuItems: MenuItem[] = [
     price: 28,
     name: { fr: "Mangue", en: "Mango Juice", ar: "عصير مانجو" },
     description: { fr: "Jus de mangue onctueux et fruité", en: "Smooth pure exotic mango juice", ar: "عصير مانجو استوائي غني" },
-    image: "",
+    image: "/jus/mangue.webp",
     station: "Bar"
   },
   {
