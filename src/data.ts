@@ -725,7 +725,7 @@ export const menuItems: MenuItem[] = [
       en: "Lemon, orange, apple, banana, seasonal fruits",
       ar: "ليمون، برتقال، تفاح، موز، فواكه موسمية"
     },
-    image: "",
+    image: "/jus/jardin.webp",
     station: "Bar"
   },
   {
@@ -738,7 +738,7 @@ export const menuItems: MenuItem[] = [
       en: "Orange, kiwi, mango, pineapple",
       ar: "برتقال، كيوي، مانجو، أناناس"
     },
-    image: "",
+    image: "/jus/exotique.webp",
     station: "Bar"
   },
   {
@@ -796,7 +796,7 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Fraise", en: "Strawberry Juice", ar: "عصير فراولة" },
     description: { fr: "Jus de fraises fraîches pulpeux", en: "Fresh pulp strawberry juice", ar: "عصير فراولة طازج ومنعش" },
-    image: "",
+    image: "/jus/fraise.webp",
     station: "Bar"
   },
   {
@@ -805,7 +805,7 @@ export const menuItems: MenuItem[] = [
     price: 24,
     name: { fr: "Citron gingembre", en: "Lemon Ginger", ar: "ليمون وزنجبيل" },
     description: { fr: "Citron frais avec un zeste de gingembre", en: "Fresh lemon with zesty ginger boost", ar: "ليمون طازج مع لمسة زنجبيل منشطة" },
-    image: "",
+    image: "/jus/citron-ging.webp",
     station: "Bar"
   },
   {
@@ -855,7 +855,7 @@ export const menuItems: MenuItem[] = [
   },
   {
     id: 'jc-hawaii',
-    category: 'jus_cocktails',
+    category: 'soda',
     price: 16,
     name: { fr: "Hawaii", en: "Hawaii", ar: "هاواي" },
     description: { fr: "Canette de soda bien fraîche", en: "Ice-cold can of soda", ar: "علبة مشروب غازي بارد" },
