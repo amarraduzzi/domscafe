@@ -303,7 +303,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-margarita',
     category: 'pizzas',
     price: 36,
-    name: { fr: "Margarita", en: "Margarita", ar: "مارغريتا" },
+    name: { fr: "Pizza Margarita", en: "Pizza Margarita", ar: "بيتزا مارغريتا" },
     description: {
       fr: "Mozzarella, sauce tomate, olives noires, basilic",
       en: "Mozzarella, tomato sauce, black olives, basil",
@@ -316,7 +316,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-vegetarienne',
     category: 'pizzas',
     price: 42,
-    name: { fr: "Végétarienne", en: "Vegetarian", ar: "نباتية" },
+    name: { fr: "Pizza Végétarienne", en: "Pizza Vegetarian", ar: "بيتزا نباتية" },
     description: {
       fr: "Mozzarella, sauce tomate, légumes de saison",
       en: "Mozzarella, tomato sauce, seasonal vegetables",
@@ -328,7 +328,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-thons',
     category: 'pizzas',
     price: 46,
-    name: { fr: "Thons", en: "Tuna", ar: "تونة" },
+    name: { fr: "Pizza Thons", en: "Pizza Tuna", ar: "بيتزا تونة" },
     description: {
       fr: "Mozzarella, thon, poivrons, olives noires",
       en: "Mozzarella, tuna, bell peppers, black olives",
@@ -340,7 +340,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-pollo',
     category: 'pizzas',
     price: 48,
-    name: { fr: "Pollo", en: "Pollo (Chicken)", ar: "بولو (دجاج)" },
+    name: { fr: "Pizza Pollo", en: "Pizza Pollo (Chicken)", ar: "بيتزا بولو (دجاج)" },
     description: {
       fr: "Mozzarella, poulet, poivrons, champignons, sauce tomate",
       en: "Mozzarella, chicken, bell peppers, mushrooms, tomato sauce",
@@ -353,7 +353,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-americaine',
     category: 'pizzas',
     price: 48,
-    name: { fr: "Américaine", en: "American", ar: "أمريكية" },
+    name: { fr: "Pizza Américaine", en: "Pizza American", ar: "بيتزا أمريكية" },
     description: {
       fr: "Mozzarella, pepperoni, sauce tomate, olives noires",
       en: "Mozzarella, pepperoni, tomato sauce, black olives",
@@ -365,7 +365,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-vivanda',
     category: 'pizzas',
     price: 52,
-    name: { fr: "Vivanda", en: "Vivanda (Minced Beef)", ar: "فيفاندا (لحم مفروم)" },
+    name: { fr: "Pizza Vivanda", en: "Pizza Vivanda (Minced Beef)", ar: "بيتزا فيفاندا (لحم مفروم)" },
     description: {
       fr: "Mozzarella, viande hachée, champignons, poivrons, sauce tomate, olives noires",
       en: "Mozzarella, minced beef, mushrooms, bell peppers, tomato sauce, black olives",
@@ -377,7 +377,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-quatre-fromages',
     category: 'pizzas',
     price: 55,
-    name: { fr: "Quatre Fromages", en: "Four Cheese", ar: "أربعة أجبان" },
+    name: { fr: "Pizza Quatre Fromages", en: "Pizza Four Cheese", ar: "بيتزا أربعة أجبان" },
     description: {
       fr: "Edam, bleu, brie, mozzarella, crème fraîche, sauce tomate",
       en: "Edam, blue cheese, brie, mozzarella, fresh cream, tomato sauce",
@@ -389,7 +389,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-quatre-saisons',
     category: 'pizzas',
     price: 65,
-    name: { fr: "Quatre Saisons", en: "Four Seasons (Build Your Own)", ar: "الفصول الأربعة (تركيبتك الخاصة)" },
+    name: { fr: "Pizza Quatre Saisons", en: "Pizza Four Seasons (Build Your Own)", ar: "بيتزا الفصول الأربعة (تركيبتك الخاصة)" },
     description: {
       fr: "Composez votre pizza",
       en: "Compose your own pizza",
@@ -401,7 +401,7 @@ export const menuItems: MenuItem[] = [
     id: 'p-fisherman',
     category: 'pizzas',
     price: 75,
-    name: { fr: "Fisherman", en: "Fisherman", ar: "صياد السمك" },
+    name: { fr: "Pizza Fisherman", en: "Pizza Fisherman", ar: "بيتزا صياد السمك" },
     description: {
       fr: "Mozzarella, crevettes, calamars, surimi, sauce tomate, olives noires",
       en: "Mozzarella, shrimp, squid, surimi, tomato sauce, black olives",
