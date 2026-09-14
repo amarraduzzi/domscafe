@@ -446,7 +446,10 @@ export const menuItems: MenuItem[] = [
       en: "Chicken, cheese, tomatoes, lettuce, pickles, bell peppers",
       ar: "دجاج، جبن، طماطم، خس، خيار مخلل، فلفل حلو"
     },
-    image: ""
+    image: "",
+    // Vide explicitement : supprime l'ancien champ "variants" (choix de
+    // sauce) resté bloqué dans Firestore d'une ancienne version du menu.
+    variants: []
   },
   {
     id: 's-kefta',
@@ -458,7 +461,10 @@ export const menuItems: MenuItem[] = [
       en: "Minced beef, cheese, tomatoes, lettuce, pickles, onions",
       ar: "لحم مفروم، جبن، طماطم، خس، خيار مخلل، بصل"
     },
-    image: ""
+    image: "",
+    // Vide explicitement : supprime l'ancien champ "variants" (choix de
+    // sauce) resté bloqué dans Firestore d'une ancienne version du menu.
+    variants: []
   },
 
   // 9. Tacos
