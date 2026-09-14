@@ -1230,49 +1230,6 @@ function TvSlideEditModal({
 
 // ---------------------------------------------------------------------------
 
-type PaymentChoice = { method: 'cash' | 'card' } | { method: 'mixed'; cash: number; card: number };
-
-// Tout se paie en cash pour l'instant ("bank betalen" retiré le 13/09/2026 --
-// voir le brief) : ce modal ne demande donc plus le mode de paiement, il ne
-// fait plus que confirmer le montant avant d'encaisser. `onChoose` garde sa
-// forme { method: 'cash' } pour ne pas toucher au reste de la logique de
-// paiement (choosePayment, computeStats...) qui sait déjà gérer 'card' /
-// 'mixed' -- utile si le paiement carte revient un jour.
-function PaymentMethodModal({
-  label,
-  total,
-  onChoose,
-  onCancel,
-}: {
-  label: string;
-  total: number;
-  onChoose: (payment: PaymentChoice) => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center px-4 animate-fade-in">
-      <div className="w-full max-w-sm pos-surface-raised border border-[#F3ECDD]/10 rounded-2xl p-6 text-center animate-pop">
-        <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1">{label}</h3>
-        <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Encaisser ce montant ?</p>
-        <p className="font-display font-black text-2xl text-brand-orange mb-5">{formatMAD(total)}</p>
-
-        <button
-          onClick={() => onChoose({ method: 'cash' })}
-          className="w-full py-5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover active:scale-[0.96] text-[#1A1208] font-display font-black text-lg shadow-lg shadow-brand-orange/20 transition-all flex items-center justify-center gap-2 mb-4"
-        >
-          <Banknote className="w-5 h-5" /> Cash
-        </button>
-
-        <button onClick={onCancel} className="text-[#9A9490] text-sm font-bold hover:text-[#F3ECDD] transition-colors">
-          Annuler
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-
 // Sortie de caisse -- payer un fournisseur (ou toute autre dépense) en cash
 // directement depuis le tiroir. Motif + montant sont tous les deux
 // obligatoires : c'est tout le point de ce modal ("waarvoor er betaald is en
@@ -2316,7 +2273,6 @@ export default function PosApp() {
   const [creatingTvSlide, setCreatingTvSlide] = useState(false);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const [payingTarget, setPayingTarget] = useState<PayTarget | null>(null);
   const [flash, setFlash] = useState(false);
   const [now, setNow] = useState(Date.now());
   // null = still connecting, string = a listener/write error to show instead
@@ -2671,12 +2627,11 @@ export default function PosApp() {
       reportWriteError(err);
     }
   };
-  // Turning payment ON opens the cash/carte choice (handled by
-  // payingTarget + choosePayment below); turning it OFF is an instant
-  // correction, no method prompt needed.
+  // Turning payment ON marks it paid in cash directly (see markPaid below);
+  // turning it OFF is an instant correction, no confirmation needed.
   const togglePaid = async (order: OrderDoc) => {
     if (!order.paid) {
-      setPayingTarget({ kind: 'order', order });
+      markPaid({ kind: 'order', order });
       return;
     }
     try {
@@ -2880,44 +2835,32 @@ export default function PosApp() {
     }
   };
 
-  const choosePayment = (payment: PaymentChoice) => {
-    if (!payingTarget) return;
-    // Ouverture automatique du tiroir si du cash entre en jeu (paiement cash
-    // complet ou partagé) -- silencieuse en cas d'échec (pas d'alerte qui
-    // interrompt l'encaissement) : le bouton manuel ci-dessus reste la façon
-    // de diagnostiquer un souci matériel.
-    if (payment.method === 'cash' || (payment.method === 'mixed' && payment.cash > 0)) {
-      openCashDrawer().then((res) => {
-        if (res.ok === false) console.warn('Ouverture auto du tiroir : ', res.message);
-      });
-    }
-    // Close the modal immediately instead of waiting on the network round
-    // trip -- Firestore's local cache already applies the change optimistically
-    // for every listener (that's how the rest of this screen behaves too:
+  // Tout se paie en cash ("bank betalen" retiré le 13/09/2026, voir le
+  // brief) : encaisser marque directement la commande payée en cash, sans
+  // demander de mode de paiement (demandé le 14/09/2026 -- ce choix n'avait
+  // plus de raison d'être puisqu'il n'y a jamais qu'une seule option).
+  // `payment` garde sa forme { method: 'cash' } pour ne pas toucher au reste
+  // de la logique de paiement (paymentFields, computeStats...) qui sait déjà
+  // gérer 'card' / 'mixed' -- utile si le paiement carte revient un jour.
+  const markPaid = (target: PayTarget) => {
+    // Ouverture automatique du tiroir -- silencieuse en cas d'échec (pas
+    // d'alerte qui interrompt l'encaissement) : le bouton manuel ci-dessus
+    // reste la façon de diagnostiquer un souci matériel.
+    openCashDrawer().then((res) => {
+      if (res.ok === false) console.warn('Ouverture auto du tiroir : ', res.message);
+    });
+    // Firestore's local cache already applies the change optimistically for
+    // every listener (that's how the rest of this screen behaves too:
     // advance/togglePaid/cancel never block the UI on a server round trip).
-    // Blocking here instead would leave the modal stuck open on a slow or
-    // flaky connection, which is exactly the kind of thing a "perfect
-    // werkend" POS can't do.
-    const target = payingTarget;
-    setPayingTarget(null);
-    const paymentFields = (orderTotal: number): Partial<OrderDoc> => {
-      if (payment.method !== 'mixed') return { paymentMethod: payment.method };
-      // Table avec plusieurs commandes -- répartit le split proportionnellement
-      // au poids de chaque commande dans l'addition totale, pour que le
-      // rapport cash/carte reste exact même si l'addition vient de plusieurs
-      // commandes fusionnées.
-      const billTotal = target.kind === 'table' ? target.orders.reduce((s, o) => s + o.total, 0) : orderTotal;
-      const cashShare = billTotal > 0 ? Math.round((payment.cash * orderTotal) / billTotal * 100) / 100 : 0;
-      return { paymentMethod: 'mixed', paymentSplit: { cash: cashShare, card: Math.max(0, Math.round((orderTotal - cashShare) * 100) / 100) } };
-    };
+    const paymentFields = (): Partial<OrderDoc> => ({ paymentMethod: 'cash' });
     const write =
       target.kind === 'table'
         ? Promise.all(
             target.orders.map((o) =>
-              updateDoc(doc(db, 'orders', o.id), { paid: true, status: 'served', ...paymentFields(o.total) })
+              updateDoc(doc(db, 'orders', o.id), { paid: true, status: 'served', ...paymentFields() })
             )
           )
-        : updateDoc(doc(db, 'orders', target.order.id), { paid: true, ...paymentFields(target.order.total) });
+        : updateDoc(doc(db, 'orders', target.order.id), { paid: true, ...paymentFields() });
     write.catch((err) => reportWriteError(err));
     // Reçu caisse officiel -- imprimé ICI, au moment réel de l'encaissement,
     // plutôt qu'à la création de la commande (voir la note plus haut,
@@ -2926,12 +2869,7 @@ export default function PosApp() {
     // comme l'ouverture du tiroir ci-dessus : un souci d'imprimante ne doit
     // jamais bloquer l'encaissement lui-même (le bouton "Imprimer" manuel
     // reste disponible pour réimprimer si besoin).
-    let paidLine: string;
-    if (payment.method === 'mixed') {
-      paidLine = `Payé (cash ${formatMAD(payment.cash)} / carte ${formatMAD(payment.card)})`;
-    } else {
-      paidLine = payment.method === 'cash' ? 'Payé (cash)' : 'Payé (carte)';
-    }
+    const paidLine = 'Payé (cash)';
     if (target.kind === 'table') {
       const items = target.orders.flatMap((o) => o.items);
       const total = target.orders.reduce((s, o) => s + o.total, 0);
@@ -3835,7 +3773,7 @@ export default function PosApp() {
           onClose={() => setSelectedTable(null)}
           onAddItems={(items, total) => addItemsToTable(selectedTable, items, total)}
           onCheckout={() =>
-            setPayingTarget({ kind: 'table', table: selectedTable, orders: tablesMap.get(selectedTable) || [] })
+            markPaid({ kind: 'table', table: selectedTable, orders: tablesMap.get(selectedTable) || [] })
           }
           onAdvanceOrder={advance}
           onCancelOrder={cancel}
@@ -3844,15 +3782,6 @@ export default function PosApp() {
           onRemoveItem={removeItemFromOrder}
           onApplyDiscount={applyDiscount}
           onSplitPay={splitPayTable}
-        />
-      )}
-
-      {payingTarget && (
-        <PaymentMethodModal
-          label={payingTarget.kind === 'table' ? `Table ${payingTarget.table}` : kindLabel(payingTarget.order)}
-          total={payingTarget.kind === 'table' ? payingTarget.orders.reduce((s, o) => s + o.total, 0) : payingTarget.order.total}
-          onChoose={choosePayment}
-          onCancel={() => setPayingTarget(null)}
         />
       )}
 
