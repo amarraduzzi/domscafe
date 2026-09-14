@@ -1672,11 +1672,11 @@ function MenuGrid({
                 </button>
                 {menuEligible && (
                   <button
-                    onClick={() => handleAdd(menuAddId, `${it.name.fr} (+ boisson)`, it.price + MENU_SURCHARGE, it.station)}
-                    title={`Ajouter avec une boisson : +${MENU_SURCHARGE} DH (les frites sont déjà incluses de base)`}
+                    onClick={() => handleAdd(menuAddId, `${it.name.fr} (Menu)`, it.price + MENU_SURCHARGE, it.station)}
+                    title={`Menu : +${MENU_SURCHARGE} DH`}
                     className="mt-2 w-full text-xs font-bold py-1.5 rounded-lg border border-brand-orange/40 text-brand-orange bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.96] transition-all"
                   >
-                    + Boisson (+{MENU_SURCHARGE} DH) — {formatMAD(it.price + MENU_SURCHARGE)}
+                    + MENU (+{MENU_SURCHARGE} DH)
                   </button>
                 )}
               </div>

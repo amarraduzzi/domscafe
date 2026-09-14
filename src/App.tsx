@@ -54,6 +54,14 @@ interface CartItem {
   quantity: number;
 }
 
+// Supplément "+ Menu" pour un sandwich/tacos à l'unité -- voir selectedMenu.
+const MENU_SURCHARGE = 8;
+const MENU_ELIGIBLE_CATEGORIES = ['sandwiches', 'tacos'];
+const MENU_EXCLUDED_IDS = ['s-formule', 'tc-formule'];
+function isMenuEligible(item: MenuItem): boolean {
+  return MENU_ELIGIBLE_CATEGORIES.includes(item.category) && !MENU_EXCLUDED_IDS.includes(item.id);
+}
+
 // Red Soda Can / Cola Icon component
 function ColaCanIcon({ className = "w-4.5 h-4.5" }: { className?: string }) {
   return (
@@ -194,6 +202,15 @@ export default function App() {
   const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>(menuItems);
   const [liveCategories, setLiveCategories] = useState<FirestoreCategory[]>(initialCategories);
   const [selectedAtomic, setSelectedAtomic] = useState<Record<string, boolean>>({});
+  // "+ Menu" -- ajouté le 14/09/2026, même mécanique que selectedAtomic
+  // ci-dessus : une case à cocher par article (sandwiches/tacos), +8 DH pour
+  // le drankje/soda ajouté quand cochée. Les frites sont déjà incluses de
+  // base dans chaque sandwich/tacos -- ce supplément couvre uniquement la
+  // boisson, jamais les frites (déjà là) pour un sandwich ; pour un tacos,
+  // "frites & soda" reste le libellé demandé même si les frites de base y
+  // sont aussi déjà incluses. Exclu pour les deux articles "Formule menu"
+  // fixes (s-formule/tc-formule), qui ont déjà leur propre prix tout compris.
+  const [selectedMenu, setSelectedMenu] = useState<Record<string, boolean>>({});
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState<boolean>(false);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState<boolean>(false);
@@ -382,6 +399,20 @@ export default function App() {
           ar: `${targetItem.name.ar} (النسخة الذرية)`
         },
         price: Number(targetItem.price) + 3
+      };
+    }
+
+    const isMenuSelected = isMenuEligible(item) && selectedMenu[item.id];
+    if (isMenuSelected && !targetItem.id.endsWith('-menu')) {
+      targetItem = {
+        ...targetItem,
+        id: `${targetItem.id}-menu`,
+        name: {
+          en: `${targetItem.name.en} (Menu)`,
+          fr: `${targetItem.name.fr} (Menu)`,
+          ar: `${targetItem.name.ar} (Menu)`
+        },
+        price: Number(targetItem.price) + MENU_SURCHARGE
       };
     }
 
@@ -796,20 +827,21 @@ export default function App() {
             <AnimatePresence mode="popLayout">
                 {filteredItems.map(item => {
                   const isAtomicSelected = (item.category as string) === 'bombs' && selectedAtomic[item.id];
-                  const activeVariantId = item.variants && item.variants.length > 0 
-                    ? (selectedVariants[item.id] || item.variants[0].id) 
+                  const isMenuSelected = isMenuEligible(item) && !!selectedMenu[item.id];
+                  const activeVariantId = item.variants && item.variants.length > 0
+                    ? (selectedVariants[item.id] || item.variants[0].id)
                     : null;
-                  const resolvedId = activeVariantId 
-                    ? `${item.id}-${activeVariantId}` 
-                    : (isAtomicSelected 
-                        ? `${item.id}-atomic` 
-                        : item.id);
+                  const resolvedId = activeVariantId
+                    ? `${item.id}-${activeVariantId}`
+                    : (isAtomicSelected
+                        ? `${item.id}-atomic`
+                        : (isMenuSelected ? `${item.id}-menu` : item.id));
                   const cartItem = cart.find(ci => ci.menuItem.id === resolvedId);
                   const isItemAdded = (cartItem?.quantity || 0) > 0;
                   const activeVariant = item.variants?.find(v => v.id === activeVariantId);
-                  const displayPrice = activeVariant 
-                    ? activeVariant.price 
-                    : (isAtomicSelected ? item.price + 3 : item.price);
+                  const displayPrice = activeVariant
+                    ? activeVariant.price
+                    : (isAtomicSelected ? item.price + 3 : (isMenuSelected ? item.price + MENU_SURCHARGE : item.price));
 
                   return (
                     <motion.div 
@@ -907,6 +939,30 @@ export default function App() {
                           )}
 
                           {/* Atomic Version Checkbox for Tacos */}
+
+                          {/* "+ Menu" checkbox for sandwiches/tacos -- même mécanique que le
+                              checkbox Atomic ci-dessus. Les frites sont déjà incluses de base,
+                              ce supplément couvre la boisson (voir MENU_SURCHARGE plus haut). */}
+                          {isMenuEligible(item) && (
+                            <div className="mb-4">
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse cursor-pointer bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 p-2.5 rounded-lg hover:bg-[#F3ECDD]/10 transition-all select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedMenu[item.id]}
+                                  onChange={(e) => setSelectedMenu(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                                  className="w-4 h-4 rounded border-[#6B6259] text-brand-orange focus:ring-brand-orange focus:ring-offset-black bg-black/40 cursor-pointer"
+                                />
+                                <div className="flex-1 flex justify-between items-center text-xs font-bold text-[#F3ECDD]">
+                                  <span>
+                                    {item.category === 'tacos'
+                                      ? (lang === 'ar' ? 'وجبة (بطاطس + مشروب)' : lang === 'fr' ? 'Menu (frites & soda)' : 'Menu (fries & soda)')
+                                      : (lang === 'ar' ? 'وجبة (+ مشروب)' : lang === 'fr' ? 'Menu (+ soda)' : 'Menu (+ soda)')}
+                                  </span>
+                                  <span className="text-brand-orange">+{MENU_SURCHARGE} {lang === 'ar' ? 'درهم' : 'MAD'}</span>
+                                </div>
+                              </label>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center justify-between">
