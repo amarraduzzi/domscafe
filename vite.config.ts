@@ -25,6 +25,10 @@ export default defineConfig(() => {
           // Écran propriétaire, mobile -- domscafe.pages.dev/owner.html, voir
           // src/owner/OwnerApp.tsx.
           owner: path.resolve(__dirname, 'owner.html'),
+          // Outil foodcost -- domscafe.pages.dev/foodcost.html, voir
+          // src/foodcost/FoodcostApp.tsx. Ouvert depuis un bouton dans
+          // l'en-tête de la caisse (PosApp.tsx).
+          foodcost: path.resolve(__dirname, 'foodcost.html'),
         },
       },
     },

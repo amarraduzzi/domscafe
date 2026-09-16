@@ -63,6 +63,13 @@ export interface OrderDoc {
   // Historique : plus écrit depuis le 13/09/2026 (voir PosApp.tsx), gardé
   // uniquement pour ne pas casser la lecture d'anciennes commandes.
   receiptPrinted?: boolean;
+  // Qui a annulé cette commande et quand -- demandé le 16/09/2026 pour que
+  // le rapport X et l'historique montrent toujours "qui" en plus du fait
+  // qu'une commande a été annulée. `cancelledByEmployee` est l'employé
+  // connecté au moment de l'annulation (le code manager n'identifie qu'une
+  // autorisation, pas une personne), voir cancel() dans PosApp.tsx.
+  cancelledByEmployee?: string;
+  cancelledAt?: Timestamp;
 }
 
 // Un override par article, clé = l'id de l'article dans data.ts pour un
@@ -97,6 +104,10 @@ export interface DailyClosure {
   // figé au moment de la clôture -- absent sur les clôtures faites avant le
   // 13/09/2026, traité comme 0 partout où c'est lu.
   payoutsTotal?: number;
+  // Fond de caisse du jour (voir CashFloat ci-dessous), figé au moment de la
+  // clôture -- absent sur les clôtures faites avant le 16/09/2026, traité
+  // comme 0 partout où c'est lu.
+  cashFloatAmount?: number;
 }
 
 // Une sortie d'argent liquide de la caisse pour autre chose qu'une commande
@@ -111,8 +122,23 @@ export interface CashPayout {
   id: string;
   amount: number;
   reason: string;
+  // Nom du fournisseur (ou bénéficiaire) payé -- champ obligatoire distinct
+  // du motif depuis le 16/09/2026, pour toujours savoir "à qui" en plus de
+  // "pourquoi".
+  supplierName: string;
   employeeName?: string;
   createdAt?: Timestamp;
+}
+
+// Fond de caisse -- montant en cash déposé dans le tiroir au début de la
+// journée (avant toute vente), pour que "cash en tiroir" dans les rapports
+// X/Z reflète l'argent physiquement présent et pas seulement l'encaissé du
+// jour. Un doc par jour civil (clé = dateStr()), comme dailyClosures.
+export interface CashFloat {
+  date: string;
+  amount: number;
+  setByEmployee: string;
+  setAt: number;
 }
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
