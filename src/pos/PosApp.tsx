@@ -2472,9 +2472,9 @@ export default function PosApp() {
   const [reportRange, setReportRange] = useState<ReportRange>('today');
   const [customStart, setCustomStart] = useState(dateStr());
   const [customEnd, setCustomEnd] = useState(dateStr());
-  // Recherche d'un plat précis dans l'onglet Rapports -- combien de fois
-  // vendu sur la période choisie plus haut (Aujourd'hui/Hier/personnalisé).
-  const [dishLookup, setDishLookup] = useState('');
+  // Recherche d'un ou plusieurs plats dans l'onglet Rapports -- combien de
+  // fois vendus (cumulés) sur la période choisie plus haut.
+  const [selectedDishes, setSelectedDishes] = useState<Set<string>>(new Set());
   const [historySearch, setHistorySearch] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
   const [menuCategoryFilter, setMenuCategoryFilter] = useState('all');
@@ -3221,28 +3221,52 @@ export default function PosApp() {
   // for whichever range is selected -- this is what makes past days
   // retrievable instead of only ever seeing "today".
   const reportStats = useMemo(() => computeStats(rangeOrders), [rangeOrders]);
-  // Noms de plats "de base" pour le menu déroulant de recherche -- triés
-  // alphabétiquement, dédupliqués (le menu peut avoir le même nom dans
-  // plusieurs catégories rarement, mais on ne veut qu'une seule entrée).
-  const dishNames = useMemo(
-    () => Array.from(new Set(menuItems.map((it) => it.name.fr))).sort((a, b) => a.localeCompare(b)),
-    [menuItems]
-  );
+  // Plats "de base" pour la recherche multi-sélection, groupés par catégorie
+  // (mêmes catégories/ordre que le menu de commande) -- dédupliqués, un même
+  // nom de plat n'apparaissant qu'une fois même s'il existe dans deux
+  // catégories (rare, mais ça arrive avec les extras).
+  const dishesByCategory = useMemo(() => {
+    const byCat = new Map<string, Set<string>>();
+    menuItems.forEach((it) => {
+      const set = byCat.get(it.category) || new Set<string>();
+      set.add(it.name.fr);
+      byCat.set(it.category, set);
+    });
+    return initialCategories
+      .filter((c) => c.id !== 'all' && byCat.has(c.id))
+      .map((c) => ({ id: c.id, label: c.name.fr, names: Array.from(byCat.get(c.id)!).sort((a, b) => a.localeCompare(b)) }));
+  }, [menuItems]);
+  const toggleDish = (name: string) => {
+    setSelectedDishes((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+  const selectWholeCategory = (names: string[]) => {
+    setSelectedDishes((prev) => {
+      const next = new Set(prev);
+      names.forEach((n) => next.add(n));
+      return next;
+    });
+  };
   // Une vente "Pizza Margherita (Emporter)" ou "... (Menu)" doit compter
   // pour "Pizza Margherita" dans cette recherche -- ce sont les mêmes
   // suffixes ajoutés par handleAdd() dans MenuGrid, jamais des préfixes.
   const dishLookupResult = useMemo(() => {
-    if (!dishLookup) return null;
+    if (selectedDishes.size === 0) return null;
     let qty = 0;
     let revenue = 0;
     reportStats.allItems.forEach((it) => {
-      if (it.name === dishLookup || it.name.startsWith(dishLookup + ' (')) {
+      const base = Array.from(selectedDishes).find((d) => it.name === d || it.name.startsWith(d + ' ('));
+      if (base) {
         qty += it.qty;
         revenue += it.revenue;
       }
     });
     return { qty, revenue };
-  }, [dishLookup, reportStats.allItems]);
+  }, [selectedDishes, reportStats.allItems]);
 
   // Sorties de caisse pour la même période que rangeOrders/reportStats --
   // même logique de filtrage par date, pour que l'onglet Rapports montre
@@ -3860,33 +3884,56 @@ export default function PosApp() {
               </div>
 
               <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
-                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Rechercher un plat</h3>
-                <select
-                  value={dishLookup}
-                  onChange={(e) => setDishLookup(e.target.value)}
-                  className="w-full pos-surface border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-sm text-[#F3ECDD] mb-3"
-                >
-                  {/* La liste déroulante elle-même s'ouvre avec un fond blanc
-                      forcé par le navigateur (impossible à styliser en sombre) --
-                      sans ce style explicite sur <option>, le texte héritait de
-                      la couleur crème du reste du POS, illisible sur fond blanc. */}
-                  <option value="" style={{ color: '#1A1208', backgroundColor: '#FFFFFF' }}>— Choisir un plat —</option>
-                  {dishNames.map((name) => (
-                    <option key={name} value={name} style={{ color: '#1A1208', backgroundColor: '#FFFFFF' }}>{name}</option>
+                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-1">Rechercher des plats</h3>
+                <p className="text-[#7A736C] text-xs mb-3">Cochez un ou plusieurs plats, ou ajoutez toute une catégorie d'un coup (ex. toutes les pizzas).</p>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {dishesByCategory.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => selectWholeCategory(cat.names)}
+                      className="text-xs font-bold px-2.5 py-1.5 rounded-full border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-brand-orange/50 transition-all"
+                    >
+                      + {cat.label}
+                    </button>
                   ))}
-                </select>
-                {dishLookup && dishLookupResult && (
-                  <div className="flex justify-between items-center pos-surface border border-[#F3ECDD]/10 rounded-lg px-3 py-3">
-                    <span className="text-[#E3DCCB] truncate pe-2">{dishLookup}</span>
-                    <span className="text-[#9A9490] shrink-0 text-right">
-                      <span className="font-display font-black text-xl text-brand-orange">{dishLookupResult.qty}×</span>
-                      <br />
-                      <span className="text-xs">{formatMAD(dishLookupResult.revenue)}</span>
-                    </span>
-                  </div>
-                )}
-                {dishLookup && !dishLookupResult?.qty && (
-                  <p className="text-[#7A736C] text-xs mt-2">Pas vendu du tout sur cette période.</p>
+                </div>
+                <div className="max-h-56 overflow-y-auto space-y-3 mb-3 pe-1">
+                  {dishesByCategory.map((cat) => (
+                    <div key={cat.id}>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#7A736C] mb-1">{cat.label}</p>
+                      <div className="space-y-1">
+                        {cat.names.map((name) => (
+                          <label key={name} className="flex items-center gap-2 text-sm text-[#E3DCCB] cursor-pointer py-0.5">
+                            <input
+                              type="checkbox"
+                              checked={selectedDishes.has(name)}
+                              onChange={() => toggleDish(name)}
+                              className="w-4 h-4 accent-brand-orange shrink-0"
+                            />
+                            <span className="truncate">{name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {selectedDishes.size > 0 && (
+                  <>
+                    <div className="flex justify-between items-center pos-surface border border-[#F3ECDD]/10 rounded-lg px-3 py-3 mb-2">
+                      <span className="text-[#E3DCCB] truncate pe-2">{selectedDishes.size} plat{selectedDishes.size > 1 ? 's' : ''} sélectionné{selectedDishes.size > 1 ? 's' : ''}</span>
+                      <span className="text-[#9A9490] shrink-0 text-right">
+                        <span className="font-display font-black text-xl text-brand-orange">{dishLookupResult?.qty ?? 0}×</span>
+                        <br />
+                        <span className="text-xs">{formatMAD(dishLookupResult?.revenue ?? 0)}</span>
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedDishes(new Set())}
+                      className="text-xs font-bold text-[#9A9490] hover:text-[#F3ECDD] underline"
+                    >
+                      Tout désélectionner
+                    </button>
+                  </>
                 )}
               </div>
             </div>
