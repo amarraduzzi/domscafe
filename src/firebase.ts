@@ -253,6 +253,7 @@ export const initialCategories: FirestoreCategory[] = [
   { id: 'crepes_salees', name: { fr: "Crêpes Salées", en: "Savory Crêpes", ar: "كريب مالح" }, emoji: "🌯", displayOrder: 9 },
   { id: 'sandwiches', name: { fr: "Sandwiches", en: "Sandwiches", ar: "ساندويتشات" }, emoji: "🥪", displayOrder: 10 },
   { id: 'tacos', name: { fr: "Tacos", en: "Tacos", ar: "تاكو" }, emoji: "🌮", displayOrder: 11 },
+  { id: 'accompagnements', name: { fr: "Accompagnements", en: "Sides", ar: "مرافقات" }, emoji: "🍟", displayOrder: 12 },
   { id: 'salades', name: { fr: "Salades", en: "Salads", ar: "سلطات" }, emoji: "🥗", displayOrder: 14 },
   { id: 'desserts', name: { fr: "Desserts", en: "Desserts", ar: "حلويات" }, emoji: "🍰", displayOrder: 16 },
   // Snooker (billard) -- pas un plat, une prestation facturable à 30 MAD la
