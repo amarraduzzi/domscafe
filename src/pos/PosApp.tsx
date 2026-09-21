@@ -33,6 +33,7 @@ import {
   Check,
   X,
   Calculator,
+  QrCode,
 } from 'lucide-react';
 import {
   collection,
@@ -2481,6 +2482,12 @@ export default function PosApp() {
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
+  // Tafels waarvan de QR-bestelling al is geopend door het personeel --
+  // zodra een tafel hierin staat stopt de pulse-animatie op die tegel. Wordt
+  // automatisch weer verwijderd zodra de tafel leegloopt (afgerekend/gesloten),
+  // zodat een volgende klant die opnieuw via QR bestelt weer een verse pulse
+  // krijgt in plaats van "voor altijd stil" te blijven.
+  const [seenSiteTables, setSeenSiteTables] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(Date.now());
   // null = still connecting, string = a listener/write error to show instead
   // of silently rendering an empty "no orders" screen (that silence is what
@@ -3161,6 +3168,22 @@ export default function PosApp() {
     return map;
   }, [activeOrders]);
   const occupiedTableCount = tablesMap.size;
+
+  // Une table vidée (payée/fermée) sort de "seenSiteTables" -- sinon la
+  // prochaine commande QR sur cette même table resterait muette pour
+  // toujours, alors qu'elle mérite tout autant l'attention du personnel.
+  useEffect(() => {
+    setSeenSiteTables((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((n) => {
+        if (tablesMap.has(n)) next.add(n);
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [tablesMap]);
+
   // Everything in the selected range, whatever its status -- this is the
   // single source both the Historique tab and the Rapports tab read from,
   // so "look up an old order" and "what did we make that day" always agree
@@ -3474,6 +3497,7 @@ export default function PosApp() {
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md pos-surface border border-[#F3ECDD]/15" /> Libre</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md bg-brand-orange" /> En cours</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md bg-[#8FBF8A]/60" /> Payée</span>
+              <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center"><QrCode className="w-2.5 h-2.5 text-white" /></span> Commande via QR (client)</span>
             </div>
             <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-3 max-w-3xl">
               {TABLE_NUMBERS.map((n) => {
@@ -3481,11 +3505,20 @@ export default function PosApp() {
                 const occupied = tOrders.length > 0;
                 const total = tOrders.reduce((s, o) => s + o.total, 0);
                 const allPaid = occupied && tOrders.every((o) => o.paid);
+                // Un client qui commande lui-même via le QR code de la table,
+                // pas le personnel au comptoir -- même convention que le
+                // chime "Nouvelle commande !" plus haut (source ni 'manual'
+                // ni 'glovo').
+                const hasSiteOrder = tOrders.some((o) => o.source !== 'manual' && o.source !== 'glovo');
+                const unseenSiteOrder = hasSiteOrder && !seenSiteTables.has(n);
                 return (
                   <button
                     key={n}
-                    onClick={() => setSelectedTable(n)}
-                    className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all hover:-translate-y-0.5 ${
+                    onClick={() => {
+                      setSelectedTable(n);
+                      if (hasSiteOrder) setSeenSiteTables((prev) => new Set(prev).add(n));
+                    }}
+                    className={`relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all hover:-translate-y-0.5 ${
                       // #536048/#414333 uni (13/09/2026) -- équivalent visuel de
                       // #8FBF8A a 35%/15% d'opacite sur le fond sombre de la
                       // tuile, mais sans opacite : une couleur arbitraire "/nn"
@@ -3497,8 +3530,16 @@ export default function PosApp() {
                         : occupied
                         ? 'bg-gradient-to-b from-brand-orange to-brand-orange-hover border-brand-orange text-[#1A1208] shadow-lg shadow-brand-orange/25'
                         : 'pos-surface border-[#F3ECDD]/10 text-[#F3ECDD] hover:border-brand-orange/50'
-                    }`}
+                    } ${unseenSiteOrder ? 'animate-pulse' : ''}`}
                   >
+                    {hasSiteOrder && (
+                      <span
+                        title="Commande passée par le client lui-même via le QR code -- pas saisie au comptoir"
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-blue-500 border-2 border-brand-dark flex items-center justify-center shadow-md"
+                      >
+                        <QrCode className="w-3 h-3 text-white" />
+                      </span>
+                    )}
                     <span className="text-xs leading-none opacity-80 flex justify-center">{allPaid ? <Check className="w-3 h-3" /> : occupied ? <Clock className="w-3 h-3" /> : ''}</span>
                     <span className="font-display font-black text-xl leading-none">{n}</span>
                     {occupied && <span className="text-[10px] font-bold">{formatMAD(total)}</span>}
