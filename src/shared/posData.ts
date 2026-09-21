@@ -261,10 +261,10 @@ export function computeStats(rangeOrders: OrderDoc[]) {
       itemMap.set(it.name, cur);
     })
   );
-  const topItems = Array.from(itemMap.entries())
+  const allItemsSorted = Array.from(itemMap.entries())
     .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.qty - a.qty)
-    .slice(0, 10);
+    .sort((a, b) => b.qty - a.qty);
+  const topItems = allItemsSorted.slice(0, 10);
 
   // Omzet per medewerker -- "Site" regroupe les commandes du site client
   // (jamais de caissier associé), "Inconnu" les vieilles commandes d'avant
@@ -302,6 +302,12 @@ export function computeStats(rangeOrders: OrderDoc[]) {
     cancelledCount,
     byType,
     topItems,
+    // Liste complète (pas juste le top 10) -- sert à chercher un plat précis
+    // dans l'onglet Rapports, y compris ceux qui ne sont pas dans le top des
+    // ventes. Les variantes d'un même plat de base (" (Menu)", " (Emporter)",
+    // " (Gratis - fidélité)") restent des entrées séparées ici -- c'est
+    // l'écran qui les regroupe pour l'affichage par plat.
+    allItems: allItemsSorted,
     byEmployee,
     hourly,
   };
