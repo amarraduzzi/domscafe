@@ -2472,6 +2472,9 @@ export default function PosApp() {
   const [reportRange, setReportRange] = useState<ReportRange>('today');
   const [customStart, setCustomStart] = useState(dateStr());
   const [customEnd, setCustomEnd] = useState(dateStr());
+  // Recherche d'un plat précis dans l'onglet Rapports -- combien de fois
+  // vendu sur la période choisie plus haut (Aujourd'hui/Hier/personnalisé).
+  const [dishLookup, setDishLookup] = useState('');
   const [historySearch, setHistorySearch] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
   const [menuCategoryFilter, setMenuCategoryFilter] = useState('all');
@@ -3218,6 +3221,28 @@ export default function PosApp() {
   // for whichever range is selected -- this is what makes past days
   // retrievable instead of only ever seeing "today".
   const reportStats = useMemo(() => computeStats(rangeOrders), [rangeOrders]);
+  // Noms de plats "de base" pour le menu déroulant de recherche -- triés
+  // alphabétiquement, dédupliqués (le menu peut avoir le même nom dans
+  // plusieurs catégories rarement, mais on ne veut qu'une seule entrée).
+  const dishNames = useMemo(
+    () => Array.from(new Set(menuItems.map((it) => it.name.fr))).sort((a, b) => a.localeCompare(b)),
+    [menuItems]
+  );
+  // Une vente "Pizza Margherita (Emporter)" ou "... (Menu)" doit compter
+  // pour "Pizza Margherita" dans cette recherche -- ce sont les mêmes
+  // suffixes ajoutés par handleAdd() dans MenuGrid, jamais des préfixes.
+  const dishLookupResult = useMemo(() => {
+    if (!dishLookup) return null;
+    let qty = 0;
+    let revenue = 0;
+    reportStats.allItems.forEach((it) => {
+      if (it.name === dishLookup || it.name.startsWith(dishLookup + ' (')) {
+        qty += it.qty;
+        revenue += it.revenue;
+      }
+    });
+    return { qty, revenue };
+  }, [dishLookup, reportStats.allItems]);
 
   // Sorties de caisse pour la même période que rangeOrders/reportStats --
   // même logique de filtrage par date, pour que l'onglet Rapports montre
@@ -3831,6 +3856,33 @@ export default function PosApp() {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+
+              <div className="pos-surface border border-[#F3ECDD]/10 rounded-xl p-4">
+                <h3 className="font-display font-black text-base text-[#F3ECDD] mb-3">Rechercher un plat</h3>
+                <select
+                  value={dishLookup}
+                  onChange={(e) => setDishLookup(e.target.value)}
+                  className="w-full pos-surface border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-sm text-[#F3ECDD] mb-3"
+                >
+                  <option value="">— Choisir un plat —</option>
+                  {dishNames.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                {dishLookup && dishLookupResult && (
+                  <div className="flex justify-between items-center pos-surface border border-[#F3ECDD]/10 rounded-lg px-3 py-3">
+                    <span className="text-[#E3DCCB] truncate pe-2">{dishLookup}</span>
+                    <span className="text-[#9A9490] shrink-0 text-right">
+                      <span className="font-display font-black text-xl text-brand-orange">{dishLookupResult.qty}×</span>
+                      <br />
+                      <span className="text-xs">{formatMAD(dishLookupResult.revenue)}</span>
+                    </span>
+                  </div>
+                )}
+                {dishLookup && !dishLookupResult?.qty && (
+                  <p className="text-[#7A736C] text-xs mt-2">Pas vendu du tout sur cette période.</p>
                 )}
               </div>
             </div>
