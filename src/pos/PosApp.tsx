@@ -26,6 +26,7 @@ import {
   Archive,
   Clock,
   ArrowRight,
+  ArrowLeftRight,
   ArrowUp,
   ArrowDown,
   RotateCcw,
@@ -2062,6 +2063,7 @@ function TablePanel({
   onRemoveItem,
   onApplyDiscount,
   onSplitPay,
+  onMoveTable,
 }: {
   menuItems: MenuItem[];
   table: string;
@@ -2076,9 +2078,11 @@ function TablePanel({
   onRemoveItem: (order: OrderDoc, index: number) => void | Promise<void>;
   onApplyDiscount: (order: OrderDoc) => void | Promise<void>;
   onSplitPay: (table: string, orders: OrderDoc[], selection: { orderId: string; itemIndex: number; qty: number }[]) => Promise<void>;
+  onMoveTable: (toTable: string) => Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [resentBon, setResentBon] = useState(false);
+  const [moving, setMoving] = useState(false);
   const { draft, addItem, changeQty, total, asOrderItems, reset } = useDraft();
 
   const billTotal = orders.reduce((s, o) => s + o.total, 0);
@@ -2281,6 +2285,23 @@ function TablePanel({
                       <ArrowRight className="w-4 h-4" /> Départ anticipé
                     </button>
                   )}
+                  <button
+                    onClick={async () => {
+                      if (moving) return;
+                      const raw = window.prompt(`Déplacer la table ${table} vers quel numéro de table ?`, '');
+                      if (raw === null) return;
+                      const target = raw.trim();
+                      if (!target) return;
+                      setMoving(true);
+                      await onMoveTable(target);
+                      setMoving(false);
+                    }}
+                    disabled={moving}
+                    title="Déplacer cette table (client qui change de place) vers un autre numéro"
+                    className="text-sm font-bold px-3.5 py-2.5 rounded-lg border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 disabled:opacity-40 transition-all flex items-center gap-1.5"
+                  >
+                    <ArrowLeftRight className="w-4 h-4" /> {moving ? 'Déplacement…' : 'Déplacer'}
+                  </button>
                   <button
                     onClick={() => printTableReceipt(table, orders)}
                     title="Imprimer le reçu -- utilisable autant de fois que nécessaire, même si la table n'est pas encore payée"
@@ -3239,6 +3260,30 @@ export default function PosApp() {
     }
   };
 
+  // Déplacer une table -- un client change de place (ou on regroupe une
+  // table mal indiquée) : toutes les commandes actives de `fromTable`
+  // passent sous le numéro `toTable`, sans rien changer à leur contenu, leur
+  // statut ou leur historique. Bloqué si la destination est déjà occupée --
+  // pas de fusion automatique de deux additions différentes, il faut
+  // d'abord vider/encaisser la table de destination. Pas de code manager
+  // ici : c'est un service normal, pas une correction de commande.
+  const moveTable = async (fromTable: string, toTable: string) => {
+    const target = toTable.trim();
+    if (!target || target === fromTable) return;
+    if (tablesMap.has(target)) {
+      window.alert(`La table ${target} est déjà occupée. Videz-la ou encaissez-la d'abord.`);
+      return;
+    }
+    const tableOrders = tablesMap.get(fromTable) || [];
+    if (tableOrders.length === 0) return;
+    try {
+      await Promise.all(tableOrders.map((o) => updateDoc(doc(db, 'orders', o.id), { tableNumber: target })));
+      setSelectedTable(target);
+    } catch (err) {
+      reportWriteError(err);
+    }
+  };
+
   if (!unlocked) return <EmployeeLoginGate onLogin={(e) => setCurrentEmployee(e)} />;
 
   return (
@@ -4019,6 +4064,7 @@ export default function PosApp() {
           onRemoveItem={removeItemFromOrder}
           onApplyDiscount={applyDiscount}
           onSplitPay={splitPayTable}
+          onMoveTable={(toTable) => moveTable(selectedTable, toTable)}
         />
       )}
 
