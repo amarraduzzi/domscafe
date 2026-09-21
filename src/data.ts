@@ -9,7 +9,7 @@ export interface MenuItemVariant {
 export interface MenuItem {
   id: string;
   name: Record<'en' | 'fr' | 'ar', string>;
-  category: 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'salades' | 'boissons_chaudes' | 'jus_cocktails' | 'soda' | 'desserts' | string;
+  category: 'breakfasts' | 'omelettes' | 'toasts' | 'viennoiserie' | 'crepes_sucrees' | 'crepes_salees' | 'pizzas' | 'sandwiches' | 'tacos' | 'accompagnements' | 'salades' | 'boissons_chaudes' | 'jus_cocktails' | 'soda' | 'desserts' | string;
   price: number;
   description: Record<'en' | 'fr' | 'ar', string>;
   image: string;
@@ -513,6 +513,20 @@ export const menuItems: MenuItem[] = [
       fr: "Cordon bleu, cheddar, frites, sauce béchamel",
       en: "Cordon bleu, cheddar, fries, béchamel",
       ar: "كوردون بلو، جبن شيدر، بطاطس مقلية، بشاميل"
+    },
+    image: ""
+  },
+
+  // 11bis. Accompagnements
+  {
+    id: 'a-frites',
+    category: 'accompagnements',
+    price: 15,
+    name: { fr: "Frites", en: "Fries", ar: "بطاطس مقلية" },
+    description: {
+      fr: "Frites maison",
+      en: "House fries",
+      ar: "بطاطس مقلية منزلية"
     },
     image: ""
   },
