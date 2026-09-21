@@ -3686,6 +3686,12 @@ export default function PosApp() {
                 <Trash2 className="w-4 h-4" /> Tout réinitialiser
               </button>
             </div>
+            {occupiedTableCount > 0 && (
+              <p className="text-[#7A736C] text-xs mb-3 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                Seules les commandes payées/encaissées apparaissent ici — {occupiedTableCount} table{occupiedTableCount > 1 ? 's' : ''} encore ouverte{occupiedTableCount > 1 ? 's' : ''} (voir l'onglet Tables).
+              </p>
+            )}
             <input
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
