@@ -3866,9 +3866,13 @@ export default function PosApp() {
                   onChange={(e) => setDishLookup(e.target.value)}
                   className="w-full pos-surface border border-[#F3ECDD]/20 rounded-lg px-3 py-2.5 text-sm text-[#F3ECDD] mb-3"
                 >
-                  <option value="">— Choisir un plat —</option>
+                  {/* La liste déroulante elle-même s'ouvre avec un fond blanc
+                      forcé par le navigateur (impossible à styliser en sombre) --
+                      sans ce style explicite sur <option>, le texte héritait de
+                      la couleur crème du reste du POS, illisible sur fond blanc. */}
+                  <option value="" style={{ color: '#1A1208', backgroundColor: '#FFFFFF' }}>— Choisir un plat —</option>
                   {dishNames.map((name) => (
-                    <option key={name} value={name}>{name}</option>
+                    <option key={name} value={name} style={{ color: '#1A1208', backgroundColor: '#FFFFFF' }}>{name}</option>
                   ))}
                 </select>
                 {dishLookup && dishLookupResult && (
