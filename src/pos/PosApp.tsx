@@ -137,7 +137,7 @@ const MANAGER_PIN = '7734';
 // qui était connecté) redéverrouille l'écran sans perdre l'état de la page
 // (commandes, onglet ouvert...).
 const IDLE_LOCK_MS = 5 * 60 * 1000;
-const TABLE_COUNT = 25;
+const TABLE_COUNT = 30;
 const TABLE_NUMBERS = Array.from({ length: TABLE_COUNT }, (_, i) => String(i + 1));
 
 // Un slide de l'écran TV (collection Firestore "tvSlides"), géré depuis
@@ -3462,7 +3462,7 @@ export default function PosApp() {
               })}
             </div>
 
-            {/* A table number outside 1-25 can still happen -- a customer
+            {/* A table number outside 1-30 can still happen -- a customer
                 typing something odd into the site's free-text table field,
                 an old QR code, a typo. Without this, such an order would be
                 counted in the "Tables" badge but literally unreachable from
