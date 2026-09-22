@@ -34,6 +34,7 @@ import {
   X,
   Calculator,
   QrCode,
+  ShoppingBag,
 } from 'lucide-react';
 import {
   collection,
@@ -3595,6 +3596,22 @@ export default function PosApp() {
                   </button>
                 );
               })}
+              {/* Tuile "Emporter" à côté des tables -- pour le client qui vient
+                  chercher sa commande sans s'asseoir. Avant, le personnel le
+                  mettait souvent sur une table libre par réflexe (plus rapide
+                  que de chercher le petit bouton "+ Emporter / Livraison /
+                  Glovo" tout en haut), ce qui gonflait artificiellement le
+                  nombre de tables occupées. Ouvre le même formulaire que ce
+                  bouton -- kind par défaut déjà "takeaway" -- donc aucune
+                  nouvelle logique de commande, juste un raccourci visuel au
+                  même endroit que les tables. */}
+              <button
+                onClick={() => setShowNewOrder(true)}
+                className="aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border-2 border-dashed border-brand-orange/50 text-brand-orange hover:bg-brand-orange/10 transition-all"
+              >
+                <ShoppingBag className="w-5 h-5" />
+                <span className="font-display font-black text-xs leading-none text-center">Emporter</span>
+              </button>
             </div>
 
             {/* A table number outside 1-30 can still happen -- a customer
