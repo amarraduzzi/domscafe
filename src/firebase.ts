@@ -10,6 +10,7 @@ import {
   onSnapshot,
   serverTimestamp
 } from "firebase/firestore";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { menuItems, MenuItem } from "./data";
 
 // Web app's Firebase configuration
@@ -38,6 +39,35 @@ const app = initializeApp(firebaseConfig);
 // tegen het beetje offline-comfort dat de cache gaf, dus terug naar de
 // simpele, altijd-werkende instelling.
 export const db = getFirestore(app);
+
+// Connexion anonyme automatique -- nécessaire depuis que les règles de
+// sécurité Firestore exigent request.auth != null (voir firestore.rules).
+// Avant ce correctif (22-23/09/2026), les règles étaient grandes ouvertes
+// ("allow read, write: if true"), ce qui a permis à n'importe qui sur
+// internet de vider toute la base (orders, cashPayouts, dailyClosures,
+// cashFloats, fcIngredients ont disparu du jour au lendemain, sans action
+// de personne côté restaurant). getAuth()+signInAnonymously() tourne sur
+// CHAQUE page qui importe ce fichier (POS, TV, Foodcost, Owner, et le site
+// de commande client) -- aucun mot de passe, aucun écran de connexion
+// visible, juste un identifiant anonyme silencieux en quelques centaines de
+// ms après le chargement, suffisant pour satisfaire les règles. Ce n'est
+// pas une protection parfaite (un attaquant ciblé et motivé peut aussi
+// appeler signInAnonymously lui-même), mais ça bloque net le type
+// d'attaque qui a probablement eu lieu ici : un scanner automatique qui
+// teste des projets Firebase ouverts au hasard sur internet et n'implémente
+// pas ce genre de flux d'authentification.
+export const auth = getAuth(app);
+export const authReady: Promise<void> = new Promise((resolve) => {
+  const unsub = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      unsub();
+      resolve();
+    }
+  });
+  signInAnonymously(auth).catch((err) => {
+    console.error('Connexion anonyme Firebase échouée :', err);
+  });
+});
 
 // Photos des slides de l'écran TV -- PAS Firebase Storage (ça demande le
 // plan payant Blaze, refusé exprès pour ce projet). À la place, la photo
