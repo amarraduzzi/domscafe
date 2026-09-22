@@ -656,7 +656,7 @@ export const menuItems: MenuItem[] = [
   },
   {
     id: 'bc-frappuccino',
-    category: 'boissons_chaudes',
+    category: 'soda',
     price: 26,
     name: { fr: "Frappuccino", en: "Frappuccino", ar: "فرابوتشينو" },
     description: { fr: "Café frappé glacé et crémeux", en: "Blended ice-cold creamy coffee", ar: "قهوة مثلجة ومخفوقة بالكريمة" },
