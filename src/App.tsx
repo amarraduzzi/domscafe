@@ -333,16 +333,29 @@ export default function App() {
   // Is Arabic selected (RTL)
   const isRtl = lang === 'ar';
 
-  // Live Kitchen Status (Rabat, Morocco is on GMT+1 / GMT+0 depending on DST. Rabat is typically same as West Europe or -1 hour. Let's compute based on general local hours).
+  // Live Kitchen Status -- calculé explicitement sur le fuseau horaire du
+  // Maroc ("Africa/Casablanca"), pas sur un décalage UTC+1 codé en dur.
+  // L'ancien calcul manuel supposait toujours UTC+1, ce qui est faux
+  // pendant le Ramadan (le Maroc repasse temporairement à UTC+0 depuis
+  // 2018) -- Intl.DateTimeFormat connaît déjà cette règle pour
+  // "Africa/Casablanca", donc plus besoin de la coder à la main.
   // Louai's kitchen: Mon-Fri 12h to 23h, Weekend 14h to 23h.
   const kitchenStatus = useMemo(() => {
-    // Current GMT time
     const now = new Date();
-    // Get Rabat time by offsetting to UTC+1 (Morocco's standard time)
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const rabatTime = new Date(utc + (3600000 * 1)); // Rabat is UTC+1
-    const day = rabatTime.getDay(); // 0 is Sunday, 1 is Monday, etc.
-    const hour = rabatTime.getHours();
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Casablanca',
+      hour12: false,
+      weekday: 'short',
+      hour: '2-digit',
+    })
+      .formatToParts(now)
+      .reduce((acc, p) => {
+        if (p.type !== 'literal') acc[p.type] = p.value;
+        return acc;
+      }, {} as Record<string, string>);
+    const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const day = WEEKDAY_INDEX[parts.weekday] ?? now.getDay();
+    const hour = parts.hour === '24' ? 0 : Number(parts.hour);
 
     const isWeekend = day === 0 || day === 6;
     const openHour = isWeekend ? 14 : 12;
@@ -354,8 +367,8 @@ export default function App() {
       isOpen,
       openHour,
       closeHour,
-      timeString: rabatTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      dayName: rabatTime.toLocaleDateString(lang === 'ar' ? 'ar-MA' : lang === 'fr' ? 'fr-MA' : 'en-MA', { weekday: 'long' })
+      timeString: now.toLocaleTimeString([], { timeZone: 'Africa/Casablanca', hour: '2-digit', minute: '2-digit' }),
+      dayName: now.toLocaleDateString(lang === 'ar' ? 'ar-MA' : lang === 'fr' ? 'fr-MA' : 'en-MA', { timeZone: 'Africa/Casablanca', weekday: 'long' })
     };
   }, [lang]);
 
