@@ -239,7 +239,7 @@ function HistoryTab({ closures }: { closures: DailyClosure[] }) {
           <div key={c.date} className="pos-surface rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[#F3ECDD] font-bold">
-                {new Date(c.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                {new Date(c.date + 'T12:00:00').toLocaleDateString('fr-FR', { timeZone: 'Africa/Casablanca', weekday: 'long', day: '2-digit', month: 'long' })}
               </p>
               <p className="text-[#F3ECDD] font-bold text-lg">{formatMAD(c.revenue)}</p>
             </div>
