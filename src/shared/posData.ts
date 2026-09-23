@@ -353,7 +353,7 @@ export function formatMAD(n: number): string {
 // une clé "aujourd'hui" fausses. IANA (Intl.DateTimeFormat) connaît déjà
 // cette règle de Ramadan pour "Africa/Casablanca", donc on s'appuie dessus
 // au lieu de coder un décalage fixe en dur.
-export const MOROCCO_TZ = 'Africa/Casablanca';
+export const MOROCCO_TZ = 'UTC'; // Marokko is sinds 20-09-2026 permanent UTC+0 (decreet), dus vaste 'UTC' i.p.v. 'Africa/Casablanca' -- werkt ook op toestellen met een verouderde tzdata/ICU die de wetswijziging nog niet kennen.
 
 export function dateStr(d: Date = new Date()): string {
   // 'en-CA' formate directement en "YYYY-MM-DD".
