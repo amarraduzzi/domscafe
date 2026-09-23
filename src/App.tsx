@@ -28,7 +28,6 @@ import {
   Users,
   UtensilsCrossed,
   Info,
-  MessageSquare,
   Lightbulb,
   Coffee,
   Fingerprint,
@@ -223,7 +222,6 @@ export default function App() {
   const [isOrderPlaced, setIsOrderPlaced] = useState<boolean>(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
   const [orderError, setOrderError] = useState<boolean>(false);
-  const [isCheckoutConfirmOpen, setIsCheckoutConfirmOpen] = useState<boolean>(false);
   const [isClearCartConfirmOpen, setIsClearCartConfirmOpen] = useState<boolean>(false);
   const [lastAddedFoodCategory, setLastAddedFoodCategory] = useState<string | null>(null);
   const [isSuggestionDismissed, setIsSuggestionDismissed] = useState<boolean>(false);
@@ -1736,207 +1734,88 @@ export default function App() {
                       }
 
                       return (
-                        <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (orderType === 'delivery' && !firstName.trim()) {
-                              alert(t.cart_delivery_first_name_required);
-                              return;
-                            }
-                            (document.activeElement as HTMLElement)?.blur();
-                            setIsCheckoutConfirmOpen(true);
-                          }}
-                          className="w-full bg-brand-orange hover:bg-brand-orange-hover text-[#1A1208] py-3.5 rounded-lg font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-                        >
-                          <Phone className="w-4 h-4 fill-black shrink-0" />
-                          <span>{t.cart_checkout_btn}</span>
-                        </button>
+                        <>
+                          {orderError && (
+                            <p className="text-red-400 text-xs text-center mb-2">{t.checkout_error_msg}</p>
+                          )}
+                          <button
+                            disabled={isSubmittingOrder}
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              if (orderType === 'delivery' && !firstName.trim()) {
+                                alert(t.cart_delivery_first_name_required);
+                                return;
+                              }
+                              (document.activeElement as HTMLElement)?.blur();
+
+                              // One tap places the order directly -- the cart
+                              // drawer the customer is already looking at IS
+                              // the order summary, so a second "are you sure"
+                              // modal re-showing the same items was a
+                              // redundant extra step for a QR table-ordering
+                              // flow that should minimize taps.
+                              setOrderError(false);
+                              setIsSubmittingOrder(true);
+
+                              // Read tableNumber from URL query parameter "table" (e.g. ?table=7 -> "7"). If missing, use "?".
+                              const urlParams = new URLSearchParams(window.location.search);
+                              const tableFromUrl = urlParams.get('table')?.trim();
+                              const finalTableNumber = tableFromUrl || tableNumber.trim() || '?';
+
+                              const orderItems = cart.map(item => {
+                                const unitPrice = Number(
+                                  item.menuItem?.price ??
+                                  (item as any).price ??
+                                  (item as any).unitPrice ??
+                                  (item as any).pricePerItem
+                                ) || 0;
+                                const quantity = Number(item.quantity) || 1;
+                                const lineTotal = unitPrice * quantity;
+                                return {
+                                  name: item.menuItem?.name?.fr || item.menuItem?.name?.en || 'Article',
+                                  quantity,
+                                  note: item.selectedHotDrink ? `Boisson: ${item.selectedHotDrink}` : '',
+                                  unitPrice,
+                                  lineTotal,
+                                  station: item.menuItem?.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches'].includes(item.menuItem?.category) ? 'Bar' : 'Kitchen')
+                                };
+                              });
+                              const orderTotal = orderItems.reduce((acc, item) => acc + item.lineTotal, 0);
+
+                              // The order reaches the restaurant exclusively through
+                              // this Firestore write -- there is no WhatsApp fallback
+                              // anymore, so a failure here must be shown to the customer
+                              // instead of silently claiming success. A hard timeout
+                              // guards against a slow/flaky connection leaving the
+                              // customer staring at a spinner forever with no way to
+                              // retry -- 12s is generous for a normal write but still
+                              // bounded.
+                              try {
+                                await Promise.race([
+                                  createFirestoreOrder(finalTableNumber, orderItems, orderTotal, orderNote.trim()),
+                                  new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
+                                ]);
+                                setIsOrderPlaced(true);
+                                setOrderNote('');
+                              } catch (err) {
+                                console.warn("Firestore order write failed:", err);
+                                setOrderError(true);
+                              } finally {
+                                setIsSubmittingOrder(false);
+                              }
+                            }}
+                            className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-60 disabled:cursor-not-allowed text-[#1A1208] py-3.5 rounded-lg font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                          >
+                            <Send className="w-4 h-4 shrink-0" />
+                            <span>{isSubmittingOrder ? '…' : orderError ? t.checkout_retry_btn : t.cart_checkout_btn}</span>
+                          </button>
+                        </>
                       );
                     })()}
                   </div>
                 </div>
               )}
             </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Checkout Confirmation Modal */}
-      <AnimatePresence>
-        {isCheckoutConfirmOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsCheckoutConfirmOpen(false)}
-              className="fixed inset-0 bg-black/80 backdrop-blur-xs z-[65] pointer-events-auto"
-            />
-            
-            {/* Modal Container */}
-            <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 pointer-events-none">
-              <motion.div 
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="w-full max-w-md bg-brand-dark-card border border-[#F3ECDD]/10 rounded-2xl p-5 md:p-6 shadow-2xl pointer-events-auto text-left rtl:text-right overflow-hidden flex flex-col max-h-[90vh]"
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between pb-3 border-b border-[#F3ECDD]/10 mb-4 shrink-0">
-                  <h3 className="font-display font-black text-lg text-[#F3ECDD] flex items-center gap-2">
-                    <ShoppingBag className="w-5 h-5 text-brand-orange" />
-                    <span>{t.checkout_modal_title}</span>
-                  </h3>
-                  <button 
-                    onClick={() => setIsCheckoutConfirmOpen(false)}
-                    className="w-8 h-8 rounded-full bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 flex items-center justify-center text-[#9A9490] hover:text-[#F3ECDD] transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Info Notice Banner */}
-                <div className="bg-brand-orange/10 border border-brand-orange/20 rounded-xl p-3.5 text-xs text-brand-orange flex items-start gap-2.5 mb-4 shrink-0">
-                  <MessageSquare className="w-4 h-4 text-brand-orange shrink-0 mt-0.5" />
-                  <span className="leading-relaxed font-medium">{t.checkout_modal_notice}</span>
-                </div>
-
-                {/* Order Overview / Summary */}
-                <div className="bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 rounded-xl p-3.5 mb-5 text-xs space-y-3 overflow-y-auto custom-scrollbar grow">
-                  <div className="font-bold text-[#E3DCCB] text-xs border-b border-[#F3ECDD]/10 pb-2 flex justify-between items-center">
-                    <span>{t.checkout_modal_order_summary}</span>
-                    <span className="text-brand-orange font-sans font-bold text-sm">{formatPriceDisplay(total)}</span>
-                  </div>
-                  
-                  {/* Items list */}
-                  <div className="space-y-2 divide-y divide-white/5">
-                    {cart.map((item) => {
-                      const itemTitle = item.menuItem?.name?.[lang] || item.menuItem?.name?.fr || item.menuItem?.name?.en || 'Article';
-                      const unitPrice = Number(item.menuItem?.price ?? (item as any).price ?? 0) || 0;
-                      const itemPrice = unitPrice * item.quantity;
-                      return (
-                        <div key={item.id} className="pt-1.5 first:pt-0 flex justify-between items-start text-[#C7BFB0]">
-                          <div className="pr-2">
-                            <span className="font-bold text-brand-orange mr-1.5">{item.quantity}x</span>
-                            <span className="font-medium text-[#F3ECDD]">{itemTitle}</span>
-                            {item.selectedHotDrink && (
-                              <div className="text-[#9A9490] text-[11px] mt-0.5">
-                                + {item.selectedHotDrink}
-                              </div>
-                            )}
-                          </div>
-                          <span className="font-sans text-[#C7BFB0] font-semibold shrink-0">{formatPriceDisplay(itemPrice)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Fulfillment details */}
-                  <div className="pt-2 border-t border-[#F3ECDD]/10 text-xs text-[#9A9490] space-y-1">
-                    <div className="flex justify-between">
-                      <span>{t.cart_subtotal}:</span>
-                      <span className="font-sans text-[#C7BFB0]">{formatPriceDisplay(subtotal)}</span>
-                    </div>
-                    {orderType === 'delivery' && (
-                      <div className="flex justify-between">
-                        <span>{t.cart_delivery}:</span>
-                        <span className="font-sans text-[#C7BFB0]">{deliveryFee === 0 ? t.cart_free : formatPriceDisplay(deliveryFee)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between pt-1 font-bold text-[#E3DCCB]">
-                      <span>{orderType === 'dine_in' ? t.cart_type_dine_in : t.cart_type_delivery}:</span>
-                      <span className="text-brand-orange">
-                        {orderType === 'dine_in'
-                          ? `${tableNumber ? `${t.cart_table_number_label} ${tableNumber}` : ''} ${firstName ? `(${firstName})` : ''}`.trim() || 'Dom\'s Café'
-                          : (address || 'Rabat')}
-                      </span>
-                    </div>
-                    {orderNote.trim() && (
-                      <div className="pt-2 mt-1 border-t border-[#F3ECDD]/10">
-                        <span className="block text-[10px] uppercase tracking-wider text-[#7A736C] font-bold mb-0.5">{t.cart_note_label}</span>
-                        <span className="text-[#E3DCCB]">{orderNote.trim()}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="shrink-0 space-y-2">
-                  {orderError && (
-                    <p className="text-red-400 text-xs text-center mb-1">{t.checkout_error_msg}</p>
-                  )}
-                  <button
-                    disabled={isSubmittingOrder}
-                    onClick={async () => {
-                      (document.activeElement as HTMLElement)?.blur();
-                      setOrderError(false);
-                      setIsSubmittingOrder(true);
-
-                      // Read tableNumber from URL query parameter "table" (e.g. ?table=7 -> "7"). If missing, use "?".
-                      const urlParams = new URLSearchParams(window.location.search);
-                      const tableFromUrl = urlParams.get('table')?.trim();
-                      const finalTableNumber = tableFromUrl || tableNumber.trim() || '?';
-
-                      const orderItems = cart.map(item => {
-                        const unitPrice = Number(
-                          item.menuItem?.price ??
-                          (item as any).price ??
-                          (item as any).unitPrice ??
-                          (item as any).pricePerItem
-                        ) || 0;
-                        const quantity = Number(item.quantity) || 1;
-                        const lineTotal = unitPrice * quantity;
-                        return {
-                          name: item.menuItem?.name?.fr || item.menuItem?.name?.en || 'Article',
-                          quantity,
-                          note: item.selectedHotDrink ? `Boisson: ${item.selectedHotDrink}` : '',
-                          unitPrice,
-                          lineTotal,
-                          station: item.menuItem?.station || (['boissons_chaudes', 'jus_cocktails', 'boissons_fraiches'].includes(item.menuItem?.category) ? 'Bar' : 'Kitchen')
-                        };
-                      });
-                      const orderTotal = orderItems.reduce((acc, item) => acc + item.lineTotal, 0);
-
-                      // The order now reaches the restaurant exclusively through
-                      // this Firestore write -- there is no WhatsApp fallback
-                      // anymore, so a failure here must be shown to the customer
-                      // instead of silently claiming success. A hard timeout
-                      // guards against a slow/flaky connection leaving the
-                      // customer staring at a spinner forever with no way to
-                      // retry -- 12s is generous for a normal write but still
-                      // bounded.
-                      try {
-                        await Promise.race([
-                          createFirestoreOrder(finalTableNumber, orderItems, orderTotal, orderNote.trim()),
-                          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
-                        ]);
-                        setIsCheckoutConfirmOpen(false);
-                        setIsOrderPlaced(true);
-                        setOrderNote('');
-                      } catch (err) {
-                        console.warn("Firestore order write failed:", err);
-                        setOrderError(true);
-                      } finally {
-                        setIsSubmittingOrder(false);
-                      }
-                    }}
-                    className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-60 disabled:cursor-not-allowed text-[#1A1208] py-3.5 rounded-xl font-display font-black text-sm text-center transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse shadow-xl shadow-brand-orange/25 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-                  >
-                    <Send className="w-4 h-4 shrink-0" />
-                    <span>{isSubmittingOrder ? '…' : orderError ? t.checkout_retry_btn : t.checkout_modal_confirm_btn}</span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsCheckoutConfirmOpen(false)}
-                    disabled={isSubmittingOrder}
-                    className="w-full bg-[#F3ECDD]/5 hover:bg-[#F3ECDD]/10 border border-[#F3ECDD]/10 text-[#C7BFB0] py-3 rounded-xl font-medium text-xs text-center transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {t.checkout_modal_cancel_btn}
-                  </button>
-                </div>
-              </motion.div>
-            </div>
           </>
         )}
       </AnimatePresence>
