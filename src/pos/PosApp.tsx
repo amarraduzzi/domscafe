@@ -3195,6 +3195,28 @@ export default function PosApp() {
   }, [activeOrders]);
   const occupiedTableCount = tablesMap.size;
 
+  // Ouvrir une table = "prise en charge" par le personnel (demande client,
+  // 23/09/2026) -- PAS le paiement. Avant ce correctif, la bannière/le
+  // clignotement (voir pendingSiteOrderCount plus bas) ne s'éteignaient
+  // qu'à l'encaissement (markPaid passe directement 'new' -> 'served', sans
+  // jamais passer par 'preparing'), parce qu'en pratique le personnel
+  // n'utilise pas le petit bouton "Démarrer" pour une table -- il sert
+  // directement puis encaisse. Résultat : l'alerte restait active pendant
+  // tout le service, ce qui la rendait inutile. Ouvrir la table (un geste
+  // que le personnel fait de toute façon pour voir la commande) fait donc
+  // maintenant passer toute commande site 'new' de cette table à
+  // 'preparing', ce qui éteint immédiatement son alerte -- sans exiger un
+  // second geste que personne ne fait.
+  const acceptTable = (n: string) => {
+    const tOrders = tablesMap.get(n) || [];
+    tOrders
+      .filter((o) => (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo')
+      .forEach((o) => {
+        updateDoc(doc(db, 'orders', o.id), { status: 'preparing' as OrderStatus }).catch(reportWriteError);
+      });
+    setSelectedTable(n);
+  };
+
   // Everything in the selected range, whatever its status -- this is the
   // single source both the Historique tab and the Rapports tab read from,
   // so "look up an old order" and "what did we make that day" always agree
@@ -3586,18 +3608,23 @@ export default function PosApp() {
                 // chime "Nouvelle commande !" plus haut (source ni 'manual'
                 // ni 'glovo').
                 const hasSiteOrder = tOrders.some((o) => o.source !== 'manual' && o.source !== 'glovo');
-                // Clignote jusqu'à ce que le personnel appuie sur "Démarrer"
-                // pour cette commande (status quitte 'new') -- pas seulement
-                // jusqu'à ce que la table soit ouverte/regardée, comme avant :
-                // une commande vue mais pas encore prise en charge doit
-                // continuer à réclamer l'attention.
+                // Clignote jusqu'à ce que le personnel OUVRE la table (voir
+                // acceptTable ci-dessus) -- pas jusqu'au paiement. Revenu sur
+                // le choix du 13/09 ("pas seulement jusqu'à ce qu'on
+                // regarde la tuile") : dans la pratique le personnel ne
+                // clique jamais sur le petit bouton "Démarrer", donc exiger
+                // ce geste faisait clignoter la table pendant tout le
+                // service jusqu'à l'encaissement -- inutile. Ouvrir la table
+                // est déjà un geste que le personnel fait pour voir la
+                // commande, donc c'est ce geste-là qui compte maintenant
+                // comme "pris en charge".
                 const pendingSiteOrder = tOrders.some(
                   (o) => (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo'
                 );
                 return (
                   <button
                     key={n}
-                    onClick={() => setSelectedTable(n)}
+                    onClick={() => acceptTable(n)}
                     className={`relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all hover:-translate-y-0.5 ${
                       // #536048/#414333 uni (13/09/2026) -- équivalent visuel de
                       // #8FBF8A a 35%/15% d'opacite sur le fond sombre de la
@@ -3662,7 +3689,7 @@ export default function PosApp() {
                       return (
                         <button
                           key={n}
-                          onClick={() => setSelectedTable(n)}
+                          onClick={() => acceptTable(n)}
                           className={`px-4 py-3 rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all ${
                             allPaid
                               ? 'bg-[#8FBF8A]/25 border-[#8FBF8A]/60 text-[#F3ECDD]'
