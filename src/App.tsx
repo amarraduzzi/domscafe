@@ -11,10 +11,9 @@ import {
   Clock, 
   ArrowRight, 
   CheckCircle, 
-  TrendingUp, 
-  Sparkles, 
-  Phone, 
-  Flame, 
+  TrendingUp,
+  Sparkles,
+  Flame,
   Check, 
   ChevronUp,
   ChevronDown, 
@@ -1750,7 +1749,7 @@ export default function App() {
                             disabled
                             className="w-full bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 text-[#7A736C] py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
                           >
-                            <Phone className="w-4 h-4 shrink-0" />
+                            <Send className="w-4 h-4 shrink-0" />
                             <span>{t.cart_dine_in_hint}</span>
                           </button>
                         );
@@ -1762,7 +1761,7 @@ export default function App() {
                             disabled
                             className="w-full bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 text-[#7A736C] py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
                           >
-                            <Phone className="w-4 h-4 shrink-0" />
+                            <Send className="w-4 h-4 shrink-0" />
                             <span>{t.cart_delivery_first_name_required}</span>
                           </button>
                         );
@@ -1774,10 +1773,10 @@ export default function App() {
                             disabled
                             className="w-full bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 text-[#7A736C] py-3.5 rounded-lg font-display font-black text-xs md:text-sm text-center cursor-not-allowed flex items-center justify-center space-x-2 rtl:space-x-reverse"
                           >
-                            <Phone className="w-4 h-4 shrink-0" />
+                            <Send className="w-4 h-4 shrink-0" />
                             <span>
-                              {lang === 'ar' 
-                                ? 'الرجاء إدخال عنوان التوصيل' 
+                              {lang === 'ar'
+                                ? 'الرجاء إدخال عنوان التوصيل'
                                 : lang === 'fr' 
                                 ? 'Veuillez saisir l\'adresse' 
                                 : 'Please enter delivery address'}

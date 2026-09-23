@@ -226,11 +226,40 @@ const SOURCE_STYLE: Record<OrderSource, { label: string; className: string }> = 
   glovo: { label: 'Glovo', className: 'bg-teal-500/15 text-teal-300 border-teal-500/40' },
 };
 
-// Short two-tone beep via the Web Audio API — no asset file to ship, no
-// autoplay-policy issue since it only ever fires after the PIN unlock click.
+// Un seul AudioContext partagé pour tout l'écran, créé au moment du PIN
+// (un vrai clic utilisateur) -- corrige le bug "pas de son" : avant, chaque
+// appel de playChime() créait un TOUT NOUVEAU AudioContext, et un contexte
+// fraîchement créé démarre "suspended" par la politique autoplay du
+// navigateur tant qu'il n'a jamais été explicitement repris (resume()) --
+// il ne jouait donc jamais réellement, silencieusement, même si aucune
+// erreur n'apparaissait. Un seul contexte créé une fois pendant un clic
+// réel, puis simplement "resume()" à chaque son, reste "running" pour toute
+// la session.
+let sharedAudioCtx: AudioContext | null = null;
+function unlockChimeAudio() {
+  try {
+    if (!sharedAudioCtx) {
+      sharedAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume();
+    }
+  } catch {
+    // Web Audio unsupported -- playChime() below falls back to a fresh context.
+  }
+}
+
+// Short two-tone beep via the Web Audio API — no asset file to ship. Reuses
+// sharedAudioCtx (see unlockChimeAudio, called on PIN unlock) so it actually
+// plays instead of silently sitting in a suspended, never-started context;
+// falls back to a fresh one-off context if that shared one somehow isn't
+// available yet.
 function playChime() {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = sharedAudioCtx && sharedAudioCtx.state !== 'closed'
+      ? sharedAudioCtx
+      : new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime;
     [880, 1320].forEach((freq, i) => {
       const osc = ctx.createOscillator();
@@ -614,6 +643,7 @@ function EmployeeLoginGate({ onLogin }: { onLogin: (employee: Employee) => void 
   const submit = () => {
     const match = EMPLOYEES.find((e) => e.pin === value);
     if (match) {
+      unlockChimeAudio();
       sessionStorage.setItem(EMPLOYEE_SESSION_KEY, JSON.stringify(match));
       onLogin(match);
     } else {
@@ -2491,12 +2521,6 @@ export default function PosApp() {
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
-  // Tafels waarvan de QR-bestelling al is geopend door het personeel --
-  // zodra een tafel hierin staat stopt de pulse-animatie op die tegel. Wordt
-  // automatisch weer verwijderd zodra de tafel leegloopt (afgerekend/gesloten),
-  // zodat een volgende klant die opnieuw via QR bestelt weer een verse pulse
-  // krijgt in plaats van "voor altijd stil" te blijven.
-  const [seenSiteTables, setSeenSiteTables] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(Date.now());
   // null = still connecting, string = a listener/write error to show instead
   // of silently rendering an empty "no orders" screen (that silence is what
@@ -3122,6 +3146,27 @@ export default function PosApp() {
     () => orders.filter((o) => (o.status || 'new') !== 'served' && o.status !== 'cancelled'),
     [orders]
   );
+  // Commandes passées par le client lui-même via le site (QR/table ou
+  // livraison/emporter en ligne) et pas encore "acceptées" par le personnel
+  // -- c'est-à-dire toujours au statut 'new', avant qu'on appuie sur
+  // "Démarrer". Utilisé pour faire clignoter la tuile de table concernée ET
+  // répéter le bip tant que personne n'a réagi (voir l'effet juste en
+  // dessous), plutôt qu'un unique bip qu'on peut louper.
+  const pendingSiteOrderCount = useMemo(
+    () => activeOrders.filter((o) => (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo').length,
+    [activeOrders]
+  );
+
+  // Répète le bip toutes les 8s tant qu'au moins une commande site n'a pas
+  // été acceptée (voir pendingSiteOrderCount ci-dessus) -- le bip unique de
+  // l'arrivée (dans le onSnapshot plus haut) était trop facile à louper dans
+  // un café bruyant ; celui-ci continue jusqu'à ce qu'on appuie sur
+  // "Démarrer", pas seulement jusqu'à ce qu'on regarde la tuile.
+  useEffect(() => {
+    if (pendingSiteOrderCount === 0) return;
+    const id = setInterval(() => playChime(), 8000);
+    return () => clearInterval(id);
+  }, [pendingSiteOrderCount]);
   // Non-table orders only — table orders are managed entirely from the
   // Tables tab now, so they're excluded here to avoid two separate places
   // claiming to manage the same order (that duplication is exactly what a
@@ -3141,21 +3186,6 @@ export default function PosApp() {
     return map;
   }, [activeOrders]);
   const occupiedTableCount = tablesMap.size;
-
-  // Une table vidée (payée/fermée) sort de "seenSiteTables" -- sinon la
-  // prochaine commande QR sur cette même table resterait muette pour
-  // toujours, alors qu'elle mérite tout autant l'attention du personnel.
-  useEffect(() => {
-    setSeenSiteTables((prev) => {
-      let changed = false;
-      const next = new Set<string>();
-      prev.forEach((n) => {
-        if (tablesMap.has(n)) next.add(n);
-        else changed = true;
-      });
-      return changed ? next : prev;
-    });
-  }, [tablesMap]);
 
   // Everything in the selected range, whatever its status -- this is the
   // single source both the Historique tab and the Rapports tab read from,
@@ -3517,6 +3547,7 @@ export default function PosApp() {
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md bg-brand-orange" /> En cours</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md bg-[#8FBF8A]/60" /> Payée</span>
               <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center"><QrCode className="w-2.5 h-2.5 text-white" /></span> Commande via QR (client)</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-md border-2 border-red-500" /> Pas encore acceptée (clignote + bip)</span>
             </div>
             <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-3 max-w-3xl">
               {TABLE_NUMBERS.map((n) => {
@@ -3529,14 +3560,18 @@ export default function PosApp() {
                 // chime "Nouvelle commande !" plus haut (source ni 'manual'
                 // ni 'glovo').
                 const hasSiteOrder = tOrders.some((o) => o.source !== 'manual' && o.source !== 'glovo');
-                const unseenSiteOrder = hasSiteOrder && !seenSiteTables.has(n);
+                // Clignote jusqu'à ce que le personnel appuie sur "Démarrer"
+                // pour cette commande (status quitte 'new') -- pas seulement
+                // jusqu'à ce que la table soit ouverte/regardée, comme avant :
+                // une commande vue mais pas encore prise en charge doit
+                // continuer à réclamer l'attention.
+                const pendingSiteOrder = tOrders.some(
+                  (o) => (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo'
+                );
                 return (
                   <button
                     key={n}
-                    onClick={() => {
-                      setSelectedTable(n);
-                      if (hasSiteOrder) setSeenSiteTables((prev) => new Set(prev).add(n));
-                    }}
+                    onClick={() => setSelectedTable(n)}
                     className={`relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all hover:-translate-y-0.5 ${
                       // #536048/#414333 uni (13/09/2026) -- équivalent visuel de
                       // #8FBF8A a 35%/15% d'opacite sur le fond sombre de la
@@ -3549,7 +3584,7 @@ export default function PosApp() {
                         : occupied
                         ? 'bg-gradient-to-b from-brand-orange to-brand-orange-hover border-brand-orange text-[#1A1208] shadow-lg shadow-brand-orange/25'
                         : 'pos-surface border-[#F3ECDD]/10 text-[#F3ECDD] hover:border-brand-orange/50'
-                    } ${unseenSiteOrder ? 'animate-pulse' : ''}`}
+                    } ${pendingSiteOrder ? 'animate-pulse animate-blink-border' : ''}`}
                   >
                     {hasSiteOrder && (
                       <span
