@@ -60,6 +60,30 @@ function isMenuEligible(item: MenuItem): boolean {
   return MENU_ELIGIBLE_CATEGORIES.includes(item.category);
 }
 
+// Boisson incluse dans le "+ Menu" -- le client choisit laquelle directement
+// sur la carte, au lieu d'une "soda" générique décidée plus tard en cuisine.
+// Liste volontairement limitée aux canettes/bouteilles standards (même prix
+// que le supplément MENU_SURCHARGE) ; Red Bull, Iced Coffee et Lait froid
+// coûtent plus cher à l'unité et restent donc hors de ce choix inclus.
+interface MenuDrinkOption {
+  id: string;
+  name: { fr: string; en: string; ar: string };
+}
+const MENU_DRINK_OPTIONS: MenuDrinkOption[] = [
+  { id: 'jc-coca', name: { fr: 'Coca Cola', en: 'Coca Cola', ar: 'كوكاكولا' } },
+  { id: 'jc-coca-zero', name: { fr: 'Coca Cola Zero', en: 'Coca Cola Zero', ar: 'كوكاكولا زيرو' } },
+  { id: 'jc-sprite', name: { fr: 'Sprite', en: 'Sprite', ar: 'سبرايت' } },
+  { id: 'jc-poms', name: { fr: 'Poms', en: 'Poms', ar: 'بومز' } },
+  { id: 'jc-schweppes-citron', name: { fr: 'Schweppes Citron', en: 'Schweppes Lemon', ar: 'شويبس ليمون' } },
+  { id: 'jc-schweppes-mojito', name: { fr: 'Schweppes Mojito', en: 'Schweppes Mojito', ar: 'شويبس موهيتو' } },
+  { id: 'jc-schweppes-tonic', name: { fr: 'Schweppes Tonic', en: 'Schweppes Tonic', ar: 'شويبس تونيك' } },
+  { id: 'jc-hawaii', name: { fr: 'Hawaii', en: 'Hawaii', ar: 'هاواي' } },
+  { id: 'jc-eau', name: { fr: 'Eau minérale', en: 'Mineral Water', ar: 'مياه معدنية' } },
+];
+function getMenuDrinkOption(id: string): MenuDrinkOption {
+  return MENU_DRINK_OPTIONS.find(d => d.id === id) || MENU_DRINK_OPTIONS[0];
+}
+
 // Red Soda Can / Cola Icon component
 function ColaCanIcon({ className = "w-4.5 h-4.5" }: { className?: string }) {
   return (
@@ -210,6 +234,9 @@ export default function App() {
   // menu" (s-formule/tc-formule) ont été retirés le 14/09/2026 : ce
   // supplément est désormais la seule façon de vendre "avec boisson".
   const [selectedMenu, setSelectedMenu] = useState<Record<string, boolean>>({});
+  // Boisson choisie pour le "+ Menu" -- voir MENU_DRINK_OPTIONS. Valeur par
+  // défaut (Coca Cola) tant que le client n'a pas encore choisi.
+  const [selectedMenuDrink, setSelectedMenuDrink] = useState<Record<string, string>>({});
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState<boolean>(false);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState<boolean>(false);
@@ -414,14 +441,16 @@ export default function App() {
     }
 
     const isMenuSelected = isMenuEligible(item) && selectedMenu[item.id];
-    if (isMenuSelected && !targetItem.id.endsWith('-menu')) {
+    if (isMenuSelected && !targetItem.id.includes('-menu-')) {
+      const drinkId = selectedMenuDrink[item.id] || MENU_DRINK_OPTIONS[0].id;
+      const drink = getMenuDrinkOption(drinkId);
       targetItem = {
         ...targetItem,
-        id: `${targetItem.id}-menu`,
+        id: `${targetItem.id}-menu-${drink.id}`,
         name: {
-          en: `${targetItem.name.en} (Menu)`,
-          fr: `${targetItem.name.fr} (Menu)`,
-          ar: `${targetItem.name.ar} (Menu)`
+          en: `${targetItem.name.en} (Menu: ${drink.name.en})`,
+          fr: `${targetItem.name.fr} (Menu: ${drink.name.fr})`,
+          ar: `${targetItem.name.ar} (Menu: ${drink.name.ar})`
         },
         price: Number(targetItem.price) + MENU_SURCHARGE
       };
@@ -839,6 +868,7 @@ export default function App() {
                 {filteredItems.map(item => {
                   const isAtomicSelected = (item.category as string) === 'bombs' && selectedAtomic[item.id];
                   const isMenuSelected = isMenuEligible(item) && !!selectedMenu[item.id];
+                  const activeMenuDrinkId = selectedMenuDrink[item.id] || MENU_DRINK_OPTIONS[0].id;
                   const activeVariantId = item.variants && item.variants.length > 0
                     ? (selectedVariants[item.id] || item.variants[0].id)
                     : null;
@@ -846,7 +876,7 @@ export default function App() {
                     ? `${item.id}-${activeVariantId}`
                     : (isAtomicSelected
                         ? `${item.id}-atomic`
-                        : (isMenuSelected ? `${item.id}-menu` : item.id));
+                        : (isMenuSelected ? `${item.id}-menu-${activeMenuDrinkId}` : item.id));
                   const cartItem = cart.find(ci => ci.menuItem.id === resolvedId);
                   const isItemAdded = (cartItem?.quantity || 0) > 0;
                   const activeVariant = item.variants?.find(v => v.id === activeVariantId);
@@ -972,6 +1002,29 @@ export default function App() {
                                   <span className="text-brand-orange">+{MENU_SURCHARGE} {lang === 'ar' ? 'درهم' : 'MAD'}</span>
                                 </div>
                               </label>
+
+                              {/* Choix de la boisson incluse -- visible dès que "+ Menu" est
+                                  coché, pour que le client choisisse tout de suite au lieu
+                                  qu'une "soda" générique soit décidée plus tard. */}
+                              {isMenuSelected && (
+                                <div className="mt-2 pl-1">
+                                  <span className="text-[#7A736C] font-sans text-[9px] uppercase tracking-wider block mb-1.5">
+                                    {lang === 'ar' ? 'اختر المشروب:' : lang === 'fr' ? 'Choisir la boisson :' : 'Choose the drink:'}
+                                  </span>
+                                  <select
+                                    value={activeMenuDrinkId}
+                                    onChange={(e) => setSelectedMenuDrink(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full bg-black/40 border border-[#F3ECDD]/15 focus:border-brand-orange text-[#F3ECDD] text-xs font-bold rounded-lg p-2.5 cursor-pointer focus:outline-none"
+                                  >
+                                    {MENU_DRINK_OPTIONS.map(drink => (
+                                      <option key={drink.id} value={drink.id} className="bg-brand-dark text-[#F3ECDD]">
+                                        {drink.name[lang] || drink.name.fr}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
