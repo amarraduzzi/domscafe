@@ -355,14 +355,24 @@ export function formatMAD(n: number): string {
 // au lieu de coder un décalage fixe en dur.
 export const MOROCCO_TZ = 'UTC'; // Marokko is sinds 20-09-2026 permanent UTC+0 (decreet), dus vaste 'UTC' i.p.v. 'Africa/Casablanca' -- werkt ook op toestellen met een verouderde tzdata/ICU die de wetswijziging nog niet kennen.
 
+// Une "journée commerciale" tourne de 01:00 à 01:00 le lendemain (et non
+// minuit à minuit) -- demandé le 23/09/2026 après l'incident où un employé
+// voyait des commandes passées après minuit basculer sur le jour suivant
+// alors qu'il devait encore faire le total de caisse du patron pour la
+// journée en cours. Donc 00:00-00:59 compte encore pour la veille.
+export const BUSINESS_DAY_CUTOFF_HOUR = 1;
+
 export function dateStr(d: Date = new Date()): string {
-  // 'en-CA' formate directement en "YYYY-MM-DD".
+  // On recule l'horloge de BUSINESS_DAY_CUTOFF_HOUR avant de lire la date
+  // civile, pour que 00:xx bascule encore sur la veille. 'en-CA' formate
+  // directement en "YYYY-MM-DD".
+  const shifted = new Date(d.getTime() - BUSINESS_DAY_CUTOFF_HOUR * 3600000);
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: MOROCCO_TZ,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(d);
+  }).format(shifted);
 }
 
 // Convertit une date civile + heure "au Maroc" (ex: minuit le 23/09/2026)
