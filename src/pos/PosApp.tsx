@@ -476,8 +476,8 @@ async function printKitchenTicketForOrder(order: OrderDoc, newItems: OrderItem[]
     byStation.get(st)!.push(it);
   });
   const time = order.createdAt
-    ? order.createdAt.toDate().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Casablanca', hour: '2-digit', minute: '2-digit' })
-    : new Date().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Casablanca', hour: '2-digit', minute: '2-digit' });
+    ? order.createdAt.toDate().toLocaleTimeString('fr-FR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' })
+    : new Date().toLocaleTimeString('fr-FR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
   for (const [station, its] of byStation) {
     const lines = buildKitchenTicketLines({ station, label: kindLabel(order), time, items: its, note: order.note });
     const dataBase64 = buildTicketEscPosBase64(lines);
@@ -488,7 +488,7 @@ async function printKitchenTicketForOrder(order: OrderDoc, newItems: OrderItem[]
 
 function receiptDateLine(ms?: number): string {
   const d = ms ? new Date(ms) : new Date();
-  return d.toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('fr-FR', { timeZone: 'Africa/Casablanca', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toLocaleString('fr-FR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('fr-FR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // Version "lignes" du même reçu, pour le pont d'impression (PDF silencieux)
@@ -790,7 +790,7 @@ function buildReportReceiptHTML(opts: { title: string; lines: [string, string][]
 </head>
 <body>
   <h1>DOM'S CAFÉ</h1>
-  <div class="meta">${escapeHtml(opts.title)}<br/>${escapeHtml(new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca' }))}</div>
+  <div class="meta">${escapeHtml(opts.title)}<br/>${escapeHtml(new Date().toLocaleString('fr-FR', { timeZone: 'UTC' }))}</div>
   <div class="rule"></div>
   ${rows}
   ${opts.footer ? `<div class="rule"></div><div class="foot">${escapeHtml(opts.footer)}</div>` : ''}
@@ -806,7 +806,7 @@ function buildReportTicketLines(opts: { title: string; lines: [string, string][]
   const out: TicketLine[] = [];
   out.push({ text: RECEIPT_BUSINESS.name, bold: true, size: 'large', align: 'center' });
   out.push({ text: opts.title, bold: true, align: 'center' });
-  out.push({ text: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca' }), bold: true, align: 'center', size: 'small' });
+  out.push({ text: new Date().toLocaleString('fr-FR', { timeZone: 'UTC' }), bold: true, align: 'center', size: 'small' });
   out.push({ text: '--------------------------------' });
   opts.lines.forEach(([label, value]) => {
     out.push({ text: `${label}  ${value}`, bold: true });
@@ -885,7 +885,7 @@ function XReportModal({
               ...cancelledToday.map(
                 (o) =>
                   [
-                    `  · ${o.cancelledAt ? o.cancelledAt.toDate().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Casablanca', hour: '2-digit', minute: '2-digit' }) : '--:--'} ${o.cancelledByEmployee || 'Inconnu'}`,
+                    `  · ${o.cancelledAt ? o.cancelledAt.toDate().toLocaleTimeString('fr-FR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) : '--:--'} ${o.cancelledByEmployee || 'Inconnu'}`,
                     formatMAD(o.total),
                   ] as [string, string]
               ),
@@ -936,7 +936,7 @@ function XReportModal({
               {cancelledToday.map((o) => (
                 <div key={o.id} className="flex justify-between pl-4 text-xs">
                   <span className="text-[#7A736C]">
-                    {o.cancelledAt ? o.cancelledAt.toDate().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Casablanca', hour: '2-digit', minute: '2-digit' }) : '--:--'} · {o.cancelledByEmployee || 'Inconnu'}
+                    {o.cancelledAt ? o.cancelledAt.toDate().toLocaleTimeString('fr-FR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) : '--:--'} · {o.cancelledByEmployee || 'Inconnu'}
                   </span>
                   <span className="text-[#9A9490]">{formatMAD(o.total)}</span>
                 </div>
@@ -1010,7 +1010,7 @@ function ZReportModal({
         ['Commandes', String(display.orderCount)],
       ],
       footer: closure
-        ? `Clôturé le ${new Date(closure.closedAt).toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca' })} par ${closure.closedByEmployee}`
+        ? `Clôturé le ${new Date(closure.closedAt).toLocaleString('fr-FR', { timeZone: 'UTC' })} par ${closure.closedByEmployee}`
         : undefined,
     });
 
@@ -1021,7 +1021,7 @@ function ZReportModal({
         <h3 className="font-display font-black text-lg text-[#F3ECDD] mb-1 text-center">Rapport Z -- clôture du jour</h3>
         {closure ? (
           <p className="text-[#8FBF8A] text-xs mb-5 text-center font-bold">
-            Journée déjà clôturée le {new Date(closure.closedAt).toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca' })} par {closure.closedByEmployee}.
+            Journée déjà clôturée le {new Date(closure.closedAt).toLocaleString('fr-FR', { timeZone: 'UTC' })} par {closure.closedByEmployee}.
           </p>
         ) : (
           <p className="text-[#9A9490] text-xs mb-5 text-center">
@@ -2748,7 +2748,7 @@ export default function PosApp() {
       { text: label.toUpperCase(), bold: true, size: 'large', align: 'center' },
       { text: '================================', align: 'center' },
       { text: `Ticket de test ${label}` },
-      { text: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca' }) },
+      { text: new Date().toLocaleString('fr-FR', { timeZone: 'UTC' }) },
     ]);
     const res = await printEscPosViaBridge(printerName, `Test ${label}`, dataBase64);
     setPrinterMsg(res.ok === false ? res.message : `Test envoyé à l'imprimante ${label}.`);
@@ -3349,7 +3349,7 @@ export default function PosApp() {
             <p className="text-[#9A9490] text-xs flex items-center gap-1.5">
               <span className={`inline-block w-1.5 h-1.5 rounded-full ${connected ? 'bg-[#8FBF8A] animate-pulse-dot' : 'bg-[#7A736C]'}`} />
               {currentEmployee ? `${currentEmployee.name} ·` : 'Écran commandes ·'}{' '}
-              {new Date(now).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Casablanca', hour: '2-digit', minute: '2-digit' })}
+              {new Date(now).toLocaleTimeString('fr-FR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
           {/* Indicateur en ligne/hors ligne + synchronisation en attente --
@@ -3678,10 +3678,10 @@ export default function PosApp() {
                         {o.items.map((it) => `${it.quantity}× ${it.name}`).join(', ')}
                       </p>
                       <p className="text-xs text-[#9A9490]">
-                        {o.createdAt?.toDate().toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ·{' '}
+                        {o.createdAt?.toDate().toLocaleString('fr-FR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ·{' '}
                         {o.status === 'cancelled'
                           ? `Annulé${o.cancelledByEmployee ? ` par ${o.cancelledByEmployee}` : ''}${
-                              o.cancelledAt ? ` à ${o.cancelledAt.toDate().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Casablanca', hour: '2-digit', minute: '2-digit' })}` : ''
+                              o.cancelledAt ? ` à ${o.cancelledAt.toDate().toLocaleTimeString('fr-FR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' })}` : ''
                             }`
                           : o.paid
                           ? `Payé (${paymentMethodLabel(o)})`
@@ -3751,7 +3751,7 @@ export default function PosApp() {
                   downloadCSV(`domscafe-rapport-${reportRange}.csv`, [
                     ['Date', 'Type', 'Statut', 'Payé', 'Mode', 'Employé', 'Total (MAD)', 'Articles'],
                     ...rangeOrders.map((o) => [
-                      o.createdAt?.toDate().toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca' }) || '',
+                      o.createdAt?.toDate().toLocaleString('fr-FR', { timeZone: 'UTC' }) || '',
                       kindLabel(o),
                       o.status || 'new',
                       o.paid ? 'oui' : 'non',
@@ -3968,7 +3968,7 @@ export default function PosApp() {
                         {p.reason}
                         {p.employeeName && <span className="text-[#7A736C]"> · {p.employeeName}</span>}
                         {p.createdAt && (
-                          <span className="text-[#7A736C]"> · {p.createdAt.toDate().toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-[#7A736C]"> · {p.createdAt.toDate().toLocaleString('fr-FR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         )}
                       </span>
                       <span className="font-bold text-red-400 shrink-0">- {formatMAD(p.amount)}</span>
