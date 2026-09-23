@@ -343,9 +343,67 @@ export function formatMAD(n: number): string {
 // dateStr() partagé -- clé "YYYY-MM-DD" utilisée pour les docs dailyClosures
 // et pour filtrer "aujourd'hui" côté propriétaire, identique au calcul déjà
 // utilisé côté caisse pour closeToday()/XReportModal.
+//
+// Fuseau horaire du Maroc : calculé explicitement pour "Africa/Casablanca"
+// plutôt que de laisser toLocaleString/getHours() utiliser le fuseau réglé
+// sur l'appareil (téléphone du proprio, tablette caisse...). Si cet
+// appareil n'est pas réglé sur l'heure du Maroc -- ou pendant le Ramadan,
+// quand le Maroc repasse temporairement à UTC+0 (règle en vigueur depuis
+// 2018) -- l'ancien calcul basé sur le fuseau local donnait une heure et
+// une clé "aujourd'hui" fausses. IANA (Intl.DateTimeFormat) connaît déjà
+// cette règle de Ramadan pour "Africa/Casablanca", donc on s'appuie dessus
+// au lieu de coder un décalage fixe en dur.
+export const MOROCCO_TZ = 'Africa/Casablanca';
+
 export function dateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  // 'en-CA' formate directement en "YYYY-MM-DD".
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: MOROCCO_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
 }
+
+// Convertit une date civile + heure "au Maroc" (ex: minuit le 23/09/2026)
+// en timestamp UTC (ms), quel que soit le fuseau horaire réel de
+// l'appareil qui exécute le code. Sert à calculer les bornes de journée
+// ("aujourd'hui", "hier", plages de rapports) de façon fiable.
+export function moroccoDateTimeToMs(
+  year: number,
+  month: number, // 1-12
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+  ms = 0
+): number {
+  const guessUtc = Date.UTC(year, month - 1, day, hour, minute, second, ms);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: MOROCCO_TZ,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+    .formatToParts(new Date(guessUtc))
+    .reduce((acc, p) => {
+      if (p.type !== 'literal') acc[p.type] = p.value;
+      return acc;
+    }, {} as Record<string, string>);
+  const asIfUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    parts.hour === '24' ? 0 : Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+    ms
+  );
+  const diff = asIfUtc - guessUtc;
+  return guessUtc - diff;
+}
+
