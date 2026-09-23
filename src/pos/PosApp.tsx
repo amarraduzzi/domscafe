@@ -81,6 +81,7 @@ import {
   dateStr,
   MOROCCO_TZ,
   moroccoDateTimeToMs,
+  BUSINESS_DAY_CUTOFF_HOUR,
 } from '../shared/posData';
 
 // ---------------------------------------------------------------------------
@@ -2378,40 +2379,50 @@ const RANGE_LABEL: Record<ReportRange, string> = {
 // sur le jour civil au Maroc (voir dateStr/moroccoDateTimeToMs dans
 // ../shared/posData) -- et non plus sur le fuseau horaire réglé sur
 // l'appareil qui exécute le site, qui pouvait ne pas être celui du Maroc.
+// Chaque borne "début de journée" se situe à BUSINESS_DAY_CUTOFF_HOUR (01:00)
+// et non à minuit -- voir le commentaire sur BUSINESS_DAY_CUTOFF_HOUR dans
+// posData.ts. dateStr() donne déjà l'étiquette du bon jour commercial pour
+// n'importe quel instant (y compris 00:xx, qui compte encore pour la
+// veille) ; il suffit donc de placer la frontière elle-même à 01:00 ce
+// jour-là au lieu de 00:00.
 function rangeStart(range: ReportRange, customStart?: string): number {
   if (range === 'all') return 0;
   const [ty, tm, td] = dateStr().split('-').map(Number);
-  const todayStartMs = moroccoDateTimeToMs(ty, tm, td, 0, 0, 0, 0);
+  const todayStartMs = moroccoDateTimeToMs(ty, tm, td, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
   if (range === 'today') return todayStartMs;
   if (range === 'yesterday') {
     const [y, m, day] = dateStr(new Date(todayStartMs - 86400000)).split('-').map(Number);
-    return moroccoDateTimeToMs(y, m, day, 0, 0, 0, 0);
+    return moroccoDateTimeToMs(y, m, day, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
   }
   if (range === 'week') {
     const [y, m, day] = dateStr(new Date(todayStartMs - 6 * 86400000)).split('-').map(Number);
-    return moroccoDateTimeToMs(y, m, day, 0, 0, 0, 0);
+    return moroccoDateTimeToMs(y, m, day, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
   }
   if (range === 'custom') {
     if (!customStart) return 0;
     const [y, m, day] = customStart.split('-').map(Number);
-    return moroccoDateTimeToMs(y, m || 1, day || 1, 0, 0, 0, 0);
+    return moroccoDateTimeToMs(y, m || 1, day || 1, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
   }
   // month
   const [y, m, day] = dateStr(new Date(todayStartMs - 29 * 86400000)).split('-').map(Number);
-  return moroccoDateTimeToMs(y, m, day, 0, 0, 0, 0);
+  return moroccoDateTimeToMs(y, m, day, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
 }
 
 function rangeEnd(range: ReportRange, customEnd?: string): number {
+  // Fin de journée commerciale = juste avant 01:00 le lendemain, donc
+  // heure = 24 + (CUTOFF_HOUR - 1) : Date.UTC() déborde proprement sur le
+  // jour suivant, pas besoin de recalculer le jour à la main.
+  const endHour = 24 + (BUSINESS_DAY_CUTOFF_HOUR - 1);
   if (range === 'yesterday') {
     const [ty, tm, td] = dateStr().split('-').map(Number);
-    const todayStartMs = moroccoDateTimeToMs(ty, tm, td, 0, 0, 0, 0);
+    const todayStartMs = moroccoDateTimeToMs(ty, tm, td, BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
     const [y, m, day] = dateStr(new Date(todayStartMs - 86400000)).split('-').map(Number);
-    return moroccoDateTimeToMs(y, m, day, 23, 59, 59, 999);
+    return moroccoDateTimeToMs(y, m, day, endHour, 59, 59, 999);
   }
   if (range === 'custom') {
     if (!customEnd) return Date.now();
     const [y, m, day] = customEnd.split('-').map(Number);
-    return moroccoDateTimeToMs(y, m || 1, day || 1, 23, 59, 59, 999);
+    return moroccoDateTimeToMs(y, m || 1, day || 1, endHour, 59, 59, 999);
   }
   return Date.now();
 }
