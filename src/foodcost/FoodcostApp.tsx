@@ -188,7 +188,7 @@ function shiftWeek(weekId: string, deltaWeeks: number): string {
 function weekRangeLabel(weekId: string): string {
   const start = mondayOfWeek(weekId);
   const end = new Date(start.getTime() + 6 * 86400000);
-  const fmt = (d: Date) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  const fmt = (d: Date) => d.toLocaleDateString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit' });
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
