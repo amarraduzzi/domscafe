@@ -2520,7 +2520,6 @@ export default function PosApp() {
   const [creatingTvSlide, setCreatingTvSlide] = useState(false);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const [flash, setFlash] = useState(false);
   const [now, setNow] = useState(Date.now());
   // null = still connecting, string = a listener/write error to show instead
   // of silently rendering an empty "no orders" screen (that silence is what
@@ -2851,10 +2850,14 @@ export default function PosApp() {
             (o) => !knownIds.current!.has(o.id) && (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo'
           );
           knownIds.current = new Set(list.map((o) => o.id));
+          // Le chime immédiat ici + la répétition toutes les 8s tant que
+          // pendingSiteOrderCount > 0 (effet plus bas) + le bandeau permanent
+          // (voir le rendu du bandeau plus bas) : le chime seul se manque
+          // trop facilement dans un café bruyant, et sur l'écran caisse (sans
+          // haut-parleurs, voir le commentaire du bandeau) c'est le bandeau
+          // qui fait tout le travail.
           if (isNewArrival) {
             playChime();
-            setFlash(true);
-            setTimeout(() => setFlash(false), 1800);
           }
         }
         setOrders(list);
@@ -3152,10 +3155,15 @@ export default function PosApp() {
   // "Démarrer". Utilisé pour faire clignoter la tuile de table concernée ET
   // répéter le bip tant que personne n'a réagi (voir l'effet juste en
   // dessous), plutôt qu'un unique bip qu'on peut louper.
-  const pendingSiteOrderCount = useMemo(
-    () => activeOrders.filter((o) => (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo').length,
+  const pendingSiteOrders = useMemo(
+    () => activeOrders.filter((o) => (o.status || 'new') === 'new' && o.source !== 'manual' && o.source !== 'glovo'),
     [activeOrders]
   );
+  const pendingSiteOrderCount = pendingSiteOrders.length;
+  // Étiquettes ("Table 4", "À emporter — Amar", ...) pour le bandeau
+  // permanent ci-dessous -- kindLabel() est déjà la même fonction qui sert
+  // partout ailleurs sur cet écran pour nommer une commande.
+  const pendingSiteOrderLabels = useMemo(() => pendingSiteOrders.map((o) => kindLabel(o)), [pendingSiteOrders]);
 
   // Répète le bip toutes les 8s tant qu'au moins une commande site n'a pas
   // été acceptée (voir pendingSiteOrderCount ci-dessus) -- le bip unique de
@@ -3360,9 +3368,27 @@ export default function PosApp() {
 
   return (
     <div className="min-h-screen bg-brand-dark text-[#F3ECDD]">
-      {flash && (
-        <div className="fixed top-0 left-0 right-0 z-[60] bg-brand-orange text-[#1A1208] text-center py-2 font-display font-black animate-pulse">
-          Nouvelle commande !
+      {/* Bandeau PERMANENT (pas un flash de 1.8s qu'on peut louper) tant
+          qu'au moins une commande site/QR n'a pas été acceptée -- visible
+          sur TOUS les onglets (Tafels/Bestellingen/Menu/...) puisqu'il est
+          rendu avant tout le contenu des onglets, pas seulement sur celui
+          des tables. Demandé explicitement (23/09/2026) : l'écran caisse
+          n'a pas de haut-parleurs (limitation matérielle, pas le bug logiciel
+          du chime qu'on a corrigé ailleurs dans ce fichier), donc l'alerte
+          doit être 100% visuelle et impossible à manquer. `sticky top-0`
+          (pas `fixed`) pour qu'elle reste dans le flux normal et pousse le
+          header en dessous d'elle au lieu de le recouvrir -- voir le
+          `top-11`/`top-0` conditionnel sur le <header> juste après. Couleurs
+          planes qui alternent (voir --animate-banner-blink dans index.css) :
+          pas de dégradé ni d'opacité arbitraire, cet écran tourne sur
+          Chrome 109 / Windows 7 (voir le commentaire juste plus bas sur
+          bg-gradient-to-b). */}
+      {pendingSiteOrderCount > 0 && (
+        <div className="sticky top-0 z-50 h-11 flex items-center justify-center gap-2 px-4 font-display font-black text-sm sm:text-base text-white animate-banner-blink overflow-hidden whitespace-nowrap text-ellipsis">
+          <Bell className="w-4 h-4 shrink-0 animate-pulse-dot" />
+          {pendingSiteOrderCount === 1 ? 'NOUVELLE COMMANDE' : `${pendingSiteOrderCount} NOUVELLES COMMANDES`}
+          {' — '}
+          {pendingSiteOrderLabels.join(' · ')}
         </div>
       )}
 
@@ -3382,7 +3408,7 @@ export default function PosApp() {
           "/98" dans un gradient compile en oklab(...), non supporté sur le
           pc caisse (Chrome 109, coincé sur Windows 7). #1f160c uni est visuellement
           indiscernable du 98% d'opacité d'origine sur ce fond déjà sombre. */}
-      <header className="sticky top-0 z-40 bg-gradient-to-b from-brand-dark to-[#1f160c] backdrop-blur border-b border-[#F3ECDD]/10 shadow-lg shadow-black/30 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
+      <header className={`sticky z-40 bg-gradient-to-b from-brand-dark to-[#1f160c] backdrop-blur border-b border-[#F3ECDD]/10 shadow-lg shadow-black/30 px-5 py-3 flex items-center justify-between flex-wrap gap-3 ${pendingSiteOrderCount > 0 ? 'top-11' : 'top-0'}`}>
         <div className="flex items-center gap-3">
           <img src="/logo.webp" alt="Dom's Café" className="h-9 w-auto object-contain" />
           <div>
