@@ -201,6 +201,38 @@ const TAKEAWAY_DISCOUNT = 1;
 // 14/09/2026.
 const EXTRA_PRICE = 6;
 
+// Prix Glovo -- depuis le 24/09/2026, certains articles vendus sur Glovo ont
+// un prix différent de celui pratiqué en salle/à emporter (marge Glovo
+// incluse). Repris tel quel de la carte Glovo publiée (glovoapp.com/en/ma/
+// rabat/stores/doms-food) : les pizzas et sandwichs y sont +10 DH par
+// rapport au prix maison, les canettes (25cl, plus petites que celles
+// servies au comptoir) y sont à 10 DH au lieu de 16 DH. Uniquement appliqué
+// quand l'onglet actif du panneau "+ Emporter/Livraison/Glovo" est "Glovo"
+// (voir NewOrderPanel) -- le prix maison ne change pas ailleurs (tables,
+// à emporter, livraison directe). Fanta Citron/Orange existent sur Glovo
+// mais pas encore dans ce menu (pas d'article maison correspondant) --
+// à ajouter séparément si le client veut les vendre aussi sur place.
+const GLOVO_PRICE_OVERRIDES: Record<string, number> = {
+  'p-fisherman': 85,
+  'p-quatre-saisons': 75,
+  'p-quatre-fromages': 65,
+  'p-vivanda': 62,
+  'p-pollo': 58,
+  'p-americaine': 58,
+  'p-thons': 56,
+  'p-vegetarienne': 52,
+  'p-margarita': 46,
+  's-kefta': 52,
+  's-poulet': 50,
+  's-thon': 48,
+  's-doms': 48,
+  'jc-coca': 10,
+  'jc-coca-zero': 10,
+  'jc-sprite': 10,
+  'jc-poms': 10,
+  'jc-hawaii': 10,
+};
+
 const CATEGORY_GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Boissons', ids: ['boissons_chaudes', 'jus_cocktails', 'soda'] },
   { label: 'Petit-déj', ids: ['breakfasts', 'omelettes', 'toasts', 'viennoiserie', 'crepes_sucrees', 'crepes_salees'] },
@@ -1681,11 +1713,16 @@ function MenuGrid({
   draft,
   onAdd,
   onChangeQty,
+  priceOverrides,
 }: {
   menuItems: MenuItem[];
   draft: DraftLine[];
   onAdd: (name: string, unitPrice: number, station?: string) => void;
   onChangeQty: (idx: number, delta: number) => void;
+  // Onglet Glovo de "+ Emporter/Livraison/Glovo" uniquement -- voir
+  // GLOVO_PRICE_OVERRIDES plus haut. Absent partout ailleurs (tables,
+  // à emporter, livraison directe) : le prix maison s'applique alors.
+  priceOverrides?: Record<string, number>;
 }) {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -1850,6 +1887,12 @@ function MenuGrid({
             // 16/09/2026.
             const freeEligible = it.category === 'boissons_chaudes';
             const freeAddId = `${it.id}::gratis`;
+            // Prix effectif -- prix Glovo si un override existe pour cet
+            // article ET qu'on est sur l'onglet Glovo (priceOverrides passé
+            // uniquement dans ce cas-là, voir NewOrderPanel), sinon le prix
+            // maison habituel.
+            const effectivePrice = priceOverrides?.[it.id] ?? it.price;
+            const isGlovoPrice = effectivePrice !== it.price;
             return (
               <div
                 key={it.id}
@@ -1861,15 +1904,22 @@ function MenuGrid({
               >
                 <span className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: color }} />
                 <button
-                  onClick={() => handleAdd(it.id, it.name.fr, it.price, it.station)}
+                  onClick={() => handleAdd(it.id, it.name.fr, effectivePrice, it.station)}
                   className="w-full text-start active:scale-[0.96]"
                 >
                   <p className="text-base font-bold text-[#F3ECDD] leading-tight">{it.name.fr}</p>
-                  <p className="text-base text-brand-orange font-display font-black mt-1">{formatMAD(it.price)}</p>
+                  <p className="text-base text-brand-orange font-display font-black mt-1 flex items-center gap-1.5">
+                    {formatMAD(effectivePrice)}
+                    {isGlovoPrice && (
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-teal-300 bg-teal-500/15 border border-teal-500/40 rounded px-1 py-0.5">
+                        Glovo
+                      </span>
+                    )}
+                  </p>
                 </button>
                 {menuEligible && (
                   <button
-                    onClick={() => handleAdd(menuAddId, `${it.name.fr} (Menu)`, it.price + MENU_SURCHARGE, it.station)}
+                    onClick={() => handleAdd(menuAddId, `${it.name.fr} (Menu)`, effectivePrice + MENU_SURCHARGE, it.station)}
                     title={`Menu : +${MENU_SURCHARGE} DH`}
                     className="mt-2 w-full text-xs font-bold py-1.5 rounded-lg border border-brand-orange/40 text-brand-orange bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.96] transition-all"
                   >
@@ -1878,7 +1928,7 @@ function MenuGrid({
                 )}
                 {takeawayEligible && (
                   <button
-                    onClick={() => handleAdd(takeawayAddId, `${it.name.fr} (Emporter)`, it.price - TAKEAWAY_DISCOUNT, it.station)}
+                    onClick={() => handleAdd(takeawayAddId, `${it.name.fr} (Emporter)`, effectivePrice - TAKEAWAY_DISCOUNT, it.station)}
                     title={`Emporter : -${TAKEAWAY_DISCOUNT} DH`}
                     className="mt-2 w-full text-xs font-bold py-1.5 rounded-lg border border-brand-orange/40 text-brand-orange bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.96] transition-all"
                   >
@@ -2084,7 +2134,13 @@ function NewOrderPanel({
           />
         </div>
 
-        <MenuGrid menuItems={menuItems} draft={draft} onAdd={addItem} onChangeQty={changeQty} />
+        <MenuGrid
+          menuItems={menuItems}
+          draft={draft}
+          onAdd={addItem}
+          onChangeQty={changeQty}
+          priceOverrides={kind === 'glovo' ? GLOVO_PRICE_OVERRIDES : undefined}
+        />
 
         <div className="p-5 border-t border-[#F3ECDD]/10 shrink-0 pos-surface">
           <button
