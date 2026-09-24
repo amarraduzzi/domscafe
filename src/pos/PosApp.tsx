@@ -291,7 +291,9 @@ function formatReceiptPrice(n: number): string {
 // affiché (carte commande, historique, reçu).
 function paymentMethodLabel(order: OrderDoc): string {
   if (order.paymentMethod === 'cash') return 'cash';
-  if (order.paymentMethod === 'card') return 'carte';
+  // Une commande Glovo "carte" veut dire payée dans l'appli Glovo (pas de
+  // terminal carte au café) -- "carte" tout court prêterait à confusion.
+  if (order.paymentMethod === 'card') return kindOf(order) === 'glovo' ? 'déjà réglé Glovo' : 'carte';
   if (order.paymentMethod === 'mixed' && order.paymentSplit) {
     return `cash ${formatMAD(order.paymentSplit.cash)} / carte ${formatMAD(order.paymentSplit.card)}`;
   }
@@ -1501,7 +1503,7 @@ function OrderCard({
 }: {
   order: OrderDoc;
   onAdvance: (order: OrderDoc) => void | Promise<void>;
-  onTogglePaid: (order: OrderDoc) => void | Promise<void>;
+  onTogglePaid: (order: OrderDoc, method?: PaymentMethod) => void | Promise<void>;
   onCancel: (order: OrderDoc) => void | Promise<void>;
   onDelete: (order: OrderDoc) => void | Promise<void>;
   onEditNote: (order: OrderDoc) => void | Promise<void>;
@@ -1609,24 +1611,44 @@ function OrderCard({
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-[#F3ECDD]/10 pt-2.5">
-        <span className="font-display font-black text-brand-orange text-xl">{formatMAD(order.total)}</span>
-        <button
-          onClick={() => onTogglePaid(order)}
-          className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors ${
-            order.paid
-              ? 'bg-[#8FBF8A]/15 text-[#8FBF8A] border-[#8FBF8A]/40'
-              : 'bg-transparent text-[#9A9490] border-[#F3ECDD]/20 hover:border-[#F3ECDD]/40'
-          }`}
-        >
-          {order.paid ? (
+      <div className="flex items-center justify-between border-t border-[#F3ECDD]/10 pt-2.5 gap-2">
+        <span className="font-display font-black text-brand-orange text-xl shrink-0">{formatMAD(order.total)}</span>
+        {order.paid ? (
+          <button
+            onClick={() => onTogglePaid(order)}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors bg-[#8FBF8A]/15 text-[#8FBF8A] border-[#8FBF8A]/40"
+          >
             <span className="inline-flex items-center gap-1">
               <Check className="w-3 h-3" /> Payé{order.paymentMethod ? ` (${paymentMethodLabel(order)})` : ''}
             </span>
-          ) : (
-            'Marquer payé'
-          )}
-        </button>
+          </button>
+        ) : kindOf(order) === 'glovo' ? (
+          // Glovo, depuis qu'on y livre (24/09/2026) : le client a pu payer
+          // cash au livreur (COD) OU déjà tout régler dans l'appli Glovo --
+          // contrairement aux autres commandes du café (toujours cash), il
+          // faut donc pouvoir dire lequel des deux au moment d'encaisser.
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => onTogglePaid(order, 'cash')}
+              className="text-[11px] font-bold px-2.5 py-1 rounded-full border border-[#F3ECDD]/20 text-[#9A9490] hover:border-[#F3ECDD]/40 transition-colors"
+            >
+              Cash (COD)
+            </button>
+            <button
+              onClick={() => onTogglePaid(order, 'card')}
+              className="text-[11px] font-bold px-2.5 py-1 rounded-full border border-teal-500/40 text-teal-300 hover:bg-teal-500/10 transition-colors"
+            >
+              Déjà payé (Glovo)
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => onTogglePaid(order)}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-transparent text-[#9A9490] border-[#F3ECDD]/20 hover:border-[#F3ECDD]/40 transition-colors"
+          >
+            Marquer payé
+          </button>
+        )}
       </div>
 
       {nextLabel && (
@@ -2902,11 +2924,13 @@ export default function PosApp() {
       reportWriteError(err);
     }
   };
-  // Turning payment ON marks it paid in cash directly (see markPaid below);
-  // turning it OFF is an instant correction, no confirmation needed.
-  const togglePaid = async (order: OrderDoc) => {
+  // Turning payment ON marks it paid (cash by default -- see markPaid below
+  // for the Glovo "déjà payé" case, passé explicitement en `method` depuis
+  // OrderCard) ; turning it OFF is an instant correction, no confirmation
+  // needed.
+  const togglePaid = async (order: OrderDoc, method: PaymentMethod = 'cash') => {
     if (!order.paid) {
-      markPaid({ kind: 'order', order });
+      markPaid({ kind: 'order', order }, method);
       return;
     }
     try {
@@ -3078,24 +3102,26 @@ export default function PosApp() {
     }
   };
 
-  // Tout se paie en cash ("bank betalen" retiré le 13/09/2026, voir le
-  // brief) : encaisser marque directement la commande payée en cash, sans
-  // demander de mode de paiement (demandé le 14/09/2026 -- ce choix n'avait
-  // plus de raison d'être puisqu'il n'y a jamais qu'une seule option).
-  // `payment` garde sa forme { method: 'cash' } pour ne pas toucher au reste
-  // de la logique de paiement (paymentFields, computeStats...) qui sait déjà
-  // gérer 'card' / 'mixed' -- utile si le paiement carte revient un jour.
-  const markPaid = (target: PayTarget) => {
-    // Ouverture automatique du tiroir -- silencieuse en cas d'échec (pas
-    // d'alerte qui interrompt l'encaissement) : le bouton manuel ci-dessus
-    // reste la façon de diagnostiquer un souci matériel.
-    openCashDrawer().then((res) => {
-      if (res.ok === false) console.warn('Ouverture auto du tiroir : ', res.message);
-    });
+  // Tout se paie en cash au comptoir ("bank betalen" retiré le 13/09/2026 --
+  // voir le brief), SAUF Glovo depuis qu'on a commencé à y livrer (demande
+  // client, 24/09/2026) : le client paie déjà dans l'appli Glovo (carte/
+  // banque), aucun cash ne change de main à la remise au livreur. `method`
+  // (par défaut 'cash') vient d'OrderCard, qui n'offre le choix que pour les
+  // commandes Glovo -- les tables et Emporter/Livraison directs n'ont
+  // toujours qu'un seul bouton "Marquer payé" (cash), rien ne change pour
+  // eux.
+  const markPaid = (target: PayTarget, method: PaymentMethod = 'cash') => {
+    // Tiroir-caisse : n'a de sens que pour du cash physique -- inutile (et
+    // trompeur) de l'ouvrir pour une commande Glovo déjà réglée dans l'appli.
+    if (method === 'cash') {
+      openCashDrawer().then((res) => {
+        if (res.ok === false) console.warn('Ouverture auto du tiroir : ', res.message);
+      });
+    }
     // Firestore's local cache already applies the change optimistically for
     // every listener (that's how the rest of this screen behaves too:
     // advance/togglePaid/cancel never block the UI on a server round trip).
-    const paymentFields = (): Partial<OrderDoc> => ({ paymentMethod: 'cash' });
+    const paymentFields = (): Partial<OrderDoc> => ({ paymentMethod: method });
     const write =
       target.kind === 'table'
         ? Promise.all(
@@ -3112,7 +3138,7 @@ export default function PosApp() {
     // comme l'ouverture du tiroir ci-dessus : un souci d'imprimante ne doit
     // jamais bloquer l'encaissement lui-même (le bouton "Imprimer" manuel
     // reste disponible pour réimprimer si besoin).
-    const paidLine = 'Payé (cash)';
+    const paidLine = method === 'cash' ? 'Payé (cash)' : 'Payé (déjà réglé via Glovo)';
     if (target.kind === 'table') {
       const items = target.orders.flatMap((o) => o.items);
       const total = target.orders.reduce((s, o) => s + o.total, 0);

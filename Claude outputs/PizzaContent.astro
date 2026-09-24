@@ -1,0 +1,764 @@
+---
+// See HomeContent.astro's top comment for the shared-body-per-route
+// pattern this and every other src/content-pages/*.astro file follows.
+//
+// NEW dedicated pizza page (client request, first draft — "we gaan erna
+// finetunen"): Home and Menu both already have a pizza showcase section
+// (see PizzaShowcaseGrid.astro), but the client wants pizza to have its
+// own full page, done "op een hele mooie strakke manier", with the oven
+// stamp (PizzaBadge) brought back as a feature rather than a small hero
+// accent. This page is that — its own bespoke hero built around the
+// stamp (no oven doors here, so PizzaBadge's `immediate` prop is used —
+// see that component's own comment for why), then every photographed pizza
+// on the menu. (A "Deux autres façons de se régaler" section used to list
+// the 2 unphotographed pizzas — Four Cheese, Four Seasons — underneath;
+// client asked for it gone entirely as of the desktop-layout round, not
+// just re-hidden, so `unphotographedPizzas`/`photographedNames` were
+// removed too rather than left as dead code.)
+//
+// Home's hero button and this page are now the two places pointing at
+// pizza specifically — Home's "Meilleure pizza d'Agdal" button now links
+// HERE instead of to the Menu page's #pizzas anchor, since this is the
+// more complete destination. Home's and Menu's own inline pizza sections
+// are untouched for this first draft (not asked to remove them) — worth
+// asking the client whether those should now link here too instead of
+// duplicating the grid, during finetuning.
+//
+// Round 2 ("maak er een klapper van"): three upgrades, all buildable
+// without new client assets (a looping oven video and a real pizza-specific
+// review quote were also on the table — deliberately skipped until real
+// footage/quotes exist, see the chat for why). (1) The one pizza flagged
+// `popular` in pizza-showcase.ts is pulled out of the grid into its own
+// large editorial feature, so the page has a clear focal point instead of
+// equally-weighted cards. (2) Every showcase pizza carries a short
+// mood/sensory `tagline` (see pizza-showcase.ts's own comment on why these
+// are never factual claims). (3) A mobile-only sticky order bar fades in
+// once the hero is scrolled past — see the <script> at the bottom of this
+// file and its own comment for the mechanism.
+//
+// Round 3 / September 2026 pivot: the whole concept behind this page
+// changed from "whole round pizza, cut into 8 triangular slices" to
+// "Roman-style square pizza (pizza al taglio / pizza romana), baked in a
+// tray and cut into rectangular pieces" — see pizza-showcase.ts's header
+// comment for the full reasoning. This is a content-and-copy pivot, not a
+// visual-language one: same hero/oven-door mechanism, same card styles,
+// same "sold by the piece, a first in Rabat" positioning, just reworded
+// away from the old round/8-slice specifics and with the old per-item
+// prices removed (client hasn't fixed pricing for the new format yet —
+// fixed-price-per-square vs. sold-by-weight is still an open question, see
+// chat). `pizzaCategory`/`slicePrice`, which used to compute a per-slice
+// price table from full-menu.ts's still-unrevised round-pizza prices, are
+// gone for the same reason: showing a slice price derived from the OLD
+// lineup's prices on the NEW lineup's page would be actively wrong. The
+// "Le prix, part par part" table is replaced by a plain, price-free list of
+// the 5 launch flavors below. full-menu.ts's own `pizzas` category (and the
+// separate /menu page that reads it) still lists the old round lineup with
+// real prices — deliberately left alone until the client has real prices
+// for the new format, see chat.
+import Layout from '../layouts/Layout.astro';
+import Button from '../components/Button.astro';
+import Ornament from '../components/Ornament.astro';
+import PizzaBadge from '../components/PizzaBadge.astro';
+import { siteConfig } from '../config/site.config';
+import { getOrderCtaLabel } from '../lib/nav';
+import { pizzaShowcase } from '../content/pizza-showcase';
+import { pizzaToGo } from '../content/pizza-to-go';
+import { t, localizedPath, arrow, type Language } from '../i18n/languages';
+import { common, place } from '../i18n/ui';
+
+interface Props {
+  lang?: Language;
+}
+const { lang = 'fr' } = Astro.props;
+
+const { name } = siteConfig.identity;
+const city = t(place.city, lang);
+const orderCtaLabel = getOrderCtaLabel(lang);
+
+// The one real `popular` pizza (see pizza-showcase.ts) gets pulled out of
+// the grid into its own editorial feature below the hero — everything else
+// falls back to the regular grid. `find`/`filter` rather than a hardcoded
+// name so this stays correct if the client's bestseller ever changes.
+const featuredPizza = pizzaShowcase.find((p) => p.popular);
+const gridPizzas = featuredPizza ? pizzaShowcase.filter((p) => p !== featuredPizza) : pizzaShowcase;
+
+const priceSoonLabel: Record<Language, string> = {
+  fr: 'Prix bientôt',
+  en: 'Price soon',
+  ar: 'السعر قريبًا',
+};
+
+const copy = {
+  metaTitle: {
+    fr: `Meilleure pizza d'Agdal, ${name} | ${city}`,
+    en: `Best pizza in Agdal, ${name} | ${city}`,
+    ar: `أفضل بيتزا في أكدال, ${name} | ${city}`,
+  },
+  metaDescription: {
+    fr: `Découvrez la nouvelle pizza carrée à la romaine de ${name} à Agdal, ${city} : pâte fine et croustillante, ingrédients frais, vendue à la part. Une première à Rabat.`,
+    en: `Discover ${name}'s new Roman-style square pizza in Agdal, ${city}: thin, crisp crust, fresh ingredients, sold by the piece. A first in Rabat.`,
+    ar: `اكتشفوا بيتزا ${name} المربعة الجديدة على الطريقة الرومانية بأكدال، ${city}: عجينة رفيعة ومقرمشة، مكونات طازجة، تُباع بالقطعة. الأولى من نوعها في الرباط.`,
+  },
+  kicker: { fr: 'Notre spécialité', en: 'Our specialty', ar: 'تخصصنا' },
+  heroTitle: { fr: "La meilleure pizza d'Agdal", en: 'The best pizza in Agdal', ar: 'أفضل بيتزا في أكدال' },
+  heroSubtitle: {
+    fr: 'Notre nouvelle pizza carrée à la romaine : pâte fine et croustillante, ingrédients frais, et vendue à la part, une première à Rabat.',
+    en: 'Our new Roman-style square pizza: thin, crisp crust, fresh ingredients, sold by the piece, a first in Rabat.',
+    ar: 'بيتزتنا المربعة الجديدة على الطريقة الرومانية: عجينة رفيعة ومقرمشة، مكونات طازجة، تُباع بالقطعة، وهي الأولى من نوعها في الرباط.',
+  },
+  readyToOrder: { fr: 'Prêt à commander ?', en: 'Ready to order?', ar: 'جاهز للطلب؟' },
+  featuredKicker: { fr: 'Le coup de cœur', en: 'The favorite', ar: 'المفضلة' },
+  featuredCta: { fr: 'Commander cette pizza', en: 'Order this pizza', ar: 'اطلب هذه البيتزا' },
+  sliceBadge: { fr: 'Une première à Rabat', en: 'A first in Rabat', ar: 'الأولى من نوعها في الرباط' },
+  sliceTitle: { fr: 'La pizza à la romaine, à la part', en: 'Roman-style pizza, by the piece', ar: 'بيتزا رومانية، بالقطعة' },
+  sliceIntro: {
+    fr: "Chez nous, la pizza est cuite dans un grand plat rectangulaire, façon romaine : pâte fine, croustillante, garnie généreusement. Elle est ensuite découpée en carrés devant vous, une idée encore rare à Rabat, et que nous sommes fiers d'être les premiers à proposer.",
+    en: "Here, pizza is baked in a large rectangular tray, Roman style: thin, crisp crust, generously topped. It's then cut into squares right in front of you, still a rare idea in Rabat, and one we're proud to be the first to offer.",
+    ar: 'عندنا، تُخبز البيتزا في صينية مستطيلة كبيرة على الطريقة الرومانية: عجينة رفيعة ومقرمشة، مغطاة بسخاء. ثم تُقطّع إلى مربعات أمامكم، وهي فكرة لا تزال نادرة في الرباط، ونحن فخورون بأننا أول من يقدمها.',
+  },
+  sliceStep1: { fr: 'On la prépare', en: 'We prepare it', ar: 'نحضّرها' },
+  sliceStep1Desc: {
+    fr: 'Un grand plat rectangulaire, plusieurs saveurs à la fois, prêtes à être découpées.',
+    en: 'One large rectangular tray, several flavors at once, ready to be cut.',
+    ar: 'صينية مستطيلة كبيرة، عدة نكهات في آن واحد، جاهزة للتقطيع.',
+  },
+  sliceStep2: { fr: 'Vous choisissez', en: 'You choose', ar: 'تختارون' },
+  sliceStep2Desc: {
+    fr: 'Un carré, plusieurs carrés, ou plusieurs saveurs différentes à la fois, à vous de composer.',
+    en: 'One square, several squares, or several different flavors at once, you decide the mix.',
+    ar: 'مربع واحد أو عدة مربعات، أو عدة نكهات مختلفة في آن واحد، الاختيار لكم.',
+  },
+  sliceStep3: { fr: 'Vous dégustez', en: 'You enjoy', ar: 'تستمتعون' },
+  sliceStep3Desc: {
+    fr: 'Sur place ou à emporter, chaude et prête en quelques minutes.',
+    en: 'Eat in or take away, hot and ready in minutes.',
+    ar: 'في المكان أو للطلب الخارجي، ساخنة وجاهزة في دقائق.',
+  },
+  flavorsTitle: { fr: 'Nos 5 saveurs de lancement', en: 'Our 5 launch flavors', ar: 'نكهاتنا الخمس الأولى' },
+  flavorsIntro: {
+    fr: 'Deux classiques italiens intemporels, et trois créations qui racontent notre propre histoire maroco-italienne. Les prix seront bientôt disponibles.',
+    en: 'Two timeless Italian classics, and three creations that tell our own Moroccan-Italian story. Prices coming soon.',
+    ar: 'كلاسيكيتان إيطاليتان خالدتان، وثلاث إبداعات تحكي قصتنا المغربية الإيطالية الخاصة. الأسعار قريبًا.',
+  },
+  cheesePullCaption: {
+    fr: 'Le moment que tout le monde photographie.',
+    en: 'The moment everyone photographs.',
+    ar: 'اللحظة التي يصورها الجميع.',
+  },
+  // "Dom's To Go" -- new grab-and-go announcement section, see
+  // pizza-to-go.ts's header comment for what this is and why it has no
+  // prices/images yet.
+  toGoBadge: { fr: 'Nouveau chez Dom’s', en: 'New at Dom’s', ar: 'جديد لدى دومز' },
+  toGoTitle: { fr: 'Dom’s To Go', en: 'Dom’s To Go', ar: 'دومز تو غو' },
+  toGoIntro: {
+    fr: 'De vrais ingrédients, des saveurs franches, à emporter. Une nouvelle façon de profiter de Dom’s, pensée pour un déjeuner rapide ou une envie impulsive. Recettes et prix arrivent bientôt.',
+    en: 'Real ingredients, bold flavours, to go. A new way to enjoy Dom’s, made for a quick lunch or a spur-of-the-moment craving. Recipes and pricing coming soon.',
+    ar: 'مكونات حقيقية، نكهات جريئة، للطلب الخارجي. طريقة جديدة للاستمتاع بدومز، مثالية لغداء سريع أو رغبة عابرة. الوصفات والأسعار قريباً.',
+  },
+  toGoPizzaKicker: { fr: 'Pizza To Go', en: 'Pizza To Go', ar: 'بيتزا تو غو' },
+  toGoPizzaDesc: {
+    fr: 'Rectangulaire, généreuse, pensée pour l’instant.',
+    en: 'Rectangular. Loaded. Made for the moment.',
+    ar: 'مستطيلة، سخية، مصممة للحظة.',
+  },
+  toGoPastaKicker: { fr: 'Pasta To Go', en: 'Pasta To Go', ar: 'باستا تو غو' },
+  toGoPastaDesc: {
+    fr: 'Deux pâtes signature. Un choix. Aucun regret.',
+    en: 'Two signature pastas. One choice. No regrets.',
+    ar: 'نوعان مميزان من الباستا. اختيار واحد. بلا ندم.',
+  },
+  toGoComingSoon: { fr: 'Bientôt disponible', en: 'Coming soon', ar: 'قريباً' },
+} satisfies Record<string, { fr: string; en: string; ar: string }>;
+
+// Petite palette d'accent par plat -- purement visuelle (le badge coloré sur
+// chaque carte To Go), sans rapport avec --color-accent du thème général du
+// site, pour distinguer Red/Gold/Green au premier coup d'œil comme sur le
+// flyer d'origine.
+const TO_GO_ACCENT: Record<string, string> = {
+  'pizza-red': '#C0392B',
+  'pizza-red-hot': '#C0392B',
+  'pizza-gold': '#C9A15A',
+  'pizza-green': '#4C7A3D',
+  'pasta-red': '#C0392B',
+  'pasta-gold': '#C9A15A',
+};
+const toGoPizzas = pizzaToGo.filter((item) => item.category === 'pizza');
+const toGoPastas = pizzaToGo.filter((item) => item.category === 'pasta');
+
+// JSON-LD built directly from the showcase items (not from full-menu.ts's
+// still-unrevised round-pizza prices, see header comment) — `offers` is
+// only included per item once a real price exists, never a fabricated one.
+const pizzaJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Menu',
+  name: `Pizza, ${name}`,
+  hasMenuSection: [
+    {
+      '@type': 'MenuSection',
+      name: t(copy.flavorsTitle, lang),
+      hasMenuItem: pizzaShowcase.map((item) => ({
+        '@type': 'MenuItem',
+        name: item.name,
+        description: t(item.description, lang),
+        ...(item.priceMAD !== undefined
+          ? { offers: { '@type': 'Offer', price: item.priceMAD, priceCurrency: 'MAD' } }
+          : {}),
+      })),
+    },
+  ],
+};
+
+const path = localizedPath('/pizza', lang);
+---
+<Layout
+  title={t(copy.metaTitle, lang)}
+  description={t(copy.metaDescription, lang)}
+  path={path}
+  lang={lang}
+  jsonLd={pizzaJsonLd}
+>
+  <!-- Bespoke hero — atmospheric rooftop-at-sunset photo behind the stamp
+       (client's own asset, see chat). Two separate images rather than one
+       CSS background — the client supplied a true portrait crop for
+       mobile (the landscape version was cropping badly on phones) —
+       following the exact same <img>/<img> sm:hidden / hidden sm:block
+       pattern HomeContent.astro's own hero already uses for the same
+       reason. Same reasoning on the oven-door reveal: client asked for
+       "hetzelfde effect als op de hoofdpagina" — this is a straight port
+       of Home's #home-hero door mechanism (see this file's <style> block
+       at the bottom, and Home's own much longer comment on the door
+       markup for the full reasoning) onto this hero, just re-scoped to
+       #pizza-hero so Astro's per-component CSS scoping keeps the two
+       independent. Because the door now provides its own reveal beat,
+       PizzaBadge no longer uses `immediate` here — its default ~2.1s
+       delay is what's tuned to match this exact door timing on Home, so
+       dropping the prop is what makes the two "read as one continuous
+       beat" the same way Home's does. This hero photo is atmosphere only
+       (rooftop/oven scene, not a specific pizza shape), so it carries over
+       unchanged from the round-pizza version of this page. -->
+  <section id="pizza-hero" class="relative overflow-hidden py-20 sm:py-28 flex flex-col items-center text-center px-5">
+    <img src="/images/dom/pizzas/hero-rooftop-mobile.webp" alt="" aria-hidden="true" class="sm:hidden absolute inset-0 w-full h-full object-cover" />
+    <img src="/images/dom/pizzas/hero-rooftop.webp" alt="" aria-hidden="true" class="hidden sm:block absolute inset-0 w-full h-full object-cover" />
+    <div class="absolute inset-0" style="background: linear-gradient(180deg, rgba(10, 6, 3, 0.55) 0%, rgba(10, 6, 3, 0.7) 55%, var(--color-background) 100%)"></div>
+
+    <!-- Same top-hinged brushed-steel oven door as Home's hero — see this
+         file's header comment above for why it's duplicated rather than
+         shared, and the <style> block below for the actual CSS (a literal
+         port of Home's, just re-scoped). -->
+    <div class="oven-doors-big" aria-hidden="true">
+      <div class="oven-glow-big"></div>
+      <div class="oven-door-steel">
+        <div class="oven-door-steel-hinge-shadow"></div>
+        <div class="oven-door-handle">
+          <span class="oven-door-handle-bracket"></span>
+          <span class="oven-door-handle-bar"></span>
+          <span class="oven-door-handle-bracket"></span>
+        </div>
+      </div>
+    </div>
+
+    <span class="relative z-10 block text-[10px] font-bold uppercase tracking-[0.3em] mb-2" style="color: var(--color-accent)">{t(copy.kicker, lang)} · Agdal, {city}</span>
+
+    <div class="relative z-10 w-56 h-56 sm:w-72 sm:h-72 my-6" data-reveal="scale">
+      <PizzaBadge lang={lang} href={`${localizedPath('/pizza', lang)}#pizzas`} class="absolute inset-0" />
+    </div>
+
+    <h1 class="relative z-10 font-display text-4xl sm:text-6xl font-semibold max-w-3xl" style="color: var(--color-text-primary); text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6)">
+      {t(copy.heroTitle, lang)}
+    </h1>
+    <p class="relative z-10 mt-4 max-w-xl text-sm sm:text-base" style="color: var(--color-text-primary); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6)">
+      {t(copy.heroSubtitle, lang)}
+    </p>
+
+    <div class="relative z-10 mt-8 flex flex-wrap items-center justify-center gap-3">
+      <Button href={orderCtaLabel.href} external variant="filled">{orderCtaLabel.label}</Button>
+      <Button href={localizedPath('/menu', lang)} variant="outline">{t(common.voirLeMenuComplet, lang)}</Button>
+    </div>
+  </section>
+
+  <!-- Marks where the hero ends, for the sticky mobile order bar's
+       IntersectionObserver below — the bar appears once this leaves the
+       viewport, i.e. once someone has scrolled past the hero. -->
+  <div id="hero-end-marker"></div>
+
+  <!-- "Pizza à la part, à la romaine" — the client's own concept, and the
+       actual reason this page exists in its current form: Dom's Café wants
+       to be the first in Rabat to sell Roman-style square pizza by the
+       piece, and asked for this to be explained visually right up front,
+       hence its placement as the very next thing after the hero, before
+       even the bestseller feature. The 3 photos below are AI-generated
+       placeholders standing in for a real cut-and-serve sequence (see
+       pizza-showcase.ts's header comment) — replace with real photography
+       of the actual tray/cut/serve process once it exists. No slice-price
+       table here anymore (see header comment) — replaced by the price-free
+       flavor list further down. -->
+  <section class="section-tint-warm">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-24">
+      <div class="max-w-2xl mx-auto text-center mb-12" data-reveal>
+        <span
+          class="inline-flex items-center gap-1.5 mb-5 px-3 py-1.5 rounded-full text-xs font-bold"
+          style="border: 1px solid var(--color-border); color: var(--color-accent); background-color: color-mix(in srgb, var(--color-accent) 12%, transparent)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="shrink-0">
+            <path d="M12 2l2.6 6.9 7.4.3-5.8 4.6 2.1 7.2-6.3-4.2-6.3 4.2 2.1-7.2-5.8-4.6 7.4-.3z" />
+          </svg>
+          {t(copy.sliceBadge, lang)}
+        </span>
+        <h2 class="font-display text-3xl sm:text-4xl font-semibold" style="color: var(--color-text-primary)">
+          {t(copy.sliceTitle, lang)}
+        </h2>
+        <p class="mt-4 text-sm sm:text-base leading-relaxed" style="color: var(--color-text-muted)">
+          {t(copy.sliceIntro, lang)}
+        </p>
+      </div>
+
+      <div class="grid sm:grid-cols-3 gap-6 sm:gap-5 mb-14">
+        {[
+          { src: '/images/dom/pizzas-al-taglio/hero-taglio-box.webp', step: copy.sliceStep1, desc: copy.sliceStep1Desc },
+          { src: '/images/dom/pizzas-al-taglio/hero-taglio-grid.webp', step: copy.sliceStep2, desc: copy.sliceStep2Desc },
+          { src: '/images/dom/pizzas-al-taglio/manzo-ricco.webp', step: copy.sliceStep3, desc: copy.sliceStep3Desc },
+        ].map((frame, i) => (
+          <div data-reveal style={`transition-delay: ${i * 100}ms`}>
+            <div class="relative rounded-2xl overflow-hidden aspect-[4/3]" style="border: 1px solid var(--color-border)">
+              <img src={frame.src} alt="" aria-hidden="true" class="w-full h-full object-cover" loading="lazy" />
+              <span
+                class="absolute top-3 flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold rtl:right-3 ltr:left-3"
+                style="background-color: var(--color-accent); color: var(--color-background)"
+              >
+                {i + 1}
+              </span>
+            </div>
+            <h3 class="mt-4 font-display font-semibold text-lg" style="color: var(--color-text-primary)">{t(frame.step, lang)}</h3>
+            <p class="mt-1 text-sm leading-relaxed" style="color: var(--color-text-muted)">{t(frame.desc, lang)}</p>
+          </div>
+        ))}
+      </div>
+
+      <!-- Price-free flavor list — replaces the old computed slice-price
+           table (see header comment): just the 5 launch flavors, name +
+           tagline, so the page still gives a clear at-a-glance overview
+           without showing a price that doesn't exist yet. -->
+      <div class="max-w-3xl mx-auto rounded-2xl p-6 sm:p-8" style="background-color: var(--color-surface); border: 1px solid var(--color-border)" data-reveal>
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+          <h3 class="font-display text-xl font-semibold" style="color: var(--color-text-primary)">{t(copy.flavorsTitle, lang)}</h3>
+        </div>
+        <p class="text-xs mb-5" style="color: var(--color-text-muted)">{t(copy.flavorsIntro, lang)}</p>
+        <div class="grid sm:grid-cols-2 gap-x-8 gap-y-3">
+          {pizzaShowcase.map((pizza) => (
+            <div class="flex items-center justify-between gap-3 py-2" style="border-bottom: 1px solid var(--color-border)">
+              <span class="text-sm font-semibold" style="color: var(--color-text-primary)">{pizza.name}</span>
+              <span class="text-xs font-bold uppercase tracking-wide shrink-0" style="color: var(--color-text-muted)">{priceSoonLabel[lang]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Full-bleed cheese-pull break — the "iets spectaculairs" ask (see
+       chat): no new interaction code, just a photo blown up to the full
+       width of the page and given room to actually breathe, with one short
+       line over it. Swapped from the old round-pizza slice-lift.webp
+       (real client photo, no longer representative of the new square
+       format) to the new Manzo Ricco placeholder, which has the same kind
+       of dramatic cheese-pull lift moment — see header comment on
+       replacing this with real photography once it exists. -->
+  <section class="relative overflow-hidden h-[60vh] sm:h-[80vh]">
+    <img
+      src="/images/dom/pizzas-al-taglio/manzo-ricco.webp"
+      alt=""
+      aria-hidden="true"
+      class="absolute inset-0 w-full h-full object-cover"
+      style="object-position: 50% 35%"
+      loading="lazy"
+    />
+    <div class="absolute inset-0" style="background: linear-gradient(180deg, rgba(10,6,3,0) 40%, rgba(10,6,3,0.85) 100%)"></div>
+    <p
+      class="absolute inset-x-0 bottom-8 sm:bottom-12 text-center font-display text-xl sm:text-3xl font-semibold px-5"
+      style="color: var(--color-text-primary); text-shadow: 0 2px 16px rgba(0,0,0,0.7)"
+    >
+      {t(copy.cheesePullCaption, lang)}
+    </p>
+  </section>
+
+  <!-- Editorial feature for the one real bestseller (see the
+       `featuredPizza` comment above) — deliberately NOT another grid card:
+       full-bleed-ish photo on one side, story + CTA on the other, so the
+       page has one clear "look at THIS one" moment before settling into
+       the calmer grid of everything else. Price row only renders once a
+       real price exists (see header comment). -->
+  {featuredPizza && (
+    <section class="max-w-6xl mx-auto px-5 sm:px-8 pt-4 pb-16 sm:pb-20">
+      <div class="grid lg:grid-cols-2 gap-0 rounded-2xl overflow-hidden" style="background-color: var(--color-surface); border: 1px solid var(--color-border)" data-reveal>
+        <div class="photo-frame aspect-[4/3] lg:aspect-auto">
+          <img
+            src={featuredPizza.image}
+            alt={t(featuredPizza.imageAlt, lang)}
+            class="w-full h-full object-cover"
+            loading="eager"
+          />
+        </div>
+        <div class="p-8 sm:p-10 flex flex-col justify-center">
+          <span class="block text-[10px] font-bold uppercase tracking-[0.3em] mb-3" style="color: var(--color-accent)">{t(copy.featuredKicker, lang)}</span>
+          <h2 class="font-display text-3xl sm:text-4xl font-semibold" style="color: var(--color-text-primary)">{featuredPizza.name}</h2>
+          {featuredPizza.tagline && (
+            <p class="mt-2 text-base italic" style="color: var(--color-accent)">{t(featuredPizza.tagline, lang)}</p>
+          )}
+          <p class="mt-4 text-sm sm:text-base leading-relaxed" style="color: var(--color-text-muted)">{t(featuredPizza.description, lang)}</p>
+          {featuredPizza.priceMAD !== undefined ? (
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span class="font-bold text-2xl" style="color: var(--color-accent)">{featuredPizza.priceMAD} MAD</span>
+            </div>
+          ) : (
+            <p class="text-xs font-bold uppercase tracking-wide" style="color: var(--color-text-muted)">{priceSoonLabel[lang]}</p>
+          )}
+          <div class="mt-6 flex flex-wrap items-center gap-4">
+            <Button href={orderCtaLabel.href} external variant="filled">{t(copy.featuredCta, lang)}</Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <!-- The remaining photographed pizzas — bigger, more spacious cards than
+       the compact homepage/menu teaser (PizzaShowcaseGrid.astro): 3 per row
+       instead of 4, a taller photo, and the description gets more room
+       to breathe, since this page's whole reason to exist is giving
+       pizza the spotlight the client asked for. -->
+  <section id="pizzas" class="max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-20">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+      {gridPizzas.map((pizza, i) => (
+        <div
+          class="card-lift relative rounded-2xl overflow-hidden"
+          style={`background-color: var(--color-surface); border: 1px solid var(--color-border); transition-delay: ${i * 70}ms`}
+          data-reveal
+        >
+          <div class="photo-frame aspect-[4/3]">
+            <img src={pizza.image} alt={t(pizza.imageAlt, lang)} class="w-full h-full object-cover" loading="lazy" />
+          </div>
+          <div class="p-6">
+            <div class="flex items-baseline justify-between gap-3">
+              <h3 class="menu-item-name font-display font-semibold text-xl" style="color: var(--color-text-primary)">{pizza.name}</h3>
+              <span class="shrink-0 text-right">
+                {pizza.priceMAD !== undefined ? (
+                  <span class="menu-item-price block font-bold text-lg" style="color: var(--color-accent)">{pizza.priceMAD} MAD</span>
+                ) : (
+                  <span class="block text-[11px] font-bold uppercase tracking-wide" style="color: var(--color-text-muted)">{priceSoonLabel[lang]}</span>
+                )}
+              </span>
+            </div>
+            {pizza.tagline && (
+              <p class="text-xs mt-1 italic" style="color: var(--color-accent)">{t(pizza.tagline, lang)}</p>
+            )}
+            <p class="text-sm mt-2 leading-relaxed" style="color: var(--color-text-muted)">{t(pizza.description, lang)}</p>
+            <!-- Per-card order link — every other pizza on this page (the
+                 featured one above, the whole-page CTA below) had a direct
+                 order action except these grid cards, which only showed
+                 info. This is the moment someone actually decides on a
+                 specific pizza, so it needs its own path to ordering
+                 instead of relying on them remembering the sticky bar or
+                 scrolling to the bottom. -->
+            <a
+              href={orderCtaLabel.href}
+              target="_blank"
+              rel="noreferrer"
+              class="mt-4 inline-flex items-center gap-1.5 text-sm font-bold"
+              style="color: var(--color-accent)"
+            >
+              {orderCtaLabel.label} {arrow(lang)}
+            </a>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <Ornament />
+
+  <!-- "Dom's To Go" -- new grab-and-go announcement (client request,
+       23/09/2026): a separate rectangular pizza + pasta-cup line, sold
+       individually. This is marketing-only for now -- no prices (client's
+       own instruction: "die prijzen moet je helemaal vergeten... die worden
+       achteraf bepaald"), no per-item order link (nothing here is actually
+       orderable yet), and no photos yet either (client is generating AI
+       visuals next -- see pizza-to-go.ts's header comment). Each card falls
+       back to a colored icon tile instead of a broken <img> until a real
+       `image` is added to that data file. This section is entirely
+       additive: the 9 real menu pizzas above (pizzaShowcase, unchanged) are
+       still what's actually sold at Dom's and still the page's main
+       content -- this is a new sub-brand teaser, not a replacement. -->
+  <section id="doms-to-go" class="section-tint-warm">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-24">
+      <div class="max-w-2xl mx-auto text-center mb-12" data-reveal>
+        <span
+          class="inline-flex items-center gap-1.5 mb-5 px-3 py-1.5 rounded-full text-xs font-bold"
+          style="border: 1px solid var(--color-border); color: var(--color-accent); background-color: color-mix(in srgb, var(--color-accent) 12%, transparent)"
+        >
+          {t(copy.toGoBadge, lang)}
+        </span>
+        <h2 class="font-display text-3xl sm:text-4xl font-semibold" style="color: var(--color-text-primary)">
+          {t(copy.toGoTitle, lang)}
+        </h2>
+        <p class="mt-4 text-sm sm:text-base leading-relaxed" style="color: var(--color-text-muted)">
+          {t(copy.toGoIntro, lang)}
+        </p>
+      </div>
+
+      <!-- Pizza To Go -->
+      <div class="mb-14">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+          <h3 class="font-display text-xl font-semibold" style="color: var(--color-text-primary)">{t(copy.toGoPizzaKicker, lang)}</h3>
+          <span class="text-xs italic" style="color: var(--color-text-muted)">{t(copy.toGoPizzaDesc, lang)}</span>
+        </div>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+          {toGoPizzas.map((item, i) => (
+            <div
+              class="rounded-2xl p-5 flex flex-col items-start"
+              style={`background-color: var(--color-surface); border: 1px solid var(--color-border); transition-delay: ${i * 70}ms`}
+              data-reveal
+            >
+              {item.image ? (
+                <img src={item.image} alt={item.name} class="w-14 h-14 rounded-xl object-cover mb-3" loading="lazy" />
+              ) : (
+                <span
+                  class="w-14 h-14 rounded-xl flex items-center justify-center mb-3 text-2xl font-display font-bold"
+                  style={`background-color: color-mix(in srgb, ${TO_GO_ACCENT[item.key]} 18%, transparent); color: ${TO_GO_ACCENT[item.key]}`}
+                >
+                  🍕
+                </span>
+              )}
+              {item.tag && (
+                <span class="text-[10px] font-bold uppercase tracking-wide mb-1" style={`color: ${TO_GO_ACCENT[item.key]}`}>
+                  {t(item.tag, lang)}
+                </span>
+              )}
+              <h4 class="font-display font-semibold text-base" style="color: var(--color-text-primary)">{item.name}</h4>
+              <p class="text-xs mt-1.5 leading-relaxed" style="color: var(--color-text-muted)">{t(item.ingredients, lang)}</p>
+              <span class="mt-3 text-[10px] font-bold uppercase tracking-wide" style="color: var(--color-text-muted)">{t(copy.toGoComingSoon, lang)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- Pasta To Go -->
+      <div>
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+          <h3 class="font-display text-xl font-semibold" style="color: var(--color-text-primary)">{t(copy.toGoPastaKicker, lang)}</h3>
+          <span class="text-xs italic" style="color: var(--color-text-muted)">{t(copy.toGoPastaDesc, lang)}</span>
+        </div>
+        <div class="grid sm:grid-cols-2 gap-4 mt-5 max-w-2xl">
+          {toGoPastas.map((item, i) => (
+            <div
+              class="rounded-2xl p-5 flex flex-col items-start"
+              style={`background-color: var(--color-surface); border: 1px solid var(--color-border); transition-delay: ${i * 70}ms`}
+              data-reveal
+            >
+              {item.image ? (
+                <img src={item.image} alt={item.name} class="w-14 h-14 rounded-xl object-cover mb-3" loading="lazy" />
+              ) : (
+                <span
+                  class="w-14 h-14 rounded-xl flex items-center justify-center mb-3 text-2xl font-display font-bold"
+                  style={`background-color: color-mix(in srgb, ${TO_GO_ACCENT[item.key]} 18%, transparent); color: ${TO_GO_ACCENT[item.key]}`}
+                >
+                  🍝
+                </span>
+              )}
+              {item.tag && (
+                <span class="text-[10px] font-bold uppercase tracking-wide mb-1" style={`color: ${TO_GO_ACCENT[item.key]}`}>
+                  {t(item.tag, lang)}
+                </span>
+              )}
+              <h4 class="font-display font-semibold text-base" style="color: var(--color-text-primary)">{item.name}</h4>
+              <p class="text-xs mt-1.5 leading-relaxed" style="color: var(--color-text-muted)">{t(item.ingredients, lang)}</p>
+              <span class="mt-3 text-[10px] font-bold uppercase tracking-wide" style="color: var(--color-text-muted)">{t(copy.toGoComingSoon, lang)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Ornament />
+  <section class="max-w-7xl mx-auto px-5 sm:px-8 py-16 text-center">
+    <p class="text-sm mb-4" style="color: var(--color-text-muted)">{t(copy.readyToOrder, lang)}</p>
+    <Button href={orderCtaLabel.href} external variant="filled">{orderCtaLabel.label} {arrow(lang)}</Button>
+  </section>
+
+  <!-- Mobile-only sticky order bar (see the <script> below for the
+       show/hide mechanism) — desktop already has "Commander" in the header,
+       but on mobile that's easy to lose track of on a page this long, and
+       this page's whole point is to convert pizza browsing into an order. -->
+  <div id="pizza-sticky-bar" class="pizza-sticky-bar sm:hidden" aria-hidden="true">
+    <a href={orderCtaLabel.href} target="_blank" rel="noreferrer" class="pizza-sticky-bar-link">
+      {orderCtaLabel.label}
+    </a>
+  </div>
+</Layout>
+
+<style>
+  .pizza-sticky-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    background-color: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+  }
+  .pizza-sticky-bar.is-visible {
+    transform: translateY(0);
+  }
+  .pizza-sticky-bar-link {
+    display: block;
+    text-align: center;
+    padding: 0.85rem 1rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    background-color: var(--color-accent);
+    color: var(--color-background);
+  }
+
+  /* ============================================================================
+     Oven-door hero reveal — a straight port of HomeContent.astro's own
+     #home-hero door mechanism (see the header comment above the markup for
+     why it's duplicated rather than shared as a component: it's tightly
+     coupled to this hero's own perspective/id, and Astro scopes each
+     component's <style> block separately anyway, so copy-and-rescope is
+     the honest option here, not a hack). Every rule below is identical to
+     Home's except the selector (#home-hero → #pizza-hero) — see that
+     file's own much longer comment block for the full design reasoning
+     (brushed-steel panel construction, why rotateX not rotateY, the
+     client's real-photo-driven feedback that led here, etc). */
+  #pizza-hero {
+    perspective: 2200px;
+  }
+  .oven-doors-big {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .oven-glow-big {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255, 170, 80, 0.95) 0%, rgba(200, 100, 30, 0.5) 42%, transparent 72%);
+    opacity: 0;
+    animation: hero-glow-flash 1s ease-out 0.15s both;
+  }
+  .oven-door-steel {
+    position: absolute;
+    inset: 0;
+    transform-origin: top center;
+    background:
+      linear-gradient(
+        100deg,
+        rgba(255, 255, 255, 0.4) 0%,
+        transparent 14%,
+        transparent 38%,
+        rgba(255, 255, 255, 0.3) 47%,
+        transparent 56%,
+        transparent 80%,
+        rgba(255, 255, 255, 0.22) 92%,
+        transparent 100%
+      ),
+      repeating-linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.07) 0px,
+        rgba(255, 255, 255, 0.07) 1px,
+        transparent 1px,
+        transparent 3px
+      ),
+      linear-gradient(160deg, #e9ebed 0%, #c4c7cc 28%, #f0f1f2 45%, #a7abb1 64%, #d8dadd 100%);
+    box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.28);
+    backface-visibility: hidden;
+    animation: hero-door-open 1.7s cubic-bezier(0.7, 0, 0.3, 1) 0.35s both;
+  }
+  .oven-door-steel-hinge-shadow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5%;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent);
+  }
+  .oven-door-handle {
+    position: absolute;
+    left: 50%;
+    top: 60%;
+    transform: translate(-50%, -50%);
+    width: 34%;
+    min-width: 160px;
+    height: 6%;
+    min-height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2%;
+  }
+  .oven-door-handle-bracket {
+    width: 8%;
+    min-width: 14px;
+    height: 150%;
+    background: linear-gradient(180deg, #9a9da3, #6c6f74);
+    border-radius: 3px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+  }
+  .oven-door-handle-bar {
+    flex: 1;
+    height: 100%;
+    background: linear-gradient(180deg, #3a3a3c 0%, #1c1c1e 45%, #050505 100%);
+    border-radius: 9999px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  }
+
+  @keyframes hero-door-open {
+    0% { transform: rotateX(0deg); }
+    100% { transform: rotateX(-112deg); }
+  }
+  @keyframes hero-glow-flash {
+    0% { opacity: 0; }
+    40% { opacity: 1; }
+    70% { opacity: 0.35; }
+    100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .oven-glow-big {
+      display: none;
+    }
+    .oven-door-steel {
+      animation: none;
+      transform: rotateX(-112deg);
+      opacity: 0;
+    }
+  }
+</style>
+
+<script>
+  // Fades the mobile order bar in once the hero (marked by #hero-end-marker
+  // just below the hero section) has scrolled out of view, and back out if
+  // someone scrolls back up to the top — an IntersectionObserver instead of
+  // a scroll listener so this stays cheap on low-end phones. Wrapped in
+  // 'astro:page-load' to match this codebase's convention for re-init on
+  // View Transitions navigation (see MenuContent.astro's own script).
+  document.addEventListener('astro:page-load', () => {
+    const bar = document.querySelector<HTMLElement>('#pizza-sticky-bar');
+    const marker = document.querySelector<HTMLElement>('#hero-end-marker');
+    if (!bar || !marker) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const pastHero = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+        bar.classList.toggle('is-visible', pastHero);
+        bar.setAttribute('aria-hidden', pastHero ? 'false' : 'true');
+      },
+      { threshold: 0 }
+    );
+    observer.observe(marker);
+  });
+</script>
