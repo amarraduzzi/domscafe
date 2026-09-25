@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Lock, TrendingUp, Banknote, CreditCard, Bike, Wallet, Armchair, History, UtensilsCrossed, Search, Check, X, Pencil } from 'lucide-react';
+import { Lock, TrendingUp, Banknote, CreditCard, Bike, Wallet, Armchair, History, UtensilsCrossed, Search, Check, X, Pencil, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { db } from '../firebase';
 import { initialCategories } from '../firebase';
 import {
@@ -225,37 +225,188 @@ function LiveTab({ orders, payouts }: { orders: OrderDoc[]; payouts: CashPayout[
   );
 }
 
-function HistoryTab({ closures }: { closures: DailyClosure[] }) {
-  const sorted = useMemo(() => [...closures].sort((a, b) => (a.date < b.date ? 1 : -1)), [closures]);
+// Décale une date "YYYY-MM-DD" de `delta` jours civils, en passant par midi
+// UTC pour éviter tout glissement de fuseau horaire (même truc que le rendu
+// de date de l'ancien HistoryTab juste en dessous). Uniquement de
+// l'arithmétique de calendrier -- ne rouvre pas la logique de coupure de
+// journée commerciale de dateStr() (BUSINESS_DAY_CUTOFF_HOUR), qui a déjà
+// fait son travail au moment où selectedDate a été choisie.
+function addDays(date: string, delta: number): string {
+  const d = new Date(date + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatDateLabel(date: string): string {
+  return new Date(date + 'T12:00:00Z').toLocaleDateString('fr-FR', {
+    timeZone: 'UTC',
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+// Historique -- demandé le 25/09/2026 : le propriétaire veut pouvoir revoir
+// n'importe quel jour passé (à commencer par "hier"), pas seulement les
+// jours où quelqu'un a pensé à faire le Rapport Z à la caisse. Les chiffres
+// d'un jour donné sont donc maintenant calculés en direct depuis `orders`
+// (exactement comme LiveTab le fait pour "Aujourd'hui"), que ce jour ait été
+// clôturé ou non. Quand une clôture existe pour la date choisie, ce sont ses
+// chiffres figés qui s'affichent à la place (badge "Clôturé") -- après
+// clôture, les chiffres ne doivent plus bouger même si une commande de ce
+// jour-là est modifiée plus tard (annulation tardive, correction...). Sans
+// clôture, badge "Non clôturé" et calcul en direct.
+function HistoryTab({ orders, payouts, closures }: { orders: OrderDoc[]; payouts: CashPayout[]; closures: DailyClosure[] }) {
+  const yesterday = useMemo(() => addDays(dateStr(), -1), []);
+  const [selectedDate, setSelectedDate] = useState(yesterday);
+  const isToday = selectedDate === dateStr();
+
+  const closure = useMemo(() => closures.find((c) => c.date === selectedDate) || null, [closures, selectedDate]);
+
+  const ordersForDate = useMemo(
+    () => orders.filter((o) => o.createdAt && dateStr(o.createdAt.toDate()) === selectedDate),
+    [orders, selectedDate]
+  );
+  const payoutsForDate = useMemo(
+    () => payouts.filter((p) => p.createdAt && dateStr(p.createdAt.toDate()) === selectedDate),
+    [payouts, selectedDate]
+  );
+  const liveStats = useMemo(() => computeStats(ordersForDate), [ordersForDate]);
+  const livePayoutsTotal = useMemo(() => computePayoutsTotal(payoutsForDate), [payoutsForDate]);
+
+  // Chiffres affichés : ceux, figés, de la clôture si elle existe, sinon le
+  // calcul en direct ci-dessus. `payoutsTotal` absent sur une clôture
+  // d'avant le 13/09/2026 -- traité comme 0, comme partout ailleurs.
+  const shown = closure
+    ? {
+        revenue: closure.revenue,
+        cash: closure.cash,
+        card: closure.card,
+        glovo: closure.glovo,
+        orderCount: closure.orderCount,
+        payoutsTotal: closure.payoutsTotal || 0,
+      }
+    : {
+        revenue: liveStats.revenue,
+        cash: liveStats.cash,
+        card: liveStats.card,
+        glovo: liveStats.glovo,
+        orderCount: liveStats.orderCount,
+        payoutsTotal: livePayoutsTotal,
+      };
+
+  const sortedClosures = useMemo(() => [...closures].sort((a, b) => (a.date < b.date ? 1 : -1)), [closures]);
+
   return (
-    <div className="space-y-3">
-      <h2 className="text-[#F3ECDD] font-display text-lg font-bold flex items-center gap-2">
-        <History className="w-4.5 h-4.5 text-brand-orange" /> Historique (rapports clôturés)
-      </h2>
-      {sorted.length === 0 ? (
-        <p className="text-[#9A9490] text-sm pos-surface rounded-2xl p-4">Aucun jour clôturé pour le moment.</p>
-      ) : (
-        sorted.map((c) => (
-          <div key={c.date} className="pos-surface rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[#F3ECDD] font-bold">
-                {new Date(c.date + 'T12:00:00').toLocaleDateString('fr-FR', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: 'long' })}
-              </p>
-              <p className="text-[#F3ECDD] font-bold text-lg">{formatMAD(c.revenue)}</p>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-xs text-[#9A9490]">
-              <div>Cash <span className="block text-[#F3ECDD] font-semibold">{formatMAD(c.cash)}</span></div>
-              <div>Carte <span className="block text-[#F3ECDD] font-semibold">{formatMAD(c.card)}</span></div>
-              <div>Glovo <span className="block text-[#F3ECDD] font-semibold">{formatMAD(c.glovo)}</span></div>
-            </div>
-            <p className="text-xs text-[#9A9490] mt-2">
-              {c.orderCount} commande(s)
-              {(c.payoutsTotal || 0) > 0 && <> · {formatMAD(c.payoutsTotal || 0)} sorties de caisse</>}
-              {' · clôturé par '}{c.closedByEmployee}
-            </p>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-[#F3ECDD] font-display text-lg font-bold flex items-center gap-2 mb-3">
+          <History className="w-4.5 h-4.5 text-brand-orange" /> Historique
+        </h2>
+
+        {/* Navigateur de date -- flèches jour précédent/suivant (suivant
+            désactivé sur aujourd'hui, on ne "regarde pas dans le futur"),
+            plus un vrai sélecteur de date pour sauter directement à un jour
+            plus ancien, et un raccourci "Aujourd'hui" pour revenir vite. */}
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => setSelectedDate((d) => addDays(d, -1))}
+            className="w-9 h-9 shrink-0 rounded-full pos-surface flex items-center justify-center text-[#F3ECDD]"
+            aria-label="Jour précédent"
+          >
+            <ChevronLeft className="w-4.5 h-4.5" />
+          </button>
+          <div className="relative flex-1">
+            <CalendarDays className="w-4 h-4 text-[#9A9490] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="date"
+              value={selectedDate}
+              max={dateStr()}
+              onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-[#2b241c] border border-[#F3ECDD]/15 rounded-xl text-[#F3ECDD] text-sm outline-none focus:border-brand-orange"
+            />
           </div>
-        ))
-      )}
+          <button
+            onClick={() => setSelectedDate((d) => addDays(d, 1))}
+            disabled={isToday}
+            className="w-9 h-9 shrink-0 rounded-full pos-surface flex items-center justify-center text-[#F3ECDD] disabled:opacity-30"
+            aria-label="Jour suivant"
+          >
+            <ChevronRight className="w-4.5 h-4.5" />
+          </button>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setSelectedDate(yesterday)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+              selectedDate === yesterday ? 'bg-brand-orange text-brand-dark border-brand-orange' : 'border-[#F3ECDD]/20 text-[#9A9490]'
+            }`}
+          >
+            Hier
+          </button>
+          <button
+            onClick={() => setSelectedDate(dateStr())}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+              isToday ? 'bg-brand-orange text-brand-dark border-brand-orange' : 'border-[#F3ECDD]/20 text-[#9A9490]'
+            }`}
+          >
+            Aujourd'hui
+          </button>
+        </div>
+
+        <div className="pos-surface rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[#F3ECDD] font-bold capitalize">{formatDateLabel(selectedDate)}</p>
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 border ${
+                closure
+                  ? 'text-[#8FBF8A] bg-[#8FBF8A]/10 border-[#8FBF8A]/40'
+                  : 'text-[#9A9490] bg-white/5 border-[#F3ECDD]/15'
+              }`}
+            >
+              {closure ? 'Clôturé' : 'Non clôturé'}
+            </span>
+          </div>
+          <p className="text-[#F3ECDD] font-display font-black text-3xl mb-3">{formatMAD(shown.revenue)}</p>
+          <div className="grid grid-cols-3 gap-2 text-xs text-[#9A9490] mb-2">
+            <div>Cash <span className="block text-[#F3ECDD] font-semibold">{formatMAD(shown.cash)}</span></div>
+            <div>Carte <span className="block text-[#F3ECDD] font-semibold">{formatMAD(shown.card)}</span></div>
+            <div>Glovo <span className="block text-[#F3ECDD] font-semibold">{formatMAD(shown.glovo)}</span></div>
+          </div>
+          <p className="text-xs text-[#9A9490]">
+            {shown.orderCount} commande(s)
+            {shown.payoutsTotal > 0 && <> · {formatMAD(shown.payoutsTotal)} sorties de caisse</>}
+          </p>
+          <p className="text-xs text-[#9A9490] mt-1">
+            {closure
+              ? `Clôturé le ${new Date(closure.closedAt).toLocaleString('fr-FR', { timeZone: 'UTC' })} par ${closure.closedByEmployee}`
+              : 'Pas de Rapport Z pour ce jour -- calcul en direct depuis les commandes.'}
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-[#9A9490] text-xs uppercase tracking-wide font-bold mb-2">Tous les jours clôturés</h3>
+        {sortedClosures.length === 0 ? (
+          <p className="text-[#9A9490] text-sm pos-surface rounded-2xl p-4">Aucun jour clôturé pour le moment.</p>
+        ) : (
+          <div className="space-y-2">
+            {sortedClosures.map((c) => (
+              <button
+                key={c.date}
+                onClick={() => setSelectedDate(c.date)}
+                className={`w-full text-left pos-surface rounded-xl p-3 flex items-center justify-between transition-all ${
+                  selectedDate === c.date ? 'ring-2 ring-brand-orange/60' : ''
+                }`}
+              >
+                <span className="text-[#F3ECDD] text-sm font-semibold capitalize">{formatDateLabel(c.date)}</span>
+                <span className="text-[#F3ECDD] font-bold">{formatMAD(c.revenue)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -451,7 +602,7 @@ export default function OwnerApp() {
       </header>
       <main className="px-4 py-4 max-w-md mx-auto">
         {tab === 'live' && <LiveTab orders={orders} payouts={payouts} />}
-        {tab === 'history' && <HistoryTab closures={closures} />}
+        {tab === 'history' && <HistoryTab orders={orders} payouts={payouts} closures={closures} />}
         {tab === 'menu' && <MenuTab overrides={overrides} />}
       </main>
       <nav className="fixed bottom-0 inset-x-0 bg-[#2b241c] border-t border-[#F3ECDD]/10 flex">
