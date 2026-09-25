@@ -41,6 +41,7 @@ export const DEFAULT_INGREDIENTS: SeedIngredient[] = [
   { id: 'eau_bouteille_33cl', name: 'Ciel - Eau 33cl', unit: 'stuk', unitPrice: 1.7 },
   { id: 'oulmes_bouteille', name: 'Bouteille Oulmès', unit: 'stuk', unitPrice: 6 },
   { id: 'canette_coca', name: 'Coca-Cola 25cl', unit: 'stuk', unitPrice: 4.48 },
+  { id: 'canette_coca_33cl', name: 'Coca-Cola 33cl', unit: 'stuk', unitPrice: 7.55 }, // pas encore lié à un plat -- le menu n'a qu'un seul "Coca Cola" (utilise la 25cl)
   { id: 'canette_coca_zero', name: 'Coca-Cola Zero 33cl', unit: 'stuk', unitPrice: 7.55 },
   { id: 'canette_sprite', name: 'Canette Sprite', unit: 'stuk', unitPrice: 6 },
   { id: 'canette_poms', name: 'Poms 25cl', unit: 'stuk', unitPrice: 4.48 },
