@@ -584,6 +584,37 @@ export default function FoodcostApp() {
     await batch.commit();
   };
 
+  // Ajoute UNIQUEMENT les ingrédients/recettes standards qui n'existent pas
+  // encore (comparé par id) -- ne touche jamais à ce qui existe déjà.
+  // Nécessaire parce que "Charger les valeurs standards" ci-dessus ne se
+  // déclenche que sur une liste vide : sans ce bouton, un nouvel ingrédient
+  // standard ajouté plus tard (ex : distinction 25cl/33cl) n'apparaît
+  // jamais chez quelqu'un qui a déjà chargé les valeurs standards avant.
+  const missingDefaultIngredients = useMemo(
+    () => DEFAULT_INGREDIENTS.filter((ing) => !ingredientsById.has(ing.id)),
+    [ingredientsById]
+  );
+  const missingDefaultRecipeIds = useMemo(
+    () => Object.keys(DEFAULT_RECIPES).filter((id) => !recipes.has(id)),
+    [recipes]
+  );
+  const completeMissingDefaults = async () => {
+    if (
+      !window.confirm(
+        `Ajouter ${missingDefaultIngredients.length} ingrédient(s) et ${missingDefaultRecipeIds.length} recette(s) manquant(e)s dans les valeurs standards ? Rien de ce qui existe déjà ne sera modifié.`
+      )
+    )
+      return;
+    const batch = writeBatch(db);
+    missingDefaultIngredients.forEach((ing) => {
+      batch.set(doc(db, 'fcIngredients', ing.id), { name: ing.name, unit: ing.unit, unitPrice: ing.unitPrice });
+    });
+    missingDefaultRecipeIds.forEach((id) => {
+      batch.set(doc(db, 'fcRecipes', id), { lines: DEFAULT_RECIPES[id] });
+    });
+    await batch.commit();
+  };
+
   const removeIngredient = async (id: string) => {
     if (!window.confirm('Supprimer cet ingrédient ? Il sera aussi retiré des recettes qui l’utilisent.')) return;
     await deleteDoc(doc(db, 'fcIngredients', id));
@@ -707,6 +738,21 @@ export default function FoodcostApp() {
       </header>
 
       <main className="p-5 max-w-6xl mx-auto">
+        {(missingDefaultIngredients.length > 0 || missingDefaultRecipeIds.length > 0) && (
+          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap text-xs bg-brand-orange/10 border border-brand-orange/40 rounded-lg px-3 py-2.5">
+            <span className="flex items-center gap-2 text-[#F3ECDD]">
+              <Sparkles className="w-4 h-4 shrink-0 text-brand-orange" />
+              {missingDefaultIngredients.length} nouvel(le)s ingrédient(s) et {missingDefaultRecipeIds.length} nouvelle(s) recette(s)
+              standards pas encore chargé(e)s chez vous (ex : distinction 25cl/33cl).
+            </span>
+            <button
+              onClick={completeMissingDefaults}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-orange text-[#1A1208] hover:bg-brand-orange-hover transition-all"
+            >
+              Compléter (sans toucher à l'existant)
+            </button>
+          </div>
+        )}
         <div className="mb-4 flex items-start gap-2 text-xs text-[#9A9490] bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 rounded-lg px-3 py-2">
           <Info className="w-4 h-4 shrink-0 mt-0.5 text-brand-orange" />
           <span>
