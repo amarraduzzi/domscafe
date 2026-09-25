@@ -210,12 +210,32 @@ function weekRangeLabel(weekId: string): string {
 
 // ---------------------------------------------------------------------------
 
-const DISHES: { id: string; name: string; category: string; price: number }[] = staticMenuItems.map((m: MenuItem) => ({
-  id: m.id,
-  name: m.name.fr,
-  category: m.category,
-  price: m.price,
-}));
+// Doit rester identique aux constantes du même nom dans PosApp.tsx --
+// utilisées ici uniquement pour générer le prix des variantes "(Emporter)"
+// et "(Menu)" ci-dessous, jamais pour modifier une commande.
+const TAKEAWAY_DISCOUNT = 1;
+const MENU_SURCHARGE = 8;
+
+// Un plat de base ("Café noir") ET, quand la caisse propose ce choix, ses
+// variantes "(Emporter)" et "(Menu)" comme plats à part entière -- ce ne
+// sont pas juste des prix différents, ce sont de vraies recettes
+// différentes (pas de bouteille d'eau à emporter ; un soda en plus dans le
+// menu sandwich/tacos). Voir foodcostSeed.ts (DEFAULT_RECIPES) pour les
+// recettes standards de ces variantes, et menuEligible/takeawayEligible
+// dans PosApp.tsx pour la même logique côté caisse.
+const DISHES: { id: string; name: string; category: string; price: number }[] = (() => {
+  const base = staticMenuItems.map((m: MenuItem) => ({ id: m.id, name: m.name.fr, category: m.category, price: m.price }));
+  const variants: typeof base = [];
+  staticMenuItems.forEach((m: MenuItem) => {
+    if (m.category === 'boissons_chaudes') {
+      variants.push({ id: `${m.id}::emporter`, name: `${m.name.fr} (Emporter)`, category: m.category, price: m.price - TAKEAWAY_DISCOUNT });
+    }
+    if (m.category === 'sandwiches' || m.category === 'tacos') {
+      variants.push({ id: `${m.id}::menu`, name: `${m.name.fr} (Menu)`, category: m.category, price: m.price + MENU_SURCHARGE });
+    }
+  });
+  return [...base, ...variants];
+})();
 
 type Tab = 'ingredients' | 'recipes' | 'foodcost' | 'inventory' | 'sales' | 'week';
 
@@ -251,8 +271,22 @@ interface PurchaseLogEntry {
 // comparaison "réel dépensé vs théorique" par semaine.
 const PREDICTION_WINDOW_DAYS = 30;
 
-function matchesDish(itemName: string, dishName: string): boolean {
-  return itemName === dishName || itemName.startsWith(dishName + ' (');
+// Associe le nom d'un article de commande à UN SEUL plat -- important
+// depuis l'ajout des variantes "(Emporter)"/"(Menu)" dans DISHES : une
+// correspondance "startsWith" naïve testée plat par plat compterait
+// "Café noir (Emporter)" à la fois sous "Café noir" (préfixe) ET sous
+// "Café noir (Emporter)" (exact), ce qui doublerait le théorique. On
+// cherche donc d'abord une correspondance EXACTE (couvre les variantes
+// connues) et on ne retombe sur un préfixe que pour un suffixe non modélisé
+// ici (ex : l'ancien "(Gratis - fidélité)" dans d'anciennes commandes).
+function resolveDishForItemName(itemName: string): { id: string; name: string; category: string; price: number } | undefined {
+  const exact = DISHES.find((d) => d.name === itemName);
+  if (exact) return exact;
+  let best: (typeof DISHES)[number] | undefined;
+  DISHES.forEach((d) => {
+    if (itemName.startsWith(d.name + ' (') && (!best || d.name.length > best.name.length)) best = d;
+  });
+  return best;
 }
 
 function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Package; label: string }) {
@@ -418,12 +452,10 @@ export default function FoodcostApp() {
 
   const dishQtyRecent = useMemo(() => {
     const map = new Map<string, number>();
-    DISHES.forEach((d) => {
-      let qty = 0;
-      itemQtyByNameRecent.forEach((q, name) => {
-        if (matchesDish(name, d.name)) qty += q;
-      });
-      map.set(d.id, qty);
+    itemQtyByNameRecent.forEach((qty, name) => {
+      const dish = resolveDishForItemName(name);
+      if (!dish) return;
+      map.set(dish.id, (map.get(dish.id) || 0) + qty);
     });
     return map;
   }, [itemQtyByNameRecent]);
@@ -467,12 +499,10 @@ export default function FoodcostApp() {
       const nameQty = new Map<string, number>();
       filtered.forEach((o) => o.items.forEach((it) => nameQty.set(it.name, (nameQty.get(it.name) || 0) + it.quantity)));
       const dishQty = new Map<string, number>();
-      DISHES.forEach((d) => {
-        let q = 0;
-        nameQty.forEach((v, name) => {
-          if (matchesDish(name, d.name)) q += v;
-        });
-        dishQty.set(d.id, q);
+      nameQty.forEach((v, name) => {
+        const dish = resolveDishForItemName(name);
+        if (!dish) return;
+        dishQty.set(dish.id, (dishQty.get(dish.id) || 0) + v);
       });
       cache.set(cutoff, dishQty);
       return dishQty;
@@ -620,7 +650,7 @@ export default function FoodcostApp() {
       if (o.status === 'cancelled' || !o.createdAt) return;
       if (!weekDates.has(dateStr(o.createdAt.toDate()))) return;
       o.items.forEach((it) => {
-        const dish = DISHES.find((d) => matchesDish(it.name, d.name));
+        const dish = resolveDishForItemName(it.name);
         if (!dish) return;
         qty[dish.id] = (qty[dish.id] || 0) + it.quantity;
       });

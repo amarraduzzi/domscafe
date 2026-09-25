@@ -45,10 +45,12 @@ export const DEFAULT_INGREDIENTS: SeedIngredient[] = [
   { id: 'canette_coca_zero', name: 'Coca-Cola Zero 33cl', unit: 'stuk', unitPrice: 7.55 },
   { id: 'canette_sprite', name: 'Canette Sprite', unit: 'stuk', unitPrice: 6 },
   { id: 'canette_poms', name: 'Poms 25cl', unit: 'stuk', unitPrice: 4.48 },
+  { id: 'canette_poms_33cl', name: 'Poms 33cl', unit: 'stuk', unitPrice: 7.55 }, // pas de prix reel donne -- estime sur la base du prix Coca 33cl (meme embouteilleur/format)
   { id: 'canette_schweppes_citron', name: 'Canette Schweppes Citron', unit: 'stuk', unitPrice: 6.5 },
   { id: 'canette_schweppes_mojito', name: 'Canette Schweppes Mojito', unit: 'stuk', unitPrice: 6.5 },
   { id: 'canette_schweppes_tonic', name: 'Canette Schweppes Tonic', unit: 'stuk', unitPrice: 6.5 },
   { id: 'canette_hawaii', name: 'Hawaii 25cl', unit: 'stuk', unitPrice: 4.48 },
+  { id: 'canette_hawaii_33cl', name: 'Hawaii 33cl', unit: 'stuk', unitPrice: 7.55 }, // pas de prix reel donne -- estime sur la base du prix Coca 33cl (meme embouteilleur/format)
   { id: 'canette_redbull', name: 'Canette Red Bull', unit: 'stuk', unitPrice: 14 },
   { id: 'glace_pilee', name: 'Glace pilée', unit: 'kg', unitPrice: 3 },
   // Base / boulangerie
@@ -143,11 +145,14 @@ export const DEFAULT_INGREDIENTS: SeedIngredient[] = [
   { id: 'frites', name: 'Frites (surgelées)', unit: 'kg', unitPrice: 14 },
 ];
 
-// dishId (voir src/data.ts) -> lignes de recette. Les tailles/variantes
-// (ex : sauce au choix, verveine à l'eau/au lait) partagent la recette de
-// base -- pas de distinction ici, comme le reste de l'outil foodcost qui
-// travaille au niveau du plat, pas de la variante.
-export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
+// dishId (voir src/data.ts) -> lignes de recette. Les tailles/variantes qui
+// n'ont pas d'impact ingrédients (ex : sauce au choix, verveine à l'eau/au
+// lait) partagent la recette de base -- pas de distinction ici. Les
+// variantes "(Emporter)" et "(Menu)" de la caisse, elles, changent
+// vraiment ce qui est servi (pas de bouteille d'eau à emporter ; un soda en
+// plus dans le menu sandwich/tacos) : voir DEFAULT_RECIPES plus bas, qui
+// dérive automatiquement ces recettes-variantes à partir de celles-ci.
+const DEFAULT_RECIPES_BASE: Record<string, SeedRecipeLine[]> = {
   // --- Petits-déjeuners --------------------------------------------------
   'b-express': [
     { ingredientId: 'cafe_grains', quantity: 8 },
@@ -498,20 +503,29 @@ export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
     { ingredientId: 'sauce_cocktail', quantity: 25 },
   ],
   // --- Boissons chaudes ------------------------------------------------------
-  'bc-cafe-noir': [{ ingredientId: 'cafe_grains', quantity: 8 }],
-  'bc-cafe-americain': [{ ingredientId: 'cafe_grains', quantity: 7 }],
+  'bc-cafe-noir': [{ ingredientId: 'cafe_grains', quantity: 8 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
+  ],
+  'bc-cafe-americain': [{ ingredientId: 'cafe_grains', quantity: 7 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
+  ],
   'bc-cafe-lait': [
     { ingredientId: 'cafe_grains', quantity: 7 },
     { ingredientId: 'lait', quantity: 100 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
   ],
   'bc-chocolat': [
     { ingredientId: 'lait', quantity: 180 },
     { ingredientId: 'chocolat_poudre', quantity: 20 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
   ],
-  'bc-double-expresso': [{ ingredientId: 'cafe_grains', quantity: 14 }],
+  'bc-double-expresso': [{ ingredientId: 'cafe_grains', quantity: 14 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
+  ],
   'bc-cappuccino': [
     { ingredientId: 'cafe_grains', quantity: 7 },
     { ingredientId: 'lait', quantity: 100 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
   ],
   'bc-frappuccino': [
     { ingredientId: 'cafe_grains', quantity: 10 },
@@ -522,16 +536,26 @@ export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
     { ingredientId: 'cafe_grains', quantity: 7 },
     { ingredientId: 'lait', quantity: 100 },
     { ingredientId: 'chocolat_poudre', quantity: 15 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
   ],
   'bc-the-menthe': [
     { ingredientId: 'the_vert', quantity: 5 },
     { ingredientId: 'menthe', quantity: 15 },
     { ingredientId: 'sucre', quantity: 15 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
   ],
-  'bc-verveine': [{ ingredientId: 'the_verveine', quantity: 5 }],
-  'bc-the-noir': [{ ingredientId: 'the_noir', quantity: 5 }],
-  'bc-the-aromatise': [{ ingredientId: 'the_aromatise', quantity: 6 }],
-  'bc-lait-chaud': [{ ingredientId: 'lait', quantity: 200 }],
+  'bc-verveine': [{ ingredientId: 'the_verveine', quantity: 5 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
+  ],
+  'bc-the-noir': [{ ingredientId: 'the_noir', quantity: 5 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
+  ],
+  'bc-the-aromatise': [{ ingredientId: 'the_aromatise', quantity: 6 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
+  ],
+  'bc-lait-chaud': [{ ingredientId: 'lait', quantity: 200 },
+    { ingredientId: 'eau_bouteille_33cl', quantity: 1 },
+  ],
   // --- Jus / cocktails frais ---------------------------------------------------
   'jc-jardin': [
     { ingredientId: 'citron', quantity: 50 },
@@ -591,13 +615,13 @@ export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
     { ingredientId: 'oulmes_bouteille', quantity: 0.3 },
   ],
   // --- "Soda" (sodas, eaux, café glacé...) -----------------------------------
-  'jc-hawaii': [{ ingredientId: 'canette_hawaii', quantity: 1 }],
+  'jc-hawaii': [{ ingredientId: 'canette_hawaii_33cl', quantity: 1 }],
   'jc-eau': [{ ingredientId: 'eau_bouteille_50cl', quantity: 1 }],
   'jc-eau-33': [{ ingredientId: 'eau_bouteille_33cl', quantity: 1 }],
-  'jc-coca': [{ ingredientId: 'canette_coca', quantity: 1 }],
+  'jc-coca': [{ ingredientId: 'canette_coca_33cl', quantity: 1 }], // vendu seul = 33cl (le 25cl sert uniquement dans le menu sandwich/tacos)
   'jc-coca-zero': [{ ingredientId: 'canette_coca_zero', quantity: 1 }],
   'jc-sprite': [{ ingredientId: 'canette_sprite', quantity: 1 }],
-  'jc-poms': [{ ingredientId: 'canette_poms', quantity: 1 }],
+  'jc-poms': [{ ingredientId: 'canette_poms_33cl', quantity: 1 }],
   'jc-schweppes-citron': [{ ingredientId: 'canette_schweppes_citron', quantity: 1 }],
   'jc-schweppes-mojito': [{ ingredientId: 'canette_schweppes_mojito', quantity: 1 }],
   'jc-schweppes-tonic': [{ ingredientId: 'canette_schweppes_tonic', quantity: 1 }],
@@ -618,3 +642,50 @@ export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
   'ds-tarte': [{ ingredientId: 'tarte_du_jour_achetee', quantity: 1 }],
   'ds-patisserie': [{ ingredientId: 'patisserie_du_jour_achetee', quantity: 1 }],
 };
+
+// ---------------------------------------------------------------------------
+// Variantes "(Emporter)" et "(Menu)" de la caisse (voir MENU_SURCHARGE /
+// TAKEAWAY_DISCOUNT + menuEligible / takeawayEligible dans PosApp.tsx) --
+// ce sont de vrais plats différents pour le foodcost, pas juste un prix
+// différent : "Café noir (Emporter)" n'a pas la bouteille d'eau offerte sur
+// place, et "Sandwich Thon (Menu)" inclut un soda 25cl. Dérivées ici
+// automatiquement à partir des recettes de base ci-dessus pour ne jamais
+// désynchroniser les deux -- si vous changez la recette de "Café noir", la
+// version "(Emporter)" suit automatiquement (moins l'eau).
+//
+// Un ID de recette "<id>::emporter" / "<id>::menu" correspond au dishId
+// généré par FoodcostApp.tsx pour ces variantes (voir DISHES).
+const HOT_DRINK_IDS = [
+  'bc-cafe-noir',
+  'bc-cafe-americain',
+  'bc-cafe-lait',
+  'bc-chocolat',
+  'bc-double-expresso',
+  'bc-cappuccino',
+  'bc-mocaccino',
+  'bc-the-menthe',
+  'bc-verveine',
+  'bc-the-noir',
+  'bc-the-aromatise',
+  'bc-lait-chaud',
+];
+// bc-frappuccino et jc-iced-coffee sont classés "soda" côté menu/caisse
+// (pas "boissons_chaudes") : pas de bouton Emporter pour eux, donc pas de
+// variante ici -- cohérent avec PosApp.tsx.
+
+const MENU_ELIGIBLE_IDS = ['s-thon', 's-doms', 's-poulet', 's-kefta', 'tc-poulet', 'tc-viande', 'tc-nuggets', 'tc-cordon'];
+
+const derivedVariantRecipes: Record<string, SeedRecipeLine[]> = {};
+HOT_DRINK_IDS.forEach((id) => {
+  const base = DEFAULT_RECIPES_BASE[id];
+  if (base) derivedVariantRecipes[`${id}::emporter`] = base.filter((l) => l.ingredientId !== 'eau_bouteille_33cl');
+});
+MENU_ELIGIBLE_IDS.forEach((id) => {
+  const base = DEFAULT_RECIPES_BASE[id];
+  // Soda 25cl générique inclus dans le menu -- le client peut choisir sa
+  // marque, le coût réel varie donc un peu selon le choix ; 25cl est le
+  // bon ordre de grandeur (voir "Coca-Cola 25cl" dans DEFAULT_INGREDIENTS).
+  if (base) derivedVariantRecipes[`${id}::menu`] = [...base, { ingredientId: 'canette_coca', quantity: 1 }];
+});
+
+export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = { ...DEFAULT_RECIPES_BASE, ...derivedVariantRecipes };

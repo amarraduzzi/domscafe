@@ -1879,14 +1879,6 @@ function MenuGrid({
             const menuAddId = `${it.id}::menu`;
             const takeawayEligible = it.category === 'boissons_chaudes';
             const takeawayAddId = `${it.id}::emporter`;
-            // "Gratis" -- carte de fidélité boissons chaudes (10 achetées,
-            // la 11e offerte). Ajoute la boisson à 0 DH, avec "(Gratis -
-            // fidélité)" dans le nom pour que ça reste traçable sur le
-            // ticket cuisine et le reçu, et visible dans les rapports comme
-            // une vente à 0 DH plutôt que de disparaître. Demandé le
-            // 16/09/2026.
-            const freeEligible = it.category === 'boissons_chaudes';
-            const freeAddId = `${it.id}::gratis`;
             // Prix effectif -- prix Glovo si un override existe pour cet
             // article ET qu'on est sur l'onglet Glovo (priceOverrides passé
             // uniquement dans ce cas-là, voir NewOrderPanel), sinon le prix
@@ -1897,7 +1889,7 @@ function MenuGrid({
               <div
                 key={it.id}
                 className={`relative overflow-hidden pos-surface border rounded-xl p-3.5 pt-4 transition-all ${
-                  justAdded === it.id || justAdded === menuAddId || justAdded === takeawayAddId || justAdded === freeAddId
+                  justAdded === it.id || justAdded === menuAddId || justAdded === takeawayAddId
                     ? 'border-brand-orange ring-2 ring-brand-orange/60 animate-pop'
                     : 'border-[#F3ECDD]/10 hover:border-brand-orange/50'
                 }`}
@@ -1933,15 +1925,6 @@ function MenuGrid({
                     className="mt-2 w-full text-xs font-bold py-1.5 rounded-lg border border-brand-orange/40 text-brand-orange bg-brand-orange/10 hover:bg-brand-orange/20 active:scale-[0.96] transition-all"
                   >
                     Emporter (-{TAKEAWAY_DISCOUNT} DH)
-                  </button>
-                )}
-                {freeEligible && (
-                  <button
-                    onClick={() => handleAdd(freeAddId, `${it.name.fr} (Gratis - fidélité)`, 0, it.station)}
-                    title="Boisson offerte -- carte de fidélité (10 achetées, la 11e offerte)"
-                    className="mt-1.5 w-full text-xs font-bold py-1.5 rounded-lg border border-[#8FBF8A]/40 text-[#8FBF8A] bg-[#8FBF8A]/10 hover:bg-[#8FBF8A]/20 active:scale-[0.96] transition-all"
-                  >
-                    Gratis (fidélité)
                   </button>
                 )}
               </div>
