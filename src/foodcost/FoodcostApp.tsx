@@ -1049,10 +1049,11 @@ export default function FoodcostApp() {
             <div className="flex items-start gap-2 text-xs text-[#9A9490] bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-brand-orange" />
               <span>
-                « Stock calculé » n'est plus un champ qu'on tape : cliquez sur « 0-meting » pour enregistrer un comptage
-                physique (point de départ), et sur « + Inkoop » à chaque livraison reçue. Entre les deux, le stock se
-                calcule tout seul : dernier comptage + inkoop reçu depuis − vraies ventes de la caisse depuis (via les
-                recettes). Recomptez de temps en temps : l'écart avec le calcul, c'est votre casse/perte/portion réelle.
+                « Stock calculé » n'est plus un champ qu'on tape : cliquez sur « Comptage initial » pour enregistrer un
+                comptage physique (point de départ), et sur « + Achat » à chaque livraison reçue. Entre les deux, le
+                stock se calcule tout seul : dernier comptage + achats reçus depuis − vraies ventes de la caisse
+                depuis (via les recettes). Recomptez de temps en temps : l'écart avec le calcul, c'est votre
+                casse/perte/portion réelle.
                 « Conso. moy/jour » reste basé sur les {PREDICTION_WINDOW_DAYS} derniers jours, indépendamment du
                 comptage.
               </span>
@@ -1111,14 +1112,14 @@ export default function FoodcostApp() {
                                   title="Enregistrer un comptage physique"
                                   className="px-2 py-1 rounded-md text-[10px] font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all whitespace-nowrap"
                                 >
-                                  0-meting
+                                  Comptage initial
                                 </button>
                                 <button
                                   onClick={() => recordPurchase(ing.id)}
                                   title="Enregistrer une livraison reçue"
                                   className="px-2 py-1 rounded-md text-[10px] font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all whitespace-nowrap"
                                 >
-                                  + Inkoop
+                                  + Achat
                                 </button>
                               </div>
                             </td>
@@ -1197,9 +1198,9 @@ export default function FoodcostApp() {
                 <thead>
                   <tr className="border-b border-[#F3ECDD]/10">
                     <Th>Plat</Th>
-                    <Th className="text-right">Aantal verkocht</Th>
-                    <Th className="text-right">Omzet</Th>
-                    <Th className="text-right">Kostprijs totaal</Th>
+                    <Th className="text-right">Quantité vendue</Th>
+                    <Th className="text-right">Chiffre d'affaires</Th>
+                    <Th className="text-right">Coût total</Th>
                   </tr>
                 </thead>
                 <tbody>
