@@ -209,8 +209,28 @@ const DISHES: { id: string; name: string; category: string; price: number }[] = 
 type Tab = 'ingredients' | 'recipes' | 'foodcost' | 'inventory' | 'sales' | 'week';
 
 interface InventoryEntry {
-  qty: number;
+  qty: number; // champ historique, plus affiché -- voir InventoryBaseline
   parLevel: number;
+}
+
+// "0-meting" (comptage physique) par ingrédient : le point de départ à
+// partir duquel le stock est ensuite calculé automatiquement (jamais tapé
+// à la main entre deux comptages). Un nouveau comptage remplace le
+// précédent -- c'est aussi le moment où la casse/le vol/la portion trop
+// généreuse se voit : l'écart entre "stock calculé juste avant" et "ce que
+// vous comptez réellement".
+interface InventoryBaseline {
+  qty: number;
+  setAt: number; // Date.now() au moment du comptage
+}
+
+// Une livraison reçue -- collection séparée plutôt qu'additionnée
+// directement au comptage, pour garder une trace de chaque entrée de stock.
+interface PurchaseLogEntry {
+  id: string;
+  ingredientId: string;
+  qty: number;
+  createdAt: number;
 }
 
 // Fenêtre glissante sur laquelle on calcule la consommation théorique
@@ -256,6 +276,8 @@ export default function FoodcostApp() {
   const [sortDesc, setSortDesc] = useState(true);
   const [orders, setOrders] = useState<OrderDoc[]>([]);
   const [inventory, setInventory] = useState<Map<string, InventoryEntry>>(new Map());
+  const [baselines, setBaselines] = useState<Map<string, InventoryBaseline>>(new Map());
+  const [purchaseLog, setPurchaseLog] = useState<PurchaseLogEntry[]>([]);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -312,6 +334,32 @@ export default function FoodcostApp() {
         map.set(d.id, { qty: Number(data.qty) || 0, parLevel: Number(data.parLevel) || 0 });
       });
       setInventory(map);
+    });
+    return () => unsub();
+  }, [unlocked]);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    const unsub = onSnapshot(collection(db, 'fcInventoryBaseline'), (snap) => {
+      const map = new Map<string, InventoryBaseline>();
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        map.set(d.id, { qty: Number(data.qty) || 0, setAt: Number(data.setAt) || 0 });
+      });
+      setBaselines(map);
+    });
+    return () => unsub();
+  }, [unlocked]);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    const unsub = onSnapshot(collection(db, 'fcPurchasesLog'), (snap) => {
+      setPurchaseLog(
+        snap.docs.map((d) => {
+          const data = d.data();
+          return { id: d.id, ingredientId: data.ingredientId, qty: Number(data.qty) || 0, createdAt: Number(data.createdAt) || 0 };
+        })
+      );
     });
     return () => unsub();
   }, [unlocked]);
@@ -388,6 +436,80 @@ export default function FoodcostApp() {
   }, [dishQtyRecent, recipes, ingredientsById]);
 
   const avgDailyUsage = (ingredientId: string): number => (ingredientQtyUsedRecent.get(ingredientId) || 0) / predictionDaysSpan;
+
+  // ---------------------------------------------------------------------
+  // Stock calculé = dernier comptage ("0-meting") + inkoop enregistré
+  // depuis − vraies ventes (théorique, via les recettes) depuis. Jamais un
+  // champ qu'on tape à la main entre deux comptages -- voir InventoryBaseline
+  // plus haut.
+  //
+  // dishQtySinceCutoff() est mis en cache par date de comptage : la plupart
+  // du temps, plusieurs ingrédients sont comptés ensemble (même "setAt"), ce
+  // qui évite de repasser sur toutes les commandes une fois par ingrédient.
+  // ---------------------------------------------------------------------
+  const dishQtySinceCutoff = useMemo(() => {
+    const cache = new Map<number, Map<string, number>>();
+    return (cutoff: number): Map<string, number> => {
+      const cached = cache.get(cutoff);
+      if (cached) return cached;
+      const filtered = orders.filter((o) => o.status !== 'cancelled' && o.createdAt && o.createdAt.toMillis() >= cutoff);
+      const nameQty = new Map<string, number>();
+      filtered.forEach((o) => o.items.forEach((it) => nameQty.set(it.name, (nameQty.get(it.name) || 0) + it.quantity)));
+      const dishQty = new Map<string, number>();
+      DISHES.forEach((d) => {
+        let q = 0;
+        nameQty.forEach((v, name) => {
+          if (matchesDish(name, d.name)) q += v;
+        });
+        dishQty.set(d.id, q);
+      });
+      cache.set(cutoff, dishQty);
+      return dishQty;
+    };
+  }, [orders]);
+
+  const usageSinceForIngredient = (ingredientId: string, cutoff: number): number => {
+    const ing = ingredientsById.get(ingredientId);
+    if (!ing) return 0;
+    const dishQty = dishQtySinceCutoff(cutoff);
+    let total = 0;
+    DISHES.forEach((d) => {
+      const qtySold = dishQty.get(d.id) || 0;
+      if (qtySold <= 0) return;
+      const line = recipes.get(d.id)?.lines.find((l) => l.ingredientId === ingredientId);
+      if (!line) return;
+      const perUnit = ing.unit === 'stuk' ? line.quantity : line.quantity / 1000;
+      total += perUnit * qtySold;
+    });
+    return total;
+  };
+
+  const purchasedSinceForIngredient = (ingredientId: string, cutoff: number): number =>
+    purchaseLog.filter((p) => p.ingredientId === ingredientId && p.createdAt >= cutoff).reduce((s, p) => s + p.qty, 0);
+
+  // null = pas encore de "0-meting" pour cet ingrédient -- on ne fait
+  // jamais semblant que le stock est 0.
+  const computedStock = (ingredientId: string): number | null => {
+    const baseline = baselines.get(ingredientId);
+    if (!baseline) return null;
+    return baseline.qty + purchasedSinceForIngredient(ingredientId, baseline.setAt) - usageSinceForIngredient(ingredientId, baseline.setAt);
+  };
+
+  const recordBaseline = async (ingredientId: string, currentValue: number | null) => {
+    const input = window.prompt('Comptage physique actuel :', currentValue !== null ? String(currentValue) : '0');
+    if (input === null) return;
+    const qty = parseFloat(input.replace(',', '.'));
+    if (!isFinite(qty) || qty < 0) return;
+    await setDoc(doc(db, 'fcInventoryBaseline', ingredientId), { qty, setAt: Date.now() });
+  };
+
+  const recordPurchase = async (ingredientId: string) => {
+    const input = window.prompt('Quantité reçue (livraison) :', '');
+    if (input === null) return;
+    const qty = parseFloat(input.replace(',', '.'));
+    if (!isFinite(qty) || qty <= 0) return;
+    await addDoc(collection(db, 'fcPurchasesLog'), { ingredientId, qty, createdAt: Date.now() });
+  };
 
   if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />;
 
@@ -496,11 +618,10 @@ export default function FoodcostApp() {
   };
 
   // ---------------------------------------------------------------------
-  // Inventaire
+  // Inventaire -- "qty" sur fcInventory est un champ historique (avant le
+  // système de 0-meting), plus utilisé pour l'affichage ; seul parLevel
+  // reste piloté depuis ce doc.
   // ---------------------------------------------------------------------
-  const setInventoryQty = async (ingredientId: string, qty: number) => {
-    await setDoc(doc(db, 'fcInventory', ingredientId), { qty }, { merge: true });
-  };
   const setInventoryParLevel = async (ingredientId: string, parLevel: number) => {
     await setDoc(doc(db, 'fcInventory', ingredientId), { parLevel }, { merge: true });
   };
@@ -797,11 +918,12 @@ export default function FoodcostApp() {
             <div className="flex items-start gap-2 text-xs text-[#9A9490] bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-brand-orange" />
               <span>
-                « Stock actuel » se met à jour uniquement quand vous le comptez et le tapez ici (aucun scan automatique).
-                « Conso. moy/jour » et « Jours restants » sont calculés à partir des {PREDICTION_WINDOW_DAYS} derniers
-                jours de vraies commandes de la caisse × les recettes ci-dessus -- plus vous avez de recettes remplies,
-                plus c'est fiable. « Niveau cible » est le stock que vous voulez avoir en réserve ; « À commander »
-                = niveau cible − stock actuel.
+                « Stock calculé » n'est plus un champ qu'on tape : cliquez sur « 0-meting » pour enregistrer un comptage
+                physique (point de départ), et sur « + Inkoop » à chaque livraison reçue. Entre les deux, le stock se
+                calcule tout seul : dernier comptage + inkoop reçu depuis − vraies ventes de la caisse depuis (via les
+                recettes). Recomptez de temps en temps : l'écart avec le calcul, c'est votre casse/perte/portion réelle.
+                « Conso. moy/jour » reste basé sur les {PREDICTION_WINDOW_DAYS} derniers jours, indépendamment du
+                comptage.
               </span>
             </div>
             <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
@@ -814,7 +936,8 @@ export default function FoodcostApp() {
                     <thead>
                       <tr className="border-b border-[#F3ECDD]/10">
                         <Th>Ingrédient</Th>
-                        <Th className="text-right">Stock actuel</Th>
+                        <Th className="text-right">Stock calculé</Th>
+                        <Th></Th>
                         <Th className="text-right">Niveau cible</Th>
                         <Th className="text-right">Conso. moy/jour</Th>
                         <Th className="text-right">Jours restants</Th>
@@ -824,11 +947,13 @@ export default function FoodcostApp() {
                     <tbody>
                       {ingredients.map((ing) => {
                         const inv = inventory.get(ing.id) || { qty: 0, parLevel: 0 };
+                        const baseline = baselines.get(ing.id);
+                        const stock = computedStock(ing.id);
                         const usage = avgDailyUsage(ing.id);
-                        const daysLeft = usage > 0 ? inv.qty / usage : Infinity;
-                        const toOrder = Math.max(0, inv.parLevel - inv.qty);
-                        const low = inv.parLevel > 0 && inv.qty < inv.parLevel;
-                        const critical = usage > 0 && daysLeft < 2;
+                        const daysLeft = stock !== null && usage > 0 ? stock / usage : Infinity;
+                        const toOrder = stock !== null ? Math.max(0, inv.parLevel - stock) : 0;
+                        const low = stock !== null && inv.parLevel > 0 && stock < inv.parLevel;
+                        const critical = stock !== null && usage > 0 && daysLeft < 2;
                         return (
                           <tr key={ing.id} className={`border-b border-[#F3ECDD]/5 ${critical ? 'bg-red-500/10' : low ? 'bg-[#D9A45C]/10' : ''}`}>
                             <td className="px-3 py-1.5">
@@ -836,15 +961,35 @@ export default function FoodcostApp() {
                               {critical && <AlertTriangle className="inline w-3.5 h-3.5 text-red-400 ml-1.5" />}
                             </td>
                             <td className="px-3 py-1.5 text-right">
-                              <input
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                value={inv.qty}
-                                onChange={(e) => setInventoryQty(ing.id, parseFloat(e.target.value) || 0)}
-                                className="w-20 text-right bg-transparent border-b border-transparent hover:border-[#F3ECDD]/20 focus:border-brand-orange outline-none py-1"
-                              />
-                              <span className="text-[#7A736C] text-xs ml-1">{UNIT_LABEL[ing.unit]}</span>
+                              {stock !== null ? (
+                                <>
+                                  <span className="font-bold text-[#F3ECDD]">{stock.toFixed(2)}</span>{' '}
+                                  <span className="text-[#7A736C] text-xs">{UNIT_LABEL[ing.unit]}</span>
+                                  <div className="text-[10px] text-[#7A736C]">
+                                    compté le {new Date(baseline!.setAt).toLocaleDateString('fr-FR')}
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-[#7A736C] text-xs italic">pas encore compté</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => recordBaseline(ing.id, stock)}
+                                  title="Enregistrer un comptage physique"
+                                  className="px-2 py-1 rounded-md text-[10px] font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all whitespace-nowrap"
+                                >
+                                  0-meting
+                                </button>
+                                <button
+                                  onClick={() => recordPurchase(ing.id)}
+                                  title="Enregistrer une livraison reçue"
+                                  className="px-2 py-1 rounded-md text-[10px] font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all whitespace-nowrap"
+                                >
+                                  + Inkoop
+                                </button>
+                              </div>
                             </td>
                             <td className="px-3 py-1.5 text-right">
                               <input
@@ -861,10 +1006,10 @@ export default function FoodcostApp() {
                               {usage > 0 ? `${usage.toFixed(2)} ${UNIT_LABEL[ing.unit]}` : '--'}
                             </td>
                             <td className={`px-3 py-1.5 text-right font-bold ${critical ? 'text-red-400' : low ? 'text-[#D9A45C]' : 'text-[#9A9490]'}`}>
-                              {usage > 0 ? (isFinite(daysLeft) ? daysLeft.toFixed(1) : '--') : '--'}
+                              {stock !== null && usage > 0 ? (isFinite(daysLeft) ? daysLeft.toFixed(1) : '--') : '--'}
                             </td>
                             <td className={`px-3 py-1.5 text-right font-bold ${toOrder > 0 ? 'text-brand-orange' : 'text-[#7A736C]'}`}>
-                              {toOrder > 0 ? `${toOrder.toFixed(2)} ${UNIT_LABEL[ing.unit]}` : '--'}
+                              {stock !== null && toOrder > 0 ? `${toOrder.toFixed(2)} ${UNIT_LABEL[ing.unit]}` : '--'}
                             </td>
                           </tr>
                         );
