@@ -598,10 +598,32 @@ export default function FoodcostApp() {
     () => Object.keys(DEFAULT_RECIPES).filter((id) => !recipes.has(id)),
     [recipes]
   );
+  // Anciens noms génériques ("Canette Coca-Cola") d'avant la distinction
+  // 25cl/33cl -- on ne renomme QUE si le nom actuel correspond exactement à
+  // l'ancien nom connu, jamais si quelqu'un l'a déjà personnalisé.
+  const LEGACY_INGREDIENT_NAMES: Record<string, string> = {
+    canette_coca: 'Canette Coca-Cola',
+    canette_hawaii: 'Canette Hawaii',
+    canette_poms: 'Canette Poms',
+  };
+  const ingredientsToRename = useMemo(
+    () =>
+      Object.entries(LEGACY_INGREDIENT_NAMES)
+        .map(([id, legacyName]) => {
+          const current = ingredientsById.get(id);
+          const target = DEFAULT_INGREDIENTS.find((d) => d.id === id);
+          if (current && target && current.name === legacyName && current.name !== target.name) {
+            return { id, newName: target.name };
+          }
+          return null;
+        })
+        .filter((x): x is { id: string; newName: string } => x !== null),
+    [ingredientsById]
+  );
   const completeMissingDefaults = async () => {
     if (
       !window.confirm(
-        `Ajouter ${missingDefaultIngredients.length} ingrédient(s) et ${missingDefaultRecipeIds.length} recette(s) manquant(e)s dans les valeurs standards ? Rien de ce qui existe déjà ne sera modifié.`
+        `Ajouter ${missingDefaultIngredients.length} ingrédient(s) et ${missingDefaultRecipeIds.length} recette(s) manquant(e)s, et renommer ${ingredientsToRename.length} ancien(s) nom(s) générique(s) (ex : "Canette Coca-Cola" -> "Coca-Cola 25cl") ? Rien d'autre ne sera modifié.`
       )
     )
       return;
@@ -611,6 +633,9 @@ export default function FoodcostApp() {
     });
     missingDefaultRecipeIds.forEach((id) => {
       batch.set(doc(db, 'fcRecipes', id), { lines: DEFAULT_RECIPES[id] });
+    });
+    ingredientsToRename.forEach(({ id, newName }) => {
+      batch.set(doc(db, 'fcIngredients', id), { name: newName }, { merge: true });
     });
     await batch.commit();
   };
@@ -738,18 +763,18 @@ export default function FoodcostApp() {
       </header>
 
       <main className="p-5 max-w-6xl mx-auto">
-        {(missingDefaultIngredients.length > 0 || missingDefaultRecipeIds.length > 0) && (
+        {(missingDefaultIngredients.length > 0 || missingDefaultRecipeIds.length > 0 || ingredientsToRename.length > 0) && (
           <div className="mb-4 flex items-center justify-between gap-3 flex-wrap text-xs bg-brand-orange/10 border border-brand-orange/40 rounded-lg px-3 py-2.5">
             <span className="flex items-center gap-2 text-[#F3ECDD]">
               <Sparkles className="w-4 h-4 shrink-0 text-brand-orange" />
-              {missingDefaultIngredients.length} nouvel(le)s ingrédient(s) et {missingDefaultRecipeIds.length} nouvelle(s) recette(s)
-              standards pas encore chargé(e)s chez vous (ex : distinction 25cl/33cl).
+              {missingDefaultIngredients.length} nouvel(le)s ingrédient(s), {missingDefaultRecipeIds.length} nouvelle(s) recette(s) et{' '}
+              {ingredientsToRename.length} nom(s) à corriger (ex : distinction 25cl/33cl).
             </span>
             <button
               onClick={completeMissingDefaults}
               className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-orange text-[#1A1208] hover:bg-brand-orange-hover transition-all"
             >
-              Compléter (sans toucher à l'existant)
+              Compléter (sans toucher au reste)
             </button>
           </div>
         )}
