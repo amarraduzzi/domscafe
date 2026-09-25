@@ -1630,13 +1630,14 @@ export default function App() {
                       <div className="grid grid-cols-2 gap-3 mb-6 text-start animate-fadeIn">
                         <div>
                           <label className="block text-xs font-bold text-[#C7BFB0] mb-1.5 uppercase tracking-wider">
-                            {t.cart_table_number_label}
+                            {t.cart_table_number_label} <span className="text-brand-orange">*</span>
                           </label>
-                          <input 
+                          <input
                             type="text"
                             value={tableNumber}
                             onChange={(e) => setTableNumber(e.target.value)}
                             placeholder={lang === 'ar' ? 'رقم الطاولة' : 'Ex: 5'}
+                            required
                             className="w-full bg-brand-dark border border-[#F3ECDD]/15 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/30 px-3 py-2.5 rounded-lg text-base text-[#F3ECDD] placeholder-gray-600 focus:outline-none transition-all"
                           />
                         </div>
@@ -1739,7 +1740,7 @@ export default function App() {
                     </div>
 
                     {(() => {
-                      const isDineInIncomplete = orderType === 'dine_in' && !tableNumber.trim() && !firstName.trim();
+                      const isDineInIncomplete = orderType === 'dine_in' && !tableNumber.trim();
                       const isDeliveryNameIncomplete = orderType === 'delivery' && !firstName.trim();
                       const isDeliveryAddressIncomplete = orderType === 'delivery' && !address.trim();
 

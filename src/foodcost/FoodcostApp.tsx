@@ -552,6 +552,50 @@ export default function FoodcostApp() {
     await addDoc(collection(db, 'fcPurchasesLog'), { ingredientId, qty, createdAt: Date.now() });
   };
 
+  // Ajoute UNIQUEMENT les ingrédients/recettes standards qui n'existent pas
+  // encore (comparé par id) -- ne touche jamais à ce qui existe déjà.
+  // Nécessaire parce que "Charger les valeurs standards" ci-dessous ne se
+  // déclenche que sur une liste vide : sans ce bouton, un nouvel ingrédient
+  // standard ajouté plus tard (ex : distinction 25cl/33cl) n'apparaît
+  // jamais chez quelqu'un qui a déjà chargé les valeurs standards avant.
+  //
+  // IMPORTANT : ces trois useMemo doivent rester AVANT le "if (!unlocked)
+  // return" ci-dessous -- les hooks React doivent s'exécuter dans le même
+  // ordre à chaque rendu. Placés après, ils ne s'exécutent pas tant que
+  // l'écran est verrouillé, puis apparaissent d'un coup dès le code PIN
+  // entré : React voit un nombre de hooks différent entre les deux rendus
+  // et plante (écran blanc jusqu'au rechargement complet de la page, qui
+  // repart d'un rendu déjà déverrouillé donc sans changement de nombre de
+  // hooks en cours de route). C'est exactement le bug corrigé le 25/09/2026.
+  const missingDefaultIngredients = useMemo(
+    () => DEFAULT_INGREDIENTS.filter((ing) => !ingredientsById.has(ing.id)),
+    [ingredientsById]
+  );
+  const missingDefaultRecipeIds = useMemo(
+    () => Object.keys(DEFAULT_RECIPES).filter((id) => !recipes.has(id)),
+    [recipes]
+  );
+  // Anciens noms génériques ("Canette Coca-Cola") d'avant la distinction
+  // 25cl/33cl -- on ne renomme QUE si le nom actuel correspond exactement à
+  // l'ancien nom connu, jamais si quelqu'un l'a déjà personnalisé.
+  const ingredientsToRename = useMemo(() => {
+    const legacyNames: Record<string, string> = {
+      canette_coca: 'Canette Coca-Cola',
+      canette_hawaii: 'Canette Hawaii',
+      canette_poms: 'Canette Poms',
+    };
+    return Object.entries(legacyNames)
+      .map(([id, legacyName]) => {
+        const current = ingredientsById.get(id);
+        const target = DEFAULT_INGREDIENTS.find((d) => d.id === id);
+        if (current && target && current.name === legacyName && current.name !== target.name) {
+          return { id, newName: target.name };
+        }
+        return null;
+      })
+      .filter((x): x is { id: string; newName: string } => x !== null);
+  }, [ingredientsById]);
+
   if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />;
 
   // -------------------------------------------------------------------
@@ -584,42 +628,6 @@ export default function FoodcostApp() {
     await batch.commit();
   };
 
-  // Ajoute UNIQUEMENT les ingrédients/recettes standards qui n'existent pas
-  // encore (comparé par id) -- ne touche jamais à ce qui existe déjà.
-  // Nécessaire parce que "Charger les valeurs standards" ci-dessus ne se
-  // déclenche que sur une liste vide : sans ce bouton, un nouvel ingrédient
-  // standard ajouté plus tard (ex : distinction 25cl/33cl) n'apparaît
-  // jamais chez quelqu'un qui a déjà chargé les valeurs standards avant.
-  const missingDefaultIngredients = useMemo(
-    () => DEFAULT_INGREDIENTS.filter((ing) => !ingredientsById.has(ing.id)),
-    [ingredientsById]
-  );
-  const missingDefaultRecipeIds = useMemo(
-    () => Object.keys(DEFAULT_RECIPES).filter((id) => !recipes.has(id)),
-    [recipes]
-  );
-  // Anciens noms génériques ("Canette Coca-Cola") d'avant la distinction
-  // 25cl/33cl -- on ne renomme QUE si le nom actuel correspond exactement à
-  // l'ancien nom connu, jamais si quelqu'un l'a déjà personnalisé.
-  const LEGACY_INGREDIENT_NAMES: Record<string, string> = {
-    canette_coca: 'Canette Coca-Cola',
-    canette_hawaii: 'Canette Hawaii',
-    canette_poms: 'Canette Poms',
-  };
-  const ingredientsToRename = useMemo(
-    () =>
-      Object.entries(LEGACY_INGREDIENT_NAMES)
-        .map(([id, legacyName]) => {
-          const current = ingredientsById.get(id);
-          const target = DEFAULT_INGREDIENTS.find((d) => d.id === id);
-          if (current && target && current.name === legacyName && current.name !== target.name) {
-            return { id, newName: target.name };
-          }
-          return null;
-        })
-        .filter((x): x is { id: string; newName: string } => x !== null),
-    [ingredientsById]
-  );
   const completeMissingDefaults = async () => {
     if (
       !window.confirm(
