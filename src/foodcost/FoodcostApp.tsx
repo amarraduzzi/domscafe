@@ -579,21 +579,30 @@ export default function FoodcostApp() {
   // 25cl/33cl -- on ne renomme QUE si le nom actuel correspond exactement à
   // l'ancien nom connu, jamais si quelqu'un l'a déjà personnalisé.
   const ingredientsToRename = useMemo(() => {
-    const legacyNames: Record<string, string> = {
-      canette_coca: 'Canette Coca-Cola',
-      canette_hawaii: 'Canette Hawaii',
-      canette_poms: 'Canette Poms',
+    // legacyPrice : optionnel -- ne corrige le prix que si le prix actuel
+    // correspond exactement à l'ancien prix générique connu, jamais si
+    // quelqu'un l'a déjà ajusté manuellement.
+    const legacyFixups: Record<string, { name: string; legacyPrice?: number }> = {
+      canette_coca: { name: 'Canette Coca-Cola' },
+      canette_hawaii: { name: 'Canette Hawaii' },
+      canette_poms: { name: 'Canette Poms' },
+      canette_coca_zero: { name: 'Canette Coca-Cola Zero', legacyPrice: 6 },
     };
-    return Object.entries(legacyNames)
-      .map(([id, legacyName]) => {
+    return Object.entries(legacyFixups)
+      .map(([id, { name: legacyName, legacyPrice }]) => {
         const current = ingredientsById.get(id);
         const target = DEFAULT_INGREDIENTS.find((d) => d.id === id);
-        if (current && target && current.name === legacyName && current.name !== target.name) {
-          return { id, newName: target.name };
-        }
-        return null;
+        if (!current || !target || current.name !== legacyName) return null;
+        const nameChanged = current.name !== target.name;
+        const priceChanged = legacyPrice !== undefined && current.unitPrice === legacyPrice && current.unitPrice !== target.unitPrice;
+        if (!nameChanged && !priceChanged) return null;
+        return {
+          id,
+          newName: target.name,
+          newPrice: priceChanged ? target.unitPrice : undefined,
+        };
       })
-      .filter((x): x is { id: string; newName: string } => x !== null);
+      .filter((x): x is { id: string; newName: string; newPrice: number | undefined } => x !== null);
   }, [ingredientsById]);
 
   if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />;
@@ -642,8 +651,10 @@ export default function FoodcostApp() {
     missingDefaultRecipeIds.forEach((id) => {
       batch.set(doc(db, 'fcRecipes', id), { lines: DEFAULT_RECIPES[id] });
     });
-    ingredientsToRename.forEach(({ id, newName }) => {
-      batch.set(doc(db, 'fcIngredients', id), { name: newName }, { merge: true });
+    ingredientsToRename.forEach(({ id, newName, newPrice }) => {
+      const patch: { name: string; unitPrice?: number } = { name: newName };
+      if (newPrice !== undefined) patch.unitPrice = newPrice;
+      batch.set(doc(db, 'fcIngredients', id), patch, { merge: true });
     });
     await batch.commit();
   };
