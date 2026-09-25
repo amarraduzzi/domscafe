@@ -154,6 +154,17 @@ function foodcostColor(pct: number): string {
   return 'text-red-400';
 }
 
+// formatMAD() de posData arrondit à l'entier -- très bien pour des prix de
+// vente (toujours ronds ici), mais un coût de recette hérite directement des
+// prix d'achat des ingrédients qui, eux, ont des centimes (ex : un croissant
+// à 6,50 DH). Arrondir ça à 7 MAD cache l'info qu'on est justement en train
+// d'afficher. Donc pour tout ce qui est coût/recette : décimales visibles
+// quand il y en a, entier tout court sinon.
+function formatCostMAD(n: number): string {
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded) ? `${rounded} MAD` : `${rounded.toFixed(2)} MAD`;
+}
+
 function foodcostBg(pct: number): string {
   if (pct <= 0) return '';
   if (pct < 30) return 'bg-[#8FBF8A]/10';
@@ -837,7 +848,7 @@ export default function FoodcostApp() {
                             />
                             <span className="text-[#7A736C] text-xs ml-1">{ing ? RECIPE_UNIT_LABEL[ing.unit] : ''}</span>
                           </td>
-                          <td className="px-3 py-1.5 text-right font-bold text-[#F3ECDD]">{formatMAD(lineCost(ing, line.quantity))}</td>
+                          <td className="px-3 py-1.5 text-right font-bold text-[#F3ECDD]">{formatCostMAD(lineCost(ing, line.quantity))}</td>
                           <td className="px-3 py-1.5 text-right">
                             <button onClick={() => removeRecipeLine(i)} className="text-[#7A736C] hover:text-red-400 transition-colors">
                               <Trash2 className="w-4 h-4" />
@@ -865,7 +876,7 @@ export default function FoodcostApp() {
                   <div className="text-right">
                     <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold">Coût total de la recette</p>
                     <p className="font-display font-black text-2xl text-brand-orange">
-                      {formatMAD(recipeCost(currentRecipe, ingredientsById))}
+                      {formatCostMAD(recipeCost(currentRecipe, ingredientsById))}
                     </p>
                   </div>
                 </div>
@@ -904,7 +915,7 @@ export default function FoodcostApp() {
                     <td className="px-3 py-1.5">{d.name}</td>
                     <td className="px-3 py-1.5 text-[#9A9490] text-xs">{d.category}</td>
                     <td className="px-3 py-1.5 text-right">{formatMAD(d.price)}</td>
-                    <td className="px-3 py-1.5 text-right">{d.hasRecipe ? formatMAD(d.cost) : <span className="text-[#7A736C]">-- pas de recette --</span>}</td>
+                    <td className="px-3 py-1.5 text-right">{d.hasRecipe ? formatCostMAD(d.cost) : <span className="text-[#7A736C]">-- pas de recette --</span>}</td>
                     <td className={`px-3 py-1.5 text-right font-bold ${foodcostColor(d.pct)}`}>{d.hasRecipe ? `${d.pct.toFixed(1)}%` : '--'}</td>
                   </tr>
                 ))}
@@ -1088,7 +1099,7 @@ export default function FoodcostApp() {
                           />
                         </td>
                         <td className="px-3 py-1.5 text-right">{formatMAD(qty * d.price)}</td>
-                        <td className="px-3 py-1.5 text-right">{formatMAD(qty * d.cost)}</td>
+                        <td className="px-3 py-1.5 text-right">{formatCostMAD(qty * d.cost)}</td>
                       </tr>
                     );
                   })}
@@ -1129,10 +1140,10 @@ export default function FoodcostApp() {
                             className="w-24 text-right bg-transparent border-b border-transparent hover:border-[#F3ECDD]/20 focus:border-brand-orange outline-none py-1"
                           />
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[#9A9490]">{formatMAD(theoretical)}</td>
+                        <td className="px-3 py-1.5 text-right text-[#9A9490]">{formatCostMAD(theoretical)}</td>
                         <td className={`px-3 py-1.5 text-right font-bold ${delta > 0 ? 'text-red-400' : delta < 0 ? 'text-[#8FBF8A]' : 'text-[#7A736C]'}`}>
                           {delta > 0 ? '+' : ''}
-                          {formatMAD(delta)}
+                          {formatCostMAD(delta)}
                         </td>
                       </tr>
                     );
@@ -1168,7 +1179,7 @@ export default function FoodcostApp() {
               </div>
               <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
                 <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Foodcost total</p>
-                <p className="font-display font-black text-2xl text-[#F3ECDD]">{formatMAD(weekFoodcost)}</p>
+                <p className="font-display font-black text-2xl text-[#F3ECDD]">{formatCostMAD(weekFoodcost)}</p>
               </div>
               <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
                 <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Foodcost moyen</p>
@@ -1176,7 +1187,7 @@ export default function FoodcostApp() {
               </div>
               <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
                 <p className="text-[#9A9490] text-xs uppercase tracking-wider font-bold mb-1">Marge brute</p>
-                <p className="font-display font-black text-2xl text-[#8FBF8A]">{formatMAD(weekRevenue - weekFoodcost)}</p>
+                <p className="font-display font-black text-2xl text-[#8FBF8A]">{formatCostMAD(weekRevenue - weekFoodcost)}</p>
               </div>
             </div>
             <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
@@ -1194,7 +1205,7 @@ export default function FoodcostApp() {
                   {top5Expensive.map((d) => (
                     <tr key={d.id} className="border-b border-[#F3ECDD]/5">
                       <td className="px-3 py-1.5">{d.name}</td>
-                      <td className="px-3 py-1.5 text-right">{formatMAD(d.cost)}</td>
+                      <td className="px-3 py-1.5 text-right">{formatCostMAD(d.cost)}</td>
                       <td className="px-3 py-1.5 text-right">{formatMAD(d.price)}</td>
                       <td className={`px-3 py-1.5 text-right font-bold ${foodcostColor(d.pct)}`}>{d.pct.toFixed(1)}%</td>
                     </tr>
