@@ -53,7 +53,7 @@ export const DEFAULT_INGREDIENTS: SeedIngredient[] = [
   // Base / boulangerie
   { id: 'oeuf', name: 'Œuf', unit: 'stuk', unitPrice: 1.8 },
   { id: 'pain_mie', name: 'Pain de mie (tranche)', unit: 'stuk', unitPrice: 1.2 },
-  { id: 'pain_sandwich', name: 'Pain sandwich', unit: 'stuk', unitPrice: 3 },
+  { id: 'pain_ciabatta', name: 'Pain ciabatta', unit: 'stuk', unitPrice: 3.5 },
   { id: 'pate_pizza', name: 'Pâte à pizza (boule)', unit: 'stuk', unitPrice: 5 },
   { id: 'crepe_base', name: 'Crêpe nature (base)', unit: 'stuk', unitPrice: 3 },
   { id: 'tortilla', name: 'Tortilla tacos', unit: 'stuk', unitPrice: 3.5 },
@@ -370,7 +370,7 @@ export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
   ],
   // --- Sandwiches --------------------------------------------------------------
   's-thon': [
-    { ingredientId: 'pain_sandwich', quantity: 1 },
+    { ingredientId: 'pain_ciabatta', quantity: 1 },
     { ingredientId: 'thon', quantity: 70 },
     { ingredientId: 'edam', quantity: 30 },
     { ingredientId: 'tomate', quantity: 40 },
@@ -380,7 +380,7 @@ export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
     { ingredientId: 'sauce_cocktail', quantity: 25 },
   ],
   's-doms': [
-    { ingredientId: 'pain_sandwich', quantity: 1 },
+    { ingredientId: 'pain_ciabatta', quantity: 1 },
     { ingredientId: 'thon', quantity: 40 },
     { ingredientId: 'jambon_boeuf', quantity: 40 },
     { ingredientId: 'edam', quantity: 30 },
@@ -389,7 +389,7 @@ export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
     { ingredientId: 'cornichons', quantity: 20 },
   ],
   's-poulet': [
-    { ingredientId: 'pain_sandwich', quantity: 1 },
+    { ingredientId: 'pain_ciabatta', quantity: 1 },
     { ingredientId: 'poulet', quantity: 90 },
     { ingredientId: 'edam', quantity: 30 },
     { ingredientId: 'tomate', quantity: 40 },
@@ -398,7 +398,7 @@ export const DEFAULT_RECIPES: Record<string, SeedRecipeLine[]> = {
     { ingredientId: 'poivrons', quantity: 30 },
   ],
   's-kefta': [
-    { ingredientId: 'pain_sandwich', quantity: 1 },
+    { ingredientId: 'pain_ciabatta', quantity: 1 },
     { ingredientId: 'viande_hachee', quantity: 100 },
     { ingredientId: 'edam', quantity: 30 },
     { ingredientId: 'tomate', quantity: 40 },
