@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Sparkles,
+  ShoppingCart,
 } from 'lucide-react';
 import { db } from '../firebase';
 import { menuItems as staticMenuItems, type MenuItem } from '../data';
@@ -117,7 +118,12 @@ interface Ingredient {
   name: string;
   unit: Unit;
   unitPrice: number; // MAD par kg / par litre / par pièce
+  deliveryDays?: number; // nombre de jours entre deux livraisons -- sert au conseil d'achat du jour
 }
+
+// Fréquence de livraison par défaut (jours) quand l'ingrédient n'a pas encore
+// été renseigné individuellement.
+const DEFAULT_DELIVERY_DAYS = 7;
 
 interface RecipeLine {
   ingredientId: string;
@@ -481,6 +487,96 @@ export default function FoodcostApp() {
   const avgDailyUsage = (ingredientId: string): number => (ingredientQtyUsedRecent.get(ingredientId) || 0) / predictionDaysSpan;
 
   // ---------------------------------------------------------------------
+  // Conso. moyenne PAR JOUR DE LA SEMAINE (lun/mar/.../dim) -- une conso.
+  // "générale" sur 30 jours mélange vendredi et mardi, alors qu'un café peut
+  // vendre très différemment selon le jour. Fenêtre plus large (8 semaines)
+  // pour avoir un échantillon correct par jour. Sert au conseil d'achat du
+  // jour ci-dessous ; les colonnes historiques de l'onglet Inventaire (Conso.
+  // moy/jour, jours restants) restent, elles, sur la moyenne generale.
+  // ---------------------------------------------------------------------
+  const WEEKDAY_WINDOW_DAYS = 56;
+
+  const weekdayOrders = useMemo(() => {
+    const cutoff = Date.now() - WEEKDAY_WINDOW_DAYS * 86400000;
+    return orders.filter((o) => o.status !== 'cancelled' && o.createdAt && o.createdAt.toMillis() >= cutoff);
+  }, [orders]);
+
+  // Combien de fois chaque jour de la semaine (0=dimanche ... 6=samedi) est
+  // réellement apparu dans la fenêtre -- pour diviser juste, y compris quand
+  // le système vient d'être mis en route et que la fenêtre n'est pas pleine.
+  const weekdayOccurrences = useMemo(() => {
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    const now = Date.now();
+    for (let i = 0; i < WEEKDAY_WINDOW_DAYS; i++) {
+      counts[new Date(now - i * 86400000).getDay()]++;
+    }
+    return counts;
+  }, []);
+
+  const dishQtyByWeekday = useMemo(() => {
+    const map: Map<string, number>[] = [new Map(), new Map(), new Map(), new Map(), new Map(), new Map(), new Map()];
+    weekdayOrders.forEach((o) => {
+      const wd = o.createdAt!.toDate().getDay();
+      o.items.forEach((it) => {
+        const dish = resolveDishForItemName(it.name);
+        if (!dish) return;
+        map[wd].set(dish.id, (map[wd].get(dish.id) || 0) + it.quantity);
+      });
+    });
+    return map;
+  }, [weekdayOrders]);
+
+  const ingredientQtyByWeekday = useMemo(() => {
+    const map: Map<string, number>[] = [new Map(), new Map(), new Map(), new Map(), new Map(), new Map(), new Map()];
+    for (let wd = 0; wd < 7; wd++) {
+      dishQtyByWeekday[wd].forEach((qtySold, dishId) => {
+        const recipe = recipes.get(dishId);
+        recipe?.lines.forEach((l) => {
+          const ing = ingredientsById.get(l.ingredientId);
+          if (!ing) return;
+          const perUnit = ing.unit === 'stuk' ? l.quantity : l.quantity / 1000;
+          map[wd].set(l.ingredientId, (map[wd].get(l.ingredientId) || 0) + perUnit * qtySold);
+        });
+      });
+    }
+    return map;
+  }, [dishQtyByWeekday, recipes, ingredientsById]);
+
+  // Conso. moyenne prévue pour un jour de la semaine donné. Si on n'a pas
+  // encore vu ce jour-là au moins 2 fois dans la fenêtre (système tout juste
+  // démarré), on retombe sur la moyenne générale plutôt que de sortir un
+  // chiffre basé sur un seul jour, pas fiable.
+  const avgUsageForWeekday = (ingredientId: string, weekday: number): number => {
+    const occurrences = weekdayOccurrences[weekday];
+    if (occurrences < 2) return avgDailyUsage(ingredientId);
+    return (ingredientQtyByWeekday[weekday].get(ingredientId) || 0) / occurrences;
+  };
+
+  // Conso. théorique cumulée sur les "horizonDays" prochains jours, à partir
+  // d'aujourd'hui, jour de la semaine par jour de la semaine.
+  const projectedUsage = (ingredientId: string, horizonDays: number): number => {
+    const todayWd = new Date().getDay();
+    let total = 0;
+    for (let i = 0; i < horizonDays; i++) {
+      total += avgUsageForWeekday(ingredientId, (todayWd + i) % 7);
+    }
+    return total;
+  };
+
+  // Quantité à commander aujourd'hui pour tenir jusqu'à la prochaine
+  // livraison prévue (fréquence réglée par ingrédient, ou {DEFAULT_DELIVERY_DAYS}
+  // jours par défaut), en tenant aussi compte du niveau cible réglé à la main.
+  // null = pas de 0-meting pour cet ingrédient -> pas de conseil possible.
+  const suggestedBuyQty = (ingredientId: string, ing: Ingredient): number | null => {
+    const stock = computedStock(ingredientId);
+    if (stock === null) return null;
+    const days = ing.deliveryDays && ing.deliveryDays > 0 ? ing.deliveryDays : DEFAULT_DELIVERY_DAYS;
+    const parLevel = inventory.get(ingredientId)?.parLevel || 0;
+    const target = Math.max(projectedUsage(ingredientId, days), parLevel);
+    return Math.max(0, target - stock);
+  };
+
+  // ---------------------------------------------------------------------
   // Stock calculé = dernier comptage ("0-meting") + inkoop enregistré
   // depuis − vraies ventes (théorique, via les recettes) depuis. Jamais un
   // champ qu'on tape à la main entre deux comptages -- voir InventoryBaseline
@@ -839,6 +935,7 @@ export default function FoodcostApp() {
                     <Th>Nom</Th>
                     <Th>Unité d'achat</Th>
                     <Th>Prix d'achat (MAD)</Th>
+                    <Th className="text-right">Livraison (jours)</Th>
                     <Th className="text-right">Utilisé dans</Th>
                     <Th></Th>
                   </tr>
@@ -877,6 +974,18 @@ export default function FoodcostApp() {
                           />
                           <span className="text-[#7A736C] text-xs ml-1">/ {UNIT_LABEL[ing.unit]}</span>
                         </td>
+                        <td className="px-3 py-1.5 text-right">
+                          <input
+                            type="number"
+                            step="1"
+                            min={1}
+                            placeholder={String(DEFAULT_DELIVERY_DAYS)}
+                            value={ing.deliveryDays ?? ''}
+                            onChange={(e) => updateIngredient(ing.id, { deliveryDays: parseInt(e.target.value, 10) || undefined })}
+                            title="Nombre de jours entre deux livraisons -- utilisé pour les conseils d'achat du jour"
+                            className="w-16 text-right bg-transparent border-b border-transparent hover:border-[#F3ECDD]/20 focus:border-brand-orange outline-none py-1"
+                          />
+                        </td>
                         <td className="px-3 py-1.5 text-right text-[#9A9490] text-xs">{usedIn} plat(s)</td>
                         <td className="px-3 py-1.5 text-right">
                           <button onClick={() => removeIngredient(ing.id)} className="text-[#7A736C] hover:text-red-400 transition-colors">
@@ -888,7 +997,7 @@ export default function FoodcostApp() {
                   })}
                   {ingredients.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="text-center text-[#7A736C] py-8">
+                      <td colSpan={6} className="text-center text-[#7A736C] py-8">
                         Aucun ingrédient -- commencez par en ajouter un.
                       </td>
                     </tr>
@@ -1044,8 +1153,76 @@ export default function FoodcostApp() {
           </div>
         )}
 
-        {tab === 'inventory' && (
+        {tab === 'inventory' && (() => {
+          const weekdayLabels = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+          const todayLabel = weekdayLabels[new Date().getDay()];
+          const purchaseAdviceRows = ingredients
+            .map((ing) => {
+              const stock = computedStock(ing.id);
+              if (stock === null) return null;
+              const buyQty = suggestedBuyQty(ing.id, ing);
+              if (!buyQty || buyQty <= 0) return null;
+              const usageToday = avgUsageForWeekday(ing.id, new Date().getDay());
+              const daysLeft = usageToday > 0 ? stock / usageToday : Infinity;
+              return { ing, stock, buyQty, daysLeft };
+            })
+            .filter((x): x is { ing: Ingredient; stock: number; buyQty: number; daysLeft: number } => x !== null)
+            .sort((a, b) => a.daysLeft - b.daysLeft);
+          const anyBaseline = baselines.size > 0;
+
+          return (
           <div className="space-y-4">
+            <div className="pos-surface border border-brand-orange/40 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <ShoppingCart className="w-4 h-4 text-brand-orange shrink-0" />
+                <h2 className="font-display font-black text-lg">Conseils d'achat du jour ({todayLabel})</h2>
+              </div>
+              <p className="text-[#9A9490] text-xs mb-3">
+                Basé sur la conso. moyenne réelle des {weekdayLabels[new Date().getDay()]}s des 8 dernières semaines, et
+                sur la fréquence de livraison réglée par ingrédient (colonne « Livraison » dans l'onglet Ingrédients,
+                {' '}
+                {DEFAULT_DELIVERY_DAYS} jours par défaut). Quantité = ce qu'il faut pour tenir jusqu'à la prochaine
+                livraison, en respectant aussi le niveau cible.
+              </p>
+              {!anyBaseline ? (
+                <p className="text-[#7A736C] text-sm py-4 text-center">
+                  Faites d'abord un « Comptage initial » sur au moins un ingrédient ci-dessous pour activer les conseils
+                  d'achat.
+                </p>
+              ) : purchaseAdviceRows.length === 0 ? (
+                <p className="text-[#7A736C] text-sm py-4 text-center">Rien à commander aujourd'hui, les stocks tiennent.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#F3ECDD]/10">
+                        <Th>Ingrédient</Th>
+                        <Th className="text-right">Stock calculé</Th>
+                        <Th className="text-right">Jours restants</Th>
+                        <Th className="text-right">À commander aujourd'hui</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {purchaseAdviceRows.map(({ ing, stock, buyQty, daysLeft }) => (
+                        <tr key={ing.id} className={`border-b border-[#F3ECDD]/5 ${daysLeft < 1 ? 'bg-red-500/10' : ''}`}>
+                          <td className="px-3 py-1.5">
+                            {ing.name}
+                            {daysLeft < 1 && <AlertTriangle className="inline w-3.5 h-3.5 text-red-400 ml-1.5" />}
+                          </td>
+                          <td className="px-3 py-1.5 text-right">
+                            {stock.toFixed(2)} <span className="text-[#7A736C] text-xs">{UNIT_LABEL[ing.unit]}</span>
+                          </td>
+                          <td className="px-3 py-1.5 text-right">{isFinite(daysLeft) ? daysLeft.toFixed(1) : '--'}</td>
+                          <td className="px-3 py-1.5 text-right font-bold text-brand-orange">
+                            {buyQty.toFixed(2)} <span className="text-[#7A736C] text-xs font-normal">{UNIT_LABEL[ing.unit]}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
             <div className="flex items-start gap-2 text-xs text-[#9A9490] bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-brand-orange" />
               <span>
@@ -1152,7 +1329,8 @@ export default function FoodcostApp() {
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {tab === 'sales' && (
           <div className="space-y-4">
