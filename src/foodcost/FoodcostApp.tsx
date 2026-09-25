@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import {
   Lock,
   Calculator,
@@ -12,10 +12,15 @@ import {
   ClipboardList,
   BarChart3,
   Info,
+  Boxes,
+  AlertTriangle,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { db } from '../firebase';
 import { menuItems as staticMenuItems, type MenuItem } from '../data';
-import { formatMAD } from '../shared/posData';
+import { formatMAD, dateStr, type OrderDoc } from '../shared/posData';
+import { DEFAULT_INGREDIENTS, DEFAULT_RECIPES } from './foodcostSeed';
 
 // ---------------------------------------------------------------------------
 // Dom's Café — outil Foodcost (domscafe.pages.dev/foodcost.html)
@@ -201,7 +206,23 @@ const DISHES: { id: string; name: string; category: string; price: number }[] = 
   price: m.price,
 }));
 
-type Tab = 'ingredients' | 'recipes' | 'foodcost' | 'sales' | 'week';
+type Tab = 'ingredients' | 'recipes' | 'foodcost' | 'inventory' | 'sales' | 'week';
+
+interface InventoryEntry {
+  qty: number;
+  parLevel: number;
+}
+
+// Fenêtre glissante sur laquelle on calcule la consommation théorique
+// moyenne/jour (pour l'inventaire et la prédiction d'achats), à partir des
+// VRAIES commandes Firestore (collection "orders") -- pas des ventes tapées
+// à la main dans l'onglet Vente / Achat, qui restent réservées à la
+// comparaison "réel dépensé vs théorique" par semaine.
+const PREDICTION_WINDOW_DAYS = 30;
+
+function matchesDish(itemName: string, dishName: string): boolean {
+  return itemName === dishName || itemName.startsWith(dishName + ' (');
+}
 
 function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Package; label: string }) {
   return (
@@ -233,6 +254,8 @@ export default function FoodcostApp() {
   const [salesQty, setSalesQty] = useState<Record<string, number>>({});
   const [purchaseSpent, setPurchaseSpent] = useState<Record<string, number>>({});
   const [sortDesc, setSortDesc] = useState(true);
+  const [orders, setOrders] = useState<OrderDoc[]>([]);
+  const [inventory, setInventory] = useState<Map<string, InventoryEntry>>(new Map());
 
   useEffect(() => {
     if (!unlocked) return;
@@ -268,6 +291,31 @@ export default function FoodcostApp() {
     return () => unsub();
   }, [unlocked, selectedWeek]);
 
+  // Vraies commandes (même collection que la caisse / l'écran propriétaire)
+  // -- sert à calculer automatiquement les ventes réelles (bouton "Remplir
+  // avec les vraies ventes") et la consommation moyenne/jour pour
+  // l'inventaire et la prédiction d'achats.
+  useEffect(() => {
+    if (!unlocked) return;
+    const unsub = onSnapshot(collection(db, 'orders'), (snap) => {
+      setOrders(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<OrderDoc, 'id'>) })));
+    });
+    return () => unsub();
+  }, [unlocked]);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    const unsub = onSnapshot(collection(db, 'fcInventory'), (snap) => {
+      const map = new Map<string, InventoryEntry>();
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        map.set(d.id, { qty: Number(data.qty) || 0, parLevel: Number(data.parLevel) || 0 });
+      });
+      setInventory(map);
+    });
+    return () => unsub();
+  }, [unlocked]);
+
   const ingredientsById = useMemo(() => new Map(ingredients.map((i) => [i.id, i])), [ingredients]);
   const dishesById = useMemo(() => new Map(DISHES.map((d) => [d.id, d])), []);
 
@@ -284,6 +332,63 @@ export default function FoodcostApp() {
     return [...dishRows].sort((a, b) => (sortDesc ? b.pct - a.pct : a.pct - b.pct));
   }, [dishRows, sortDesc]);
 
+  // ---------------------------------------------------------------------
+  // Consommation réelle des N derniers jours, à partir des vraies commandes
+  // -- sert à l'inventaire (conso. moyenne/jour, jours restants, suggestion
+  // d'achat) et sera la base de la prédiction d'achats quotidienne.
+  // ---------------------------------------------------------------------
+  const recentOrders = useMemo(() => {
+    const cutoff = Date.now() - PREDICTION_WINDOW_DAYS * 86400000;
+    return orders.filter((o) => o.status !== 'cancelled' && o.createdAt && o.createdAt.toMillis() >= cutoff);
+  }, [orders]);
+
+  // Nombre de jours réellement couverts par les données (peut être < 30 si
+  // le système vient d'être mis en route) -- évite de diviser par 30 alors
+  // qu'on n'a que 3 jours d'historique et donc de sous-estimer la conso.
+  const predictionDaysSpan = useMemo(() => {
+    if (recentOrders.length === 0) return 1;
+    const earliest = recentOrders.reduce((min, o) => Math.min(min, o.createdAt!.toMillis()), Date.now());
+    return Math.max(1, Math.min(PREDICTION_WINDOW_DAYS, Math.ceil((Date.now() - earliest) / 86400000)));
+  }, [recentOrders]);
+
+  const itemQtyByNameRecent = useMemo(() => {
+    const map = new Map<string, number>();
+    recentOrders.forEach((o) => o.items.forEach((it) => map.set(it.name, (map.get(it.name) || 0) + it.quantity)));
+    return map;
+  }, [recentOrders]);
+
+  const dishQtyRecent = useMemo(() => {
+    const map = new Map<string, number>();
+    DISHES.forEach((d) => {
+      let qty = 0;
+      itemQtyByNameRecent.forEach((q, name) => {
+        if (matchesDish(name, d.name)) qty += q;
+      });
+      map.set(d.id, qty);
+    });
+    return map;
+  }, [itemQtyByNameRecent]);
+
+  // Quantité théorique consommée par ingrédient sur la fenêtre, dans son
+  // unité d'achat (kg / litre / pièce) -- pas en MAD.
+  const ingredientQtyUsedRecent = useMemo(() => {
+    const map = new Map<string, number>();
+    DISHES.forEach((d) => {
+      const qtySold = dishQtyRecent.get(d.id) || 0;
+      if (qtySold <= 0) return;
+      const recipe = recipes.get(d.id);
+      recipe?.lines.forEach((l) => {
+        const ing = ingredientsById.get(l.ingredientId);
+        if (!ing) return;
+        const perUnit = ing.unit === 'stuk' ? l.quantity : l.quantity / 1000;
+        map.set(l.ingredientId, (map.get(l.ingredientId) || 0) + perUnit * qtySold);
+      });
+    });
+    return map;
+  }, [dishQtyRecent, recipes, ingredientsById]);
+
+  const avgDailyUsage = (ingredientId: string): number => (ingredientQtyUsedRecent.get(ingredientId) || 0) / predictionDaysSpan;
+
   if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />;
 
   // -------------------------------------------------------------------
@@ -295,6 +400,27 @@ export default function FoodcostApp() {
   const updateIngredient = async (id: string, patch: Partial<Omit<Ingredient, 'id'>>) => {
     await setDoc(doc(db, 'fcIngredients', id), patch, { merge: true });
   };
+  // Charge en une fois les ingrédients + recettes standards (voir
+  // foodcostSeed.ts) -- prix moyens du marché marocain, à corriger ensuite
+  // ligne par ligne. Proposé uniquement quand la liste d'ingrédients est
+  // encore vide pour ne jamais écraser des prix déjà ajustés.
+  const seedStandardDefaults = async () => {
+    if (
+      !window.confirm(
+        "Charger les ingrédients et recettes standards de Dom's Café ? Ce sont des prix et quantités moyens de départ -- vous pourrez ensuite tout corriger ligne par ligne."
+      )
+    )
+      return;
+    const batch = writeBatch(db);
+    DEFAULT_INGREDIENTS.forEach((ing) => {
+      batch.set(doc(db, 'fcIngredients', ing.id), { name: ing.name, unit: ing.unit, unitPrice: ing.unitPrice });
+    });
+    Object.entries(DEFAULT_RECIPES).forEach(([dishId, lines]) => {
+      batch.set(doc(db, 'fcRecipes', dishId), { lines });
+    });
+    await batch.commit();
+  };
+
   const removeIngredient = async (id: string) => {
     if (!window.confirm('Supprimer cet ingrédient ? Il sera aussi retiré des recettes qui l’utilisent.')) return;
     await deleteDoc(doc(db, 'fcIngredients', id));
@@ -326,6 +452,13 @@ export default function FoodcostApp() {
     const lines = (currentRecipe?.lines || []).filter((_, i) => i !== index);
     saveRecipeLines(lines);
   };
+  const defaultRecipeAvailable = !!DEFAULT_RECIPES[selectedDishId];
+  const applyDefaultRecipe = async () => {
+    const defaults = DEFAULT_RECIPES[selectedDishId];
+    if (!defaults) return;
+    if ((currentRecipe?.lines.length || 0) > 0 && !window.confirm('Remplacer la recette actuelle de ce plat par la recette standard ?')) return;
+    await saveRecipeLines(defaults.map((l) => ({ ...l })));
+  };
 
   // -------------------------------------------------------------------
   // Verkoop / Inkoop (semaine sélectionnée)
@@ -335,6 +468,41 @@ export default function FoodcostApp() {
   };
   const setSpentForIngredient = async (ingredientId: string, amount: number) => {
     await setDoc(doc(db, 'fcPurchases', selectedWeek), { spent: { [ingredientId]: amount } }, { merge: true });
+  };
+
+  // Recalcule les quantités vendues de la semaine sélectionnée à partir des
+  // VRAIES commandes (au lieu de les taper à la main) -- reste ensuite
+  // librement corrigeable comme n'importe quelle cellule de l'outil.
+  const fillSalesFromRealOrders = async () => {
+    const start = mondayOfWeek(selectedWeek);
+    const weekDates = new Set<string>();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start.getTime() + i * 86400000);
+      weekDates.add(
+        new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+      );
+    }
+    const qty: Record<string, number> = {};
+    orders.forEach((o) => {
+      if (o.status === 'cancelled' || !o.createdAt) return;
+      if (!weekDates.has(dateStr(o.createdAt.toDate()))) return;
+      o.items.forEach((it) => {
+        const dish = DISHES.find((d) => matchesDish(it.name, d.name));
+        if (!dish) return;
+        qty[dish.id] = (qty[dish.id] || 0) + it.quantity;
+      });
+    });
+    await setDoc(doc(db, 'fcSales', selectedWeek), { qty });
+  };
+
+  // ---------------------------------------------------------------------
+  // Inventaire
+  // ---------------------------------------------------------------------
+  const setInventoryQty = async (ingredientId: string, qty: number) => {
+    await setDoc(doc(db, 'fcInventory', ingredientId), { qty }, { merge: true });
+  };
+  const setInventoryParLevel = async (ingredientId: string, parLevel: number) => {
+    await setDoc(doc(db, 'fcInventory', ingredientId), { parLevel }, { merge: true });
   };
 
   const soldDishRows = dishRows.filter((d) => (salesQty[d.id] || 0) > 0 || d.hasRecipe);
@@ -370,6 +538,7 @@ export default function FoodcostApp() {
           <TabButton active={tab === 'ingredients'} onClick={() => setTab('ingredients')} icon={Package} label="Ingrédients" />
           <TabButton active={tab === 'recipes'} onClick={() => setTab('recipes')} icon={ClipboardList} label="Recettes" />
           <TabButton active={tab === 'foodcost'} onClick={() => setTab('foodcost')} icon={BarChart3} label="Foodcost" />
+          <TabButton active={tab === 'inventory'} onClick={() => setTab('inventory')} icon={Boxes} label="Inventaire" />
           <TabButton active={tab === 'sales'} onClick={() => setTab('sales')} icon={TrendingUp} label="Vente / Achat" />
           <TabButton active={tab === 'week'} onClick={() => setTab('week')} icon={Lock} label="Semaine" />
         </div>
@@ -386,15 +555,31 @@ export default function FoodcostApp() {
 
         {tab === 'ingredients' && (
           <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h2 className="font-display font-black text-lg">Ingrédients</h2>
-              <button
-                onClick={addIngredient}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold bg-brand-orange text-[#1A1208] hover:bg-brand-orange-hover transition-all"
-              >
-                <Plus className="w-4 h-4" /> Ajouter un ingrédient
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {ingredients.length === 0 && (
+                  <button
+                    onClick={seedStandardDefaults}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold border border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-[#1A1208] transition-all"
+                  >
+                    <Sparkles className="w-4 h-4" /> Charger les valeurs standards
+                  </button>
+                )}
+                <button
+                  onClick={addIngredient}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold bg-brand-orange text-[#1A1208] hover:bg-brand-orange-hover transition-all"
+                >
+                  <Plus className="w-4 h-4" /> Ajouter un ingrédient
+                </button>
+              </div>
             </div>
+            {ingredients.length === 0 && (
+              <p className="text-[#9A9490] text-xs mb-3">
+                Rien encore -- cliquez sur « Charger les valeurs standards » pour démarrer avec les ~100 ingrédients et
+                recettes de tout le menu (prix moyens du marché), ou ajoutez vos propres ingrédients un par un.
+              </p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -466,17 +651,28 @@ export default function FoodcostApp() {
           <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h2 className="font-display font-black text-lg">Recettes</h2>
-              <select
-                value={selectedDishId}
-                onChange={(e) => setSelectedDishId(e.target.value)}
-                className="bg-[#2b241c] border border-[#F3ECDD]/15 rounded-lg px-3 py-2 text-sm max-w-full"
-              >
-                {DISHES.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} ({formatMAD(d.price)})
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={selectedDishId}
+                  onChange={(e) => setSelectedDishId(e.target.value)}
+                  className="bg-[#2b241c] border border-[#F3ECDD]/15 rounded-lg px-3 py-2 text-sm max-w-full"
+                >
+                  {DISHES.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({formatMAD(d.price)})
+                    </option>
+                  ))}
+                </select>
+                {defaultRecipeAvailable && (
+                  <button
+                    onClick={applyDefaultRecipe}
+                    title="Remplir avec la recette standard de ce plat"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-[#F3ECDD]/20 text-[#9A9490] hover:text-[#F3ECDD] hover:border-[#F3ECDD]/40 transition-all"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" /> Recette standard
+                  </button>
+                )}
+              </div>
             </div>
             {ingredients.length === 0 ? (
               <p className="text-[#7A736C] text-sm py-6 text-center">Ajoutez d'abord des ingrédients dans l'onglet « Ingrédients ».</p>
@@ -596,6 +792,91 @@ export default function FoodcostApp() {
           </div>
         )}
 
+        {tab === 'inventory' && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 text-xs text-[#9A9490] bg-[#F3ECDD]/5 border border-[#F3ECDD]/10 rounded-lg px-3 py-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-brand-orange" />
+              <span>
+                « Stock actuel » se met à jour uniquement quand vous le comptez et le tapez ici (aucun scan automatique).
+                « Conso. moy/jour » et « Jours restants » sont calculés à partir des {PREDICTION_WINDOW_DAYS} derniers
+                jours de vraies commandes de la caisse × les recettes ci-dessus -- plus vous avez de recettes remplies,
+                plus c'est fiable. « Niveau cible » est le stock que vous voulez avoir en réserve ; « À commander »
+                = niveau cible − stock actuel.
+              </span>
+            </div>
+            <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
+              <h2 className="font-display font-black text-lg mb-3">Inventaire &amp; suggestion d'achat</h2>
+              {ingredients.length === 0 ? (
+                <p className="text-[#7A736C] text-sm py-6 text-center">Ajoutez d'abord des ingrédients.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#F3ECDD]/10">
+                        <Th>Ingrédient</Th>
+                        <Th className="text-right">Stock actuel</Th>
+                        <Th className="text-right">Niveau cible</Th>
+                        <Th className="text-right">Conso. moy/jour</Th>
+                        <Th className="text-right">Jours restants</Th>
+                        <Th className="text-right">À commander</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ingredients.map((ing) => {
+                        const inv = inventory.get(ing.id) || { qty: 0, parLevel: 0 };
+                        const usage = avgDailyUsage(ing.id);
+                        const daysLeft = usage > 0 ? inv.qty / usage : Infinity;
+                        const toOrder = Math.max(0, inv.parLevel - inv.qty);
+                        const low = inv.parLevel > 0 && inv.qty < inv.parLevel;
+                        const critical = usage > 0 && daysLeft < 2;
+                        return (
+                          <tr key={ing.id} className={`border-b border-[#F3ECDD]/5 ${critical ? 'bg-red-500/10' : low ? 'bg-[#D9A45C]/10' : ''}`}>
+                            <td className="px-3 py-1.5">
+                              {ing.name}
+                              {critical && <AlertTriangle className="inline w-3.5 h-3.5 text-red-400 ml-1.5" />}
+                            </td>
+                            <td className="px-3 py-1.5 text-right">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                value={inv.qty}
+                                onChange={(e) => setInventoryQty(ing.id, parseFloat(e.target.value) || 0)}
+                                className="w-20 text-right bg-transparent border-b border-transparent hover:border-[#F3ECDD]/20 focus:border-brand-orange outline-none py-1"
+                              />
+                              <span className="text-[#7A736C] text-xs ml-1">{UNIT_LABEL[ing.unit]}</span>
+                            </td>
+                            <td className="px-3 py-1.5 text-right">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                value={inv.parLevel}
+                                onChange={(e) => setInventoryParLevel(ing.id, parseFloat(e.target.value) || 0)}
+                                className="w-20 text-right bg-transparent border-b border-transparent hover:border-[#F3ECDD]/20 focus:border-brand-orange outline-none py-1"
+                              />
+                              <span className="text-[#7A736C] text-xs ml-1">{UNIT_LABEL[ing.unit]}</span>
+                            </td>
+                            <td className="px-3 py-1.5 text-right text-[#9A9490]">
+                              {usage > 0 ? `${usage.toFixed(2)} ${UNIT_LABEL[ing.unit]}` : '--'}
+                            </td>
+                            <td className={`px-3 py-1.5 text-right font-bold ${critical ? 'text-red-400' : low ? 'text-[#D9A45C]' : 'text-[#9A9490]'}`}>
+                              {usage > 0 ? (isFinite(daysLeft) ? daysLeft.toFixed(1) : '--') : '--'}
+                            </td>
+                            <td className={`px-3 py-1.5 text-right font-bold ${toOrder > 0 ? 'text-brand-orange' : 'text-[#7A736C]'}`}>
+                              {toOrder > 0 ? `${toOrder.toFixed(2)} ${UNIT_LABEL[ing.unit]}` : '--'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {tab === 'sales' && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
@@ -627,7 +908,15 @@ export default function FoodcostApp() {
             </div>
 
             <div className="pos-surface border border-[#F3ECDD]/10 rounded-2xl p-4">
-              <h2 className="font-display font-black text-lg mb-3">Ventes de la semaine (quantités vendues)</h2>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h2 className="font-display font-black text-lg">Ventes de la semaine (quantités vendues)</h2>
+                <button
+                  onClick={fillSalesFromRealOrders}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-[#1A1208] transition-all"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Remplir avec les vraies ventes
+                </button>
+              </div>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-[#F3ECDD]/10">
